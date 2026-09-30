@@ -182,3 +182,9 @@ then pays three senior and five junior coins at the later Due boundary. Forged
 collateral history is rejected, and CPU/reference/checkpoint statements agree.
 
 The five-target gate passed 103 tests and strict all-target Clippy passed.
+
+The same scenario now includes a household borrower and junior member lender.
+The member receives five actual coins after senior relief and retains a five-coin
+claim. Repayment does not pool as income, and the internal payable still blocks
+household dissolution after estate closure. The four-target gate passed 75 tests,
+with CPU/reference, checkpoint continuation and strict all-target Clippy.

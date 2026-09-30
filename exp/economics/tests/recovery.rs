@@ -2068,6 +2068,15 @@ fn household_guarantor_keeps_member_money_separate_and_recovers_before_wind_down
 
 #[test]
 fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_to_junior_claims() {
+    partial_secured_relief(false);
+}
+
+#[test]
+fn household_secured_relief_keeps_junior_member_claim_material_after_liquidation() {
+    partial_secured_relief(true);
+}
+
+fn partial_secured_relief(household: bool) {
     use economics_compute_smoke::{
         accounting::Account,
         claim_relief::{Action, Terms},
@@ -2075,8 +2084,49 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
         financial_reporting::Audit,
     };
     for (month, quantity) in [(3, 7), (4, 7), (3, 10)] {
-        let (mut w, s) = fixture();
+        let (mut w, mut s) = fixture();
+        const HOME: AgentId = 800;
+        let debtor = if household { HOME } else { PERSON };
+        let junior = if household { PERSON } else { OTHER };
         proceeding(&mut w, false);
+        if household {
+            use economics_compute_smoke::{
+                household_governance::Governance,
+                households::{self, Agreement},
+            };
+            let mut person = scenario::baseline().0.participants.remove(0);
+            person.needs.clear();
+            person.capacity.quantity = 0;
+            w.participants.push(person);
+            let mut governance = Governance::contributed(PERSON);
+            governance.constitution.allow_dissolution = true;
+            households::form(
+                &mut w,
+                &s,
+                Agreement {
+                    id: 1,
+                    agent: HOME,
+                    adults: vec![PERSON],
+                    governance,
+                    formed: 1,
+                    dwelling_process: None,
+                    admission: None,
+                    membership: vec![],
+                    asset_sales: vec![],
+                    equipment_retirements: vec![],
+                    support: vec![],
+                },
+            )
+            .unwrap();
+            w.assets.iter_mut().find(|a| a.id == PLOT).unwrap().owner = HOME;
+            w.recovery.proceedings[0].debtor = HOME;
+            for loan in &mut w.lending {
+                loan.debtor = HOME;
+            }
+            w.lending[1].terms.creditor = PERSON;
+            s.balances.insert((PERSON, TOKEN), 10);
+            s.balances.insert((OTHER, TOKEN), 0);
+        }
         for (rank, loan) in w.lending.iter_mut().enumerate() {
             loan.collateral = Some(credit::Collateral {
                 asset: PLOT,
@@ -2090,7 +2140,7 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
             proceeding: 1,
             contract: ContractId::Loan(10),
             original_due: 2,
-            debtor: PERSON,
+            debtor,
             creditor: STATE_AGENT,
             month,
             expected_due: 2,
@@ -2100,6 +2150,16 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
         let accepted = month == 3 && quantity == 7;
         let run = |backend| {
             let mut sim = distressed(w.clone(), s.clone(), backend);
+            if household {
+                sim.state.balances.insert((HOME, TOKEN), 0);
+                economics_compute_smoke::households::dissolution::request(
+                    &mut sim.world,
+                    &sim.state,
+                    HOME,
+                    PERSON,
+                )
+                .unwrap();
+            }
             let mut a = Audit::with_opening(
                 &sim.world,
                 &sim.state,
@@ -2121,7 +2181,7 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
             let loan = &sim.state.credit.loans[&10];
             assert_eq!(loan.principal, if accepted { 3 } else { 10 });
             assert!(loan.collateral.as_ref().unwrap().pledged);
-            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(PERSON));
+            assert_eq!(credit::owner(&sim.world, &sim.state, PLOT), Some(debtor));
             assert_eq!(sim.state.balance(STATE_AGENT, TOKEN), 0);
             let (saved, mut ra) = (sim.clone(), a.clone());
             a.step(&mut sim).unwrap();
@@ -2146,7 +2206,7 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
                 if accepted { 3 } else { 8 }
             );
             assert_eq!(
-                sim.state.balance(OTHER, TOKEN),
+                sim.state.balance(junior, TOKEN),
                 if accepted { 5 } else { 0 }
             );
             assert_eq!(
@@ -2170,7 +2230,7 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
             assert_eq!(
                 a.book()
                     .balances()
-                    .get(&(PERSON, Account::DebtRelief))
+                    .get(&(debtor, Account::DebtRelief))
                     .copied()
                     .unwrap_or(0),
                 if accepted { -7 } else { 0 }
@@ -2182,6 +2242,20 @@ fn partial_secured_relief_before_sale_preserves_the_lien_and_releases_proceeds_t
                 bad.credit.recovery.loan_writeoffs.get_mut(&10).unwrap()[0].retained_collateral =
                     None;
                 assert!(Simulation::new(w.clone(), bad, backend).is_err());
+            }
+            if household {
+                use economics_compute_smoke::households::dissolution as d;
+                assert_eq!(
+                    a.book().balances()[&(PERSON, Account::LoanReceivable(11))],
+                    if accepted { 5 } else { 10 }
+                );
+                assert_eq!(
+                    a.book().balances()[&(HOME, Account::LoanPayable(11))],
+                    if accepted { -5 } else { -10 }
+                );
+                assert_eq!(sim.state.balance(HOME, TOKEN), 0);
+                assert!(d::blockers(&sim.world, &sim.state, HOME).contains(&d::Blocker::Loan));
+                assert!(d::finish(&mut sim.world, &sim.state, HOME, PERSON).is_err());
             }
             let mut resumed = Simulation::new(saved.world, saved.state, backend).unwrap();
             while resumed.state.month <= 5 {

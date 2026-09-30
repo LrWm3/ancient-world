@@ -1002,3 +1002,12 @@ separate gates and are not covered by this snapshot.
     post-sale relief remain guarded. Collateral history, CPU/reference and
     checkpoint controls pass. The five-target gate passed 103 tests and strict
     all-target Clippy passed.
+
+66. **Household secured relief preserves the member's junior claim.** The shared
+    collateral control now runs with an agreement-formed household as borrower
+    and a member as junior lender. Partial senior relief releases actual sale
+    proceeds to that member without pooling repayment. The remaining member
+    receivable stays on both books and blocks dissolution after estate closure.
+    Unsupported full/post-sale relief controls, CPU/reference and checkpoint
+    continuation agree. The four-target gate passed 75 tests and strict all-target
+    Clippy passed.
