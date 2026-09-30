@@ -555,3 +555,91 @@ fn same_boundary_guarantee_payment_invalidates_stale_relief_consent() {
             ))
     );
 }
+
+#[test]
+fn later_guarantee_advances_cannot_collect_from_the_estate_in_the_same_boundary() {
+    let (mut w, mut s) = fixture();
+    s.balances.insert((SUPPLIER, COIN), 2);
+    w.agents.push(Agent {
+        id: OTHER_GUARANTOR,
+        name: "funded service buyer".into(),
+    });
+    s.balances.insert((OTHER_GUARANTOR, COIN), 4);
+    authorize(&mut w, 3);
+    // The debtor earns estate funding in month 2. The worker later buys a real
+    // service from the guarantor, funding the second guarantee advance in month 4.
+    for (id, employer, worker, month, wage) in [
+        (2, OTHER_GUARANTOR, ISSUER, 2, 4),
+        (3, WORKER, SUPPLIER, 3, 2),
+    ] {
+        w.capacity_overrides.insert((month, worker), 1);
+        w.employment.push(Terms {
+            id,
+            employer,
+            worker,
+            from: month,
+            through: month,
+            capacity: Amount::new(HOURS, 1),
+            wage_per_unit: Amount::new(COIN, wage),
+            on_arrears: ArrearsPolicy::Continue,
+            rank: 0,
+        });
+    }
+    let mut a = Audit::with_opening(&w, &s, COIN, Opening::default()).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    through(&mut a, &mut sim, 3);
+    assert_eq!(sim.state.credit.loans[&101].principal, 2);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 4);
+    assert_eq!(sim.state.balance(SUPPLIER, COIN), 2);
+    let mut resumed =
+        Simulation::new(sim.world.clone(), sim.state.clone(), Backend::Reference).unwrap();
+    loop {
+        a.step(&mut sim).unwrap();
+        if sim
+            .ledger
+            .last()
+            .is_some_and(|b| b.month == 4 && b.phase == Phase::Due)
+        {
+            break;
+        }
+    }
+    let views =
+        economics_compute_smoke::agreements::for_agent(&sim.world, &sim.state, SUPPLIER).unwrap();
+    let view = views
+        .iter()
+        .find(|v| v.identity() == economics_compute_smoke::agreements::Identity::Loan(101))
+        .unwrap();
+    assert!(view.claims().unwrap().is_empty());
+    let mut forged = sim.state.clone();
+    forged.credit.recovery.guarantee_advances.remove(&(1, 4));
+    assert!(Simulation::new(sim.world.clone(), forged, Backend::Reference).is_err());
+    let mut forged = sim.state.clone();
+    forged
+        .employment
+        .earned
+        .get_mut(&(1, 1))
+        .unwrap()
+        .claim
+        .settled = 0;
+    assert!(Simulation::new(sim.world.clone(), forged, Backend::Reference).is_err());
+    through(&mut a, &mut sim, 4);
+    assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
+    assert_eq!(sim.state.credit.loans[&101].original_principal, 4);
+    assert_eq!(sim.state.credit.loans[&101].principal, 2);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 2);
+    assert_eq!(sim.state.balance(SUPPLIER, COIN), 2);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        economics_compute_smoke::recovery::Stage::Active
+    );
+    through(&mut a, &mut sim, 5);
+    resumed.run_months(2).unwrap();
+    assert_eq!(sim.state, resumed.state);
+    assert_eq!(sim.state.credit.loans[&101].principal, 0);
+    assert_eq!(sim.state.balance(ESTATE, COIN), 0);
+    assert_eq!(sim.state.balance(SUPPLIER, COIN), 4);
+    assert_eq!(
+        sim.state.credit.recovery.proceedings[&1].stage,
+        economics_compute_smoke::recovery::Stage::Closed
+    );
+}

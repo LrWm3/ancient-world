@@ -219,7 +219,9 @@ pub(super) fn batch(
             records.push(json!({"kind":"loan_state","loan":loan.id,
                 "debtor":loan.debtor,"creditor":loan.creditor,"denomination":loan.denomination,
                 "principal":loan.principal,"interest":loan.interest,
-                "principal_due":loan.principal_due(batch.month),"first_unpaid":loan.first_unpaid,
+                "principal_due":loan.principal_due(batch.month).saturating_sub(crate::recovery::current_recourse(world, &credit.after, loan.id, batch.month)),
+                "recourse_deferred":crate::recovery::current_recourse(world, &credit.after, loan.id, batch.month),
+                "first_unpaid":loan.first_unpaid,
                 "last_accrued":loan.last_accrued,"status":format!("{:?}",loan.status),
                 "asset":loan.collateral.as_ref().map(|c| c.asset),"pledged":loan.collateral.as_ref().is_some_and(|c| c.pledged),
                 "owner":loan.collateral.as_ref().and_then(|c| credit.after.owners.get(&c.asset))}));

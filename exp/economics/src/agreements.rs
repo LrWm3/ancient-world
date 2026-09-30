@@ -303,6 +303,7 @@ pub enum LoanState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoanView<'a> {
     record: &'a crate::credit::Loan,
+    deferred_recourse: i32,
     month: u32,
     phase: Phase,
     title_holder: Option<AgentId>,
@@ -355,7 +356,12 @@ impl<'a> LoanView<'a> {
         ) {
             return Ok(None);
         }
-        let claim = self.record.claim(self.month)?;
+        let mut claim = self.record.claim(self.month)?;
+        claim.transfer.amount.quantity = claim
+            .transfer
+            .amount
+            .quantity
+            .saturating_sub(self.deferred_recourse);
         Ok((claim.outstanding() > 0).then_some(claim))
     }
 
@@ -428,6 +434,12 @@ pub fn for_agent<'a>(
         }
         views.push(View::Loan(LoanView {
             record,
+            deferred_recourse: crate::recovery::current_recourse(
+                world,
+                &state.credit,
+                record.id,
+                state.month,
+            ),
             month: state.month,
             phase: state.phase,
             title_holder: record

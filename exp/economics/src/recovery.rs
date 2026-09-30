@@ -140,6 +140,8 @@ pub struct Proceeding {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
     pub paid_guarantees: BTreeMap<u32, i32>,
+    /// Actual advances by guarantee and month; additions become collectible next month.
+    pub guarantee_advances: BTreeMap<(u32, u32), i32>,
     pub proceedings: BTreeMap<u32, Proceeding>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -478,9 +480,68 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                         .unwrap_or(0)
                 || loan.collateral.is_some()
                 || loan.monthly_rate_bps != 0
+                || loan.interest != 0
+                || loan.interest_remainder != 0
+                || loan.term_months != RECOURSE_TERM_MONTHS
+                || loan.grace_months != 0
+                || loan.priority != g.priority
+                || state
+                    .credit
+                    .recovery
+                    .guarantee_advances
+                    .keys()
+                    .filter_map(|(id, month)| (*id == g.id).then_some(*month))
+                    .min()
+                    != Some(loan.opened)
             {
                 return Err("invalid subrogated loan".into());
             }
+        }
+    }
+    let mut advanced = BTreeMap::<u32, i32>::new();
+    for (&(id, month), &quantity) in &state.credit.recovery.guarantee_advances {
+        let g = config
+            .guarantees
+            .iter()
+            .find(|g| g.id == id)
+            .ok_or("unknown guarantee advance")?;
+        if quantity <= 0 || month < g.from || month > g.through || month > state.month {
+            return Err("invalid dated guarantee advance".into());
+        }
+        let total = advanced.entry(id).or_default();
+        *total = total
+            .checked_add(quantity)
+            .ok_or("guarantee advances overflow")?;
+    }
+    if advanced != state.credit.recovery.paid_guarantees {
+        return Err("dated advances do not reconcile to guarantee payments".into());
+    }
+    let mut covered_payments = BTreeMap::<GuaranteedClaim, i32>::new();
+    for g in &config.guarantees {
+        let paid = advanced.get(&g.id).copied().unwrap_or(0);
+        if paid == 0 {
+            continue;
+        }
+        let q = covered_payments.entry(g.claim).or_default();
+        *q = q.checked_add(paid).ok_or("covered payment overflow")?;
+    }
+    for (claim, paid) in covered_payments {
+        let actual = match claim {
+            GuaranteedClaim::Wages {
+                agreement,
+                earned_month,
+            } => state
+                .employment
+                .earned
+                .get(&(agreement, earned_month))
+                .map(|e| e.claim.settled),
+            GuaranteedClaim::Land { agreement, due } => {
+                state.obligations.get(&(agreement, due)).map(|o| o.paid)
+            }
+            GuaranteedClaim::Loan(id) => state.credit.loans.get(&id).map(|_| paid),
+        };
+        if actual.is_none_or(|actual| paid > actual) {
+            return Err("guarantee advances exceed actual covered settlement".into());
         }
     }
     for (&id, &paid) in &state.credit.recovery.paid_guarantees {
@@ -514,6 +575,10 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 closed < p.earliest_close
                     || closed < case.opened
                     || closed > state.month
+                    || state.credit.loans.values().any(|l| {
+                        l.debtor == p.debtor
+                            && current_recourse(world, &state.credit, l.id, closed) > 0
+                    })
                     || crate::recovery_claims::outstanding(world, state, p.debtor)
                         .iter()
                         .any(|claim| match claim.contract {
@@ -873,6 +938,13 @@ pub(crate) fn guarantees(
                     }
                 }
                 *out.after.recovery.paid_guarantees.entry(g.id).or_default() += paid;
+                let advance = out
+                    .after
+                    .recovery
+                    .guarantee_advances
+                    .entry((g.id, state.month))
+                    .or_default();
+                *advance = advance.checked_add(paid).ok_or("dated advance overflow")?;
                 let stayed = active(world, &out.after, debtor).is_some();
                 let recourse = out.after.loans.entry(g.recourse).or_insert_with(|| Loan {
                     id: g.recourse,
@@ -1122,7 +1194,17 @@ pub(crate) fn distribute(
                 Ok(finance::CollectionRequest {
                     contract: finance::ContractId::Loan(l.id),
                     rank: rank(world, l),
-                    claim: estate_claim(p, l, l.debt()?, state.month),
+                    claim: estate_claim(
+                        p,
+                        l,
+                        l.debt()?.saturating_sub(current_recourse(
+                            world,
+                            &out.after,
+                            l.id,
+                            state.month,
+                        )),
+                        state.month,
+                    ),
                 })
             })
             .collect::<Result<_, String>>()?;
@@ -1197,7 +1279,10 @@ pub(crate) fn distribute(
         }
         if state.month >= p.earliest_close
             && !out.after.loans.values().any(|l| {
-                l.debtor == p.debtor && l.opened == state.month && l.debt().unwrap_or(0) > 0
+                l.debtor == p.debtor
+                    && l.debt().unwrap_or(0) > 0
+                    && (l.opened == state.month
+                        || current_recourse(world, &out.after, l.id, state.month) > 0)
             })
             && p.assets.iter().all(|a| case.sold.contains(&a.asset))
             && case.secured.values().all(|v| *v == 0)
@@ -1276,6 +1361,17 @@ pub(crate) fn distribute(
     }
     Ok(())
 }
+pub(crate) fn current_recourse(world: &World, book: &credit::Book, loan: u32, month: u32) -> i32 {
+    world
+        .recovery
+        .guarantees
+        .iter()
+        .find(|g| g.recourse == loan)
+        .and_then(|g| book.recovery.guarantee_advances.get(&(g.id, month)))
+        .copied()
+        .unwrap_or(0)
+}
+
 fn estate_claim(
     p: &ProceedingTerms,
     loan: &Loan,
