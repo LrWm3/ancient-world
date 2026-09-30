@@ -126,8 +126,8 @@ property sale later clears the balance and releases the stay; an unfunded bid
 leaves four due and ordinary sales paused. Crop control follows the property sale.
 Separate books, CPU/reference execution, reconstructed checkpoints and tampered
 receipts are checked, along with a separate insolvent-buyer control. Custodians
-remain ineligible traders. Forecast and joint work/sale policies retain explicit
-recovery guards pending their own integration checks.
+remain ineligible traders. The joint work/sale policy retains its recovery guard pending its own
+integration checks.
 
 Fixed-reserve member sales also compose with household pooling. Two one-coin sales
 pool one actual coin and leave one private coin for the member's mortgage. The
@@ -138,3 +138,11 @@ funded/unfunded matrix checks separate statements, physical output, custody,
 CPU/reference and reconstructed continuation. This enables a participant who is
 a household member; a household itself is not a stock-sale participant in this
 specialized driver. Household forecast/joint sale policies remain guarded.
+
+The bounded sale forecast now shares that recovery path. Active stays cap its
+candidate quantity at zero, while ordinary production/consumption continues in
+the projection. The test adds a real monthly nutrition need and verifies both
+funded closure and ongoing insolvency without food deficits. A zero-sale candidate
+can be feasible without repairing the debt or authorizing forbidden exchange.
+Forecasts remain conditional on configured future recovery bids and real bidder
+funds; this is not autonomous liquidation-price discovery.

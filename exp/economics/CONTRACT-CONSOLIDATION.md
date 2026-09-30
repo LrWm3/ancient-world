@@ -187,8 +187,8 @@ can establish that all these arrangements compose.
    remain unsold; appraisals do not create coins. Retain surplus, deficiencies,
    explicit discharge/write-offs and final receipts. Mortgages can now explicitly select the authorized-liquidation lifecycle,
    including crop-control transfer, custody and actual proceeds. Legacy fixed-value
-   and creditor-resale choices remain distinct. Fixed-reserve mortgage stock sales
-   now pause for either counterparty under recovery; forecast/joint sale planning
+   and creditor-resale choices remain distinct. Fixed-reserve and bounded-forecast mortgage stock sales
+   now pause for either counterparty under recovery; joint sale/work planning
    still needs integration.
 
 Every step above extends the same book, claim executor and committed ledger.

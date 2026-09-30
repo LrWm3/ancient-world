@@ -259,15 +259,20 @@ fn buying_estate_land_can_reserve_new_cultivation_in_the_same_request() {
 
 #[test]
 fn posted_crop_sales_pause_during_recovery_and_resume_after_actual_closure() {
-    posted_crop_sales(false);
+    posted_crop_sales(false, false);
 }
 
 #[test]
 fn member_mortgage_sales_pool_actual_income_without_lending_household_money_to_the_estate() {
-    posted_crop_sales(true);
+    posted_crop_sales(true, false);
 }
 
-fn posted_crop_sales(household: bool) {
+#[test]
+fn sale_forecasts_use_actual_recovery_stays_and_retain_food_constraints() {
+    posted_crop_sales(false, true);
+}
+
+fn posted_crop_sales(household: bool, forecast: bool) {
     use economics_compute_smoke::{currency, recovery, settlement, stock_sale};
     for funded in [false, true] {
         let (mut w, mut s) = fixture(if household { 5 } else { 4 }, funded, true);
@@ -297,6 +302,22 @@ fn posted_crop_sales(household: bool) {
             .unwrap();
         }
         s.balances.insert((PERSON, GRAIN), 20);
+        if forecast {
+            let (catalog, _) = baseline();
+            w.resources
+                .extend(catalog.resources.into_iter().filter(|r| r.id == NUTRITION));
+            w.definitions
+                .extend(catalog.definitions.into_iter().filter(|d| d.id == CONSUME));
+            w.participants
+                .iter_mut()
+                .find(|p| p.agent == PERSON)
+                .unwrap()
+                .needs = vec![Requirement {
+                resource: NUTRITION,
+                quantity: 1,
+                priority: 0,
+            }];
+        }
         w.bids.push(currency::Bid {
             id: 1,
             buyer: STATE_AGENT,
@@ -305,7 +326,10 @@ fn posted_crop_sales(household: bool) {
         });
         w.credit.as_mut().unwrap().stock_sales = Some(stock_sale::Policy {
             joint: None,
-            forecast: None,
+            forecast: forecast.then(|| economics_compute_smoke::sale_plan::Policy {
+                horizon_months: 6,
+                need_limits: [(NUTRITION, 0)].into(),
+            }),
             bid: 1,
             seller: PERSON,
             reserve_months: 0,
@@ -351,6 +375,13 @@ fn posted_crop_sales(household: bool) {
             assert_eq!(receipt.stayed, Some(PERSON));
             assert!(receipt.desired_lots > 0 && receipt.funding_limit > 0);
             assert_eq!(receipt.sold_lots, 0);
+            if forecast {
+                let decision = receipt.decision.as_ref().unwrap();
+                assert_eq!(decision.alternatives.len(), 1);
+                assert_eq!(decision.selected_lots, 0);
+                assert!(decision.feasible);
+                assert!(decision.alternatives[0].deficits.values().all(|d| *d == 0));
+            }
             let mut forged = batch.clone();
             forged
                 .credit
@@ -412,6 +443,14 @@ fn posted_crop_sales(household: bool) {
                 }
             );
             assert_eq!(sim.state.balance(ESTATE, TOKEN), 0);
+            if forecast {
+                assert!(
+                    sim.reports
+                        .iter()
+                        .filter(|r| r.agent == PERSON)
+                        .all(|r| r.deficit(NUTRITION) == 0)
+                );
+            }
             if household {
                 assert_eq!(sim.state.balance(HOME, TOKEN), if funded { 3 } else { 1 });
                 assert_eq!(audit.book().statements(HOME, 1, 7).unwrap().liabilities, 0);

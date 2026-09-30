@@ -542,3 +542,11 @@ their separately recorded affected gates; this full result does not cover them.
     forged receipts and CPU/checkpoint checks pass. The three-target gate passed
     18 tests; strict all-target Clippy passed. Collective specialized sale planning
     and forecast/joint household policies retain explicit limits.
+
+22. **Bounded sale forecasts project authorized recovery.** The sale planner
+    now uses the ordinary recovery stay, actual property bids and later closure
+    while evaluating nutrition. An active stay leaves only the zero-sale
+    candidate; a feasible food forecast neither erases debt nor grants exchange
+    permission. Funded/unfunded continuation, tampering, separate books and
+    CPU/checkpoint controls pass. The four-target gate passed 21 tests;
+    strict all-target Clippy passed. Joint work/sale planning remains guarded.

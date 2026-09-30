@@ -191,9 +191,9 @@ Subsequent land/forward admission and its validation are recorded in
 Opted-in mortgages now enter this same authorized lifecycle using
 `AuthorizedLiquidation`; see [mortgage recovery](LIEN-PRIORITY.md#opted-in-mortgage-recovery).
 Their unfinished crop control transfers only with a funded sale, without an
-appraisal payment or altered crop progress. Fixed-reserve mortgage stock sales
+appraisal payment or altered crop progress. Fixed-reserve and bounded-forecast mortgage stock sales
 now observe active counterparty stays and resume after actual closure; see
-[production-funded credit](PRODUCTION-FUNDED-CREDIT.md). Forecast/joint stock-sale
+[production-funded credit](PRODUCTION-FUNDED-CREDIT.md). Joint stock-sale
 planning and creditor-resale policy remain separate adapters.
 
 ## Shared custody with separate beneficial balances
