@@ -12,6 +12,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 pub mod calibration;
+pub mod continuation;
 pub mod market;
 
 const BEAM_WIDTH: usize = 8;
@@ -374,13 +375,11 @@ pub fn choose(
     )
 }
 
-pub fn choose_with_scoring(
+fn validate_search(
     sim: &Simulation,
     scope: &Scope,
-    strategy: Strategy,
     budget: Budget,
-    scoring: calibration::Scoring,
-) -> Result<Selection, String> {
+) -> Result<Vec<AgentId>, String> {
     if sim.state.phase != Phase::Acquire || budget.forecasts == 0 || budget.months == 0 {
         return Err("composition requires Acquire and positive forecast budget/horizon".into());
     }
@@ -427,6 +426,18 @@ pub fn choose_with_scoring(
     }) {
         return Err("composition town adapter currently requires passive counterparties".into());
     }
+    Ok(actors)
+}
+
+pub fn choose_with_scoring(
+    sim: &Simulation,
+    scope: &Scope,
+    strategy: Strategy,
+    budget: Budget,
+    scoring: calibration::Scoring,
+) -> Result<Selection, String> {
+    let actors = validate_search(sim, scope, budget)?;
+    let market_actor = sim.world.town_market.as_ref().map(|_| actors[0]);
     let mut order_actions = vec![];
     if let Some(actor) = market_actor {
         let round = crate::town_market::evaluate(&sim.world, &sim.state)?;
