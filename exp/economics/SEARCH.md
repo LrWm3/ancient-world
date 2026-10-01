@@ -164,6 +164,16 @@ variants for calibration. Fixed forecasts reproduce fixed execution, but monthly
 replanning can shift harvests and shortages. These variants are experiments; no
 new score or continuation policy becomes the default.
 
+`composition::continuation::Controller` is a separate opt-in review driver for
+isolated crop/household scopes, requiring explicit `ContinuingFirst` configuration.
+It compares monthly composition search, retain-and-repair on observed deviation,
+and scheduled search at the forecast horizon. Between searches the same cheap
+policy used by the forecast prepares fresh dated work through ordinary settlement.
+Retaining a forecast does not retain its grants or make its future resources real.
+Checkpoint the controller alongside the simulation; cloning both is exercised,
+not a durable serialization format. See [continuation results](PLANNER-CONTINUATION.md)
+for costs, shocks, economic regressions and exclusions.
+
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain
 visible. This experiment does not supersede the historical verification above;

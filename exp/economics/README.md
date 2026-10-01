@@ -13,10 +13,12 @@ The first [planner comparison](PLANNER-COMPARISON.md) adds opt-in beam and
 best-first offer composition, with household discovery and contested access checks.
 The [calibration and market follow-up](PLANNER-CALIBRATION.md) compares forecast
 continuation with replanning and adds a bounded person market-order adapter.
+The [continuation comparison](PLANNER-CONTINUATION.md) tests monthly search,
+retaining a forecast until observations change, and scheduled reviews under shocks.
 Results remain mixed; defaults are unchanged. See the
 [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
-## Current progress — 2026-09-30
+## Current progress — 2026-10-01
 
 Verified economics v1 remains at implementation revision `a1b99fa`.
 The subsequent planner experiment has its own scoped results and verification.

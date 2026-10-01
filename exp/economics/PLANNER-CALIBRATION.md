@@ -5,6 +5,10 @@ Both searches and all new scoring variants remain opt-in. The production default
 and monthly scheduler are unchanged. This is additional experimental verification,
 not a rerun of the full [v1 release gates](V1-RESULTS.md).
 
+The subsequent [continuation comparison](PLANNER-CONTINUATION.md) tests keeping
+the forecast's cheap policy between explicit reviews, including unannounced shocks.
+The measurements below retain their original settings.
+
 The forecast reproduces its fixed continuation exactly, but monthly replanning
 can produce substantially different harvest dates and shortages. Including pooled
 household buffers changes choices without consistently improving outcomes. A new

@@ -9,7 +9,7 @@ that release is done. The ambitions below remain broader than v1.
 
 ## Current position
 
-The [README progress summary](README.md#current-progress--2026-09-30) separates
+The [README progress summary](README.md#current-progress--2026-10-01) separates
 implemented behavior from these longer-term goals. The initial bounded
 person–household loop is complete. Later household/finance composition is recorded
 in [Fibonacci integration](FIBONACCI-INTEGRATION.md), through completed batch 89.
@@ -24,6 +24,8 @@ first four experiments. The [first comparison](PLANNER-COMPARISON.md) now record
 bounded person/household composition and competition results, including regressions
 and its original adapter gaps. The [follow-up](PLANNER-CALIBRATION.md) adds a
 bounded person market-order adapter and measures forecast/replanning divergence.
+The [continuation experiment](PLANNER-CONTINUATION.md) compares monthly search,
+observed-deviation repair and scheduled reviews, including shortages and deaths.
 This does not change the verified v1 scope.
 
 ## Purpose and consistency
