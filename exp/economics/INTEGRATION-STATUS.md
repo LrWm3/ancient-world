@@ -1,6 +1,7 @@
 # Economics integration and planning interfaces
 
-Current through verified economics v1, candidate `a1b99fa`.
+Verified economics v1 is candidate `a1b99fa`; subsequent opt-in planner coverage
+is recorded separately in [the comparison](PLANNER-COMPARISON.md).
 [Release results](V1-RESULTS.md) record the completed bounded gates.
 This page describes supported combinations and present exclusions. The
 [v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
@@ -38,7 +39,8 @@ prove that every combination of those systems works together.
 | Person prerequisite search + finance | Bounded citizenship/land search, competitive access, dated farming and explicit loan/prepayment/guarantee/estate-purchase bundles | Finance terms are supplied; the search is not universal |
 | Household + town production/purchase planning | Member-directed or collective buying with ordinary coin loans, active-input funding and accepted work preserved in forecasts | Collective buying under cooperative discovery or posted cooperative agreements remains excluded |
 | Household + joint work/sale planning | Dated shared-input, contributed-labor and output-pooling receipts; bounded comparison with up to four participants | Changes one participant's new work while peers keep ordinary decisions; no collective horizon optimizer |
-| Household + common acceptance | Financial requests and explicit citizenship/land/process bundles prepare through ordinary household boundaries; member claims stay private while harvests pool | General household prerequisite search and mixed financial/productive search bundles remain excluded |
+| Household + common acceptance | Financial requests and explicit citizenship/land/process bundles prepare through ordinary household boundaries; member claims stay private while harvests pool | Mixed financial/productive search bundles remain excluded |
+| Experimental offer composition | Beam/best-first discover bounded person or explicitly member-consented household packages; ordinary acceptance, accounting and land allocation remain authoritative | Current membership/land/process lots only; no market-order or finance composition, general dated schedule optimization or default-policy replacement |
 | Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |
 | Physical minting + finance | Finite coin/input/hour reservations compose with loans, prepayments, dues, employment, households and authorized recovery | Issuance follows a configured policy, not an autonomous state objective |
@@ -107,8 +109,11 @@ allocation, labor and collection envelope. Preparation is read-only; acceptance
 previews the dated Productive boundary before publishing prerequisites. Scarce
 land retains the existing allocation policy and fixed-priority household fallback.
 [Acceptance verification](V1-ACCEPTANCE.md) covers repeated harvests, rejected
-packages and continuation. These are explicit candidates, not general household
-prerequisite search. The current guards remain intentional:
+packages and continuation. The subsequent opt-in `composition` experiment can
+now discover such packages under an explicit member-consent mandate. Its
+[comparison](PLANNER-COMPARISON.md) exposes budget/horizon failures and excludes
+financial/market drivers; it is not universal household planning. The current
+legacy guards remain intentional:
 
 - `acquisition::search_composition` excludes households.
 - `households::validate` requires fixed individual priorities; it rejects

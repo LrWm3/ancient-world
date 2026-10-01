@@ -139,3 +139,24 @@ Final validation: all 153 crate tests passed, along with formatting, Clippy with
 warnings denied, and the repository artifact check. The 36-month CubeCL CPU
 scenario still completed five harvests, paid both annual taxes and recorded zero
 food or warmth deficits.
+
+## Experimental explicit package composition
+
+The later [planner comparison](PLANNER-COMPARISON.md) introduces a separate opt-in
+`composition::choose(sim, scope, strategy, budget)` interface. Beam and best-first
+share dated common-offer descriptions and a forward package evaluator. Unlike
+`CandidatePlan`'s single work-policy proposal, the package can name several
+productive lots and member-consented household prerequisites. It therefore does
+not silently coerce those packages into the older trait or change its defaults.
+
+`Selection::accept` checks the dated observation snapshot and uses ordinary
+settlement. Callers may reconsider at Acquire; they must still collect independent
+contested applications before using the allocator. A household mandate names
+consenting members and does not imply permission over another household/person's
+private work. Composition currently requires an isolated person or household
+forecast branch and rejects the market/finance drivers outside its tested scope.
+
+Expansion and full-forecast budgets are distinct. Metrics include pruning,
+exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain
+visible. This experiment does not supersede the historical verification above;
+its successes, regressions and remaining adapters have their own report.

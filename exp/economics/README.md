@@ -9,13 +9,15 @@ families and final verification gates passed at `a1b99fa`; see
 [release results](V1-RESULTS.md). The broader roadmap and financial stress tests
 continue beyond this verified scope.
 
-The proposed [planner experiments](PLANNER-EXPERIMENTS.md) define the next research
-batch: compare bounded opportunity-composition searches on existing resources,
-then test household authority and competing plans before selecting further work.
+The first [planner comparison](PLANNER-COMPARISON.md) adds opt-in beam and
+best-first offer composition, with household discovery and contested access checks.
+Results are mixed; defaults remain unchanged and market-order composition is still
+missing. See the [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
 ## Current progress — 2026-09-30
 
-Current through verified economics v1, implementation revision `a1b99fa`.
+Verified economics v1 remains at implementation revision `a1b99fa`.
+The subsequent planner experiment has its own scoped results and verification.
 Use the [integration matrix](INTEGRATION-STATUS.md) for supported combinations,
 [contract consolidation](CONTRACT-CONSOLIDATION.md) for the broader ordered backlog,
 and [Fibonacci integration](FIBONACCI-INTEGRATION.md) for change-by-change evidence.
@@ -28,7 +30,7 @@ current blanket restrictions.
 | --- | --- | --- |
 | Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers and sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, prohibitions, selected agreement recognition/term limits, issuance and physical minting | Autonomous state objectives, general founding/jurisdiction law and state governance |
-| Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | General prerequisite search, longer-horizon collective planning, recruitment and broader succession |
+| Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Composition with market/finance drivers, robust collective forecasts, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
 | Contracts and finance | Shared loan book and claim executor; mortgages, direct/tool forwards, wages, ranked/proportional allocation, guarantees and dated recourse | Remaining typed acceptance/performance adapters, autonomous underwriting and joint multi-resource allocation |
 | Recovery | Authorized proceedings, separate balances in shared custody, funded asset/inventory/claim sales, lien inheritance and explicit partial/full relief | Multiple custody currencies, broader security combinations, autonomous listing/valuation and automatic death estates |

@@ -1,6 +1,10 @@
 # Planner experiments after economics v1
 
-Status: proposed experiments and implementation order; none is claimed complete.
+Status: first bounded implementation/comparison published in
+[planner comparison](PLANNER-COMPARISON.md), using the
+[frozen benchmark](PLANNER-BENCHMARK.md). P0–P3 have partial coverage; market-order
+composition and the viable wood/buy control still prevent full exit. P4–P8 remain
+proposals. No default was replaced.
 Baseline: verified v1 code `a1b99fa`, results published at `b3cbcef`.
 This is a bounded research plan, not an extension of the completed
 [v1 release checklist](V1-RELEASE.md) or a commitment to implement every technique.

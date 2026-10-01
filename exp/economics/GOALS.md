@@ -20,8 +20,9 @@ Person self-directed policy changes remain deferred by request.
 
 The [planner experiment plan](PLANNER-EXPERIMENTS.md) turns opportunity discovery
 into a bounded research sequence, with matched baselines and a review after its
-first four experiments. It proposes comparisons, not completed capabilities or a
-change to the verified v1 scope.
+first four experiments. The [first comparison](PLANNER-COMPARISON.md) now records
+bounded person/household composition and competition results, including regressions
+and the still-missing market-order adapter. This does not change the verified v1 scope.
 
 ## Purpose and consistency
 
