@@ -2,9 +2,11 @@
 
 Status: first bounded implementation/comparison published in
 [planner comparison](PLANNER-COMPARISON.md), using the
-[frozen benchmark](PLANNER-BENCHMARK.md). P0–P3 have partial coverage; market-order
-composition and the viable wood/buy control still prevent full exit. P4–P8 remain
-proposals. No default was replaced.
+[frozen benchmark](PLANNER-BENCHMARK.md). The [follow-up](PLANNER-CALIBRATION.md)
+adds continuation calibration and a viable finite wood/buy control through a
+bounded market-order adapter. P0–P3 still have partial coverage: general market
+composition, active counterparty planning and forecast calibration remain limited.
+P4–P8 remain proposals. No default was replaced.
 Baseline: verified v1 code `a1b99fa`, results published at `b3cbcef`.
 This is a bounded research plan, not an extension of the completed
 [v1 release checklist](V1-RELEASE.md) or a commitment to implement every technique.

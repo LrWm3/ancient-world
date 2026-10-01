@@ -1,5 +1,9 @@
 # Bounded planner comparison
 
+Historical first-batch results. The [calibration and market follow-up](PLANNER-CALIBRATION.md)
+adds a bounded order adapter and a separately controlled viable wood/buy fixture;
+limits below describe this original comparison. Defaults remain unchanged.
+
 The first comparison supports keeping best-first composition as an experimental
 option, **not replacing the default**. It discovers useful household arrangements,
 but both searches regress on some controls and a larger horizon is not reliably

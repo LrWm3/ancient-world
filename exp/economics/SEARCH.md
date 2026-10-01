@@ -153,8 +153,16 @@ not silently coerce those packages into the older trait or change its defaults.
 settlement. Callers may reconsider at Acquire; they must still collect independent
 contested applications before using the allocator. A household mandate names
 consenting members and does not imply permission over another household/person's
-private work. Composition currently requires an isolated person or household
-forecast branch and rejects the market/finance drivers outside its tested scope.
+private work. Common-offer composition requires an isolated person or household
+branch. The [market adapter](PLANNER-CALIBRATION.md) additionally supports one
+planning person with passive town counterparties: it selects eligible need-order
+subsets alongside productive offers, and scores only that person. Active
+counterparty production, household market search and finance remain excluded.
+
+`choose_with_scoring` exposes private-buffer and household-consumption buffer
+variants for calibration. Fixed forecasts reproduce fixed execution, but monthly
+replanning can shift harvests and shortages. These variants are experiments; no
+new score or continuation policy becomes the default.
 
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain

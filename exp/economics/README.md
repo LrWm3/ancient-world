@@ -11,8 +11,10 @@ continue beyond this verified scope.
 
 The first [planner comparison](PLANNER-COMPARISON.md) adds opt-in beam and
 best-first offer composition, with household discovery and contested access checks.
-Results are mixed; defaults remain unchanged and market-order composition is still
-missing. See the [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
+The [calibration and market follow-up](PLANNER-CALIBRATION.md) compares forecast
+continuation with replanning and adds a bounded person market-order adapter.
+Results remain mixed; defaults are unchanged. See the
+[experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
 ## Current progress — 2026-09-30
 

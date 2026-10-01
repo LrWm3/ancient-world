@@ -1,7 +1,8 @@
 # Economics integration and planning interfaces
 
 Verified economics v1 is candidate `a1b99fa`; subsequent opt-in planner coverage
-is recorded separately in [the comparison](PLANNER-COMPARISON.md).
+is recorded separately in [the comparison](PLANNER-COMPARISON.md) and its
+[calibration/market follow-up](PLANNER-CALIBRATION.md).
 [Release results](V1-RESULTS.md) record the completed bounded gates.
 This page describes supported combinations and present exclusions. The
 [v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
@@ -40,7 +41,7 @@ prove that every combination of those systems works together.
 | Household + town production/purchase planning | Member-directed or collective buying with ordinary coin loans, active-input funding and accepted work preserved in forecasts | Collective buying under cooperative discovery or posted cooperative agreements remains excluded |
 | Household + joint work/sale planning | Dated shared-input, contributed-labor and output-pooling receipts; bounded comparison with up to four participants | Changes one participant's new work while peers keep ordinary decisions; no collective horizon optimizer |
 | Household + common acceptance | Financial requests and explicit citizenship/land/process bundles prepare through ordinary household boundaries; member claims stay private while harvests pool | Mixed financial/productive search bundles remain excluded |
-| Experimental offer composition | Beam/best-first discover bounded person or explicitly member-consented household packages; ordinary acceptance, accounting and land allocation remain authoritative | Current membership/land/process lots only; no market-order or finance composition, general dated schedule optimization or default-policy replacement |
+| Experimental offer composition | Beam/best-first discover bounded person or explicitly member-consented household packages; ordinary acceptance, accounting and land allocation remain authoritative | Current membership/land/process lots; separately, person need-order subsets with passive town counterparties. No household market/finance composition, general dated schedule optimization or default-policy replacement |
 | Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |
 | Physical minting + finance | Finite coin/input/hour reservations compose with loans, prepayments, dues, employment, households and authorized recovery | Issuance follows a configured policy, not an autonomous state objective |

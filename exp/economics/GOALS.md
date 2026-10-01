@@ -22,7 +22,9 @@ The [planner experiment plan](PLANNER-EXPERIMENTS.md) turns opportunity discover
 into a bounded research sequence, with matched baselines and a review after its
 first four experiments. The [first comparison](PLANNER-COMPARISON.md) now records
 bounded person/household composition and competition results, including regressions
-and the still-missing market-order adapter. This does not change the verified v1 scope.
+and its original adapter gaps. The [follow-up](PLANNER-CALIBRATION.md) adds a
+bounded person market-order adapter and measures forecast/replanning divergence.
+This does not change the verified v1 scope.
 
 ## Purpose and consistency
 
