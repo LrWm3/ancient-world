@@ -171,3 +171,5 @@ mod reporting_value;
 mod loan_accounting;
 
 mod receivable_accounting;
+
+pub mod composition;
