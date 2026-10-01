@@ -11,6 +11,9 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod calibration;
+pub mod market;
+
 const BEAM_WIDTH: usize = 8;
 const MAX_PACKAGE: usize = 6;
 const OUTPUT_WEIGHT: i64 = 100;
@@ -246,10 +249,19 @@ pub fn forecast_package(
     requests: &[Request],
     months: u32,
 ) -> Result<(Batch, Score, Simulation), String> {
+    forecast_orders(sim, requests, None, months)
+}
+
+pub fn forecast_orders(
+    sim: &Simulation,
+    requests: &[Request],
+    orders: Option<&crate::town_market::OrderSelection>,
+    months: u32,
+) -> Result<(Batch, Score, Simulation), String> {
     if months == 0 {
         return Err("forecast needs a positive horizon".into());
     }
-    let mut batch = offers::prepare(sim, requests)?;
+    let mut batch = market::prepare(sim, requests, orders)?;
     let (mut w, s) = ForecastContext::new(&sim.world, &sim.state).into_parts();
     w.priority = Priority::ContinuingFirst;
     w.competition = None;
@@ -309,6 +321,9 @@ pub fn forecast_package(
         .values()
         .filter(|p| p.status == Status::Aborted)
         .count() as u64;
+    if let Some(orders) = orders {
+        score = market::actor_score(&branch, orders.actor);
+    }
     Ok((batch, score, branch))
 }
 
@@ -316,6 +331,7 @@ pub fn forecast_package(
 pub struct Selection {
     opening: ForecastContext,
     pub requests: Vec<Request>,
+    pub orders: Option<crate::town_market::OrderSelection>,
     pub batch: Batch,
     pub score: Score,
     pub metrics: Metrics,
@@ -349,10 +365,26 @@ pub fn choose(
     strategy: Strategy,
     budget: Budget,
 ) -> Result<Selection, String> {
+    choose_with_scoring(
+        sim,
+        scope,
+        strategy,
+        budget,
+        calibration::Scoring::PrivateBuffers,
+    )
+}
+
+pub fn choose_with_scoring(
+    sim: &Simulation,
+    scope: &Scope,
+    strategy: Strategy,
+    budget: Budget,
+    scoring: calibration::Scoring,
+) -> Result<Selection, String> {
     if sim.state.phase != Phase::Acquire || budget.forecasts == 0 || budget.months == 0 {
         return Err("composition requires Acquire and positive forecast budget/horizon".into());
     }
-    if sim.world.town_market.is_some()
+    if sim.world.production_market.is_some()
         || sim.world.market.is_some()
         || sim.world.negotiation.is_some()
         || sim.world.credit.is_some()
@@ -375,10 +407,36 @@ pub fn choose(
         return Err("composition requires a participating actor".into());
     }
     // An individual forecast never schedules a rival's productive work.
-    if matches!(scope, Scope::Person(_)) && sim.world.participants.len() != 1 {
+    if matches!(scope, Scope::Person(_))
+        && sim.world.participants.len() != 1
+        && sim.world.town_market.is_none()
+    {
         return Err(
             "individual composition requires an isolated observation/forecast branch".into(),
         );
+    }
+    if sim.world.town_market.is_some() && !sim.world.households.is_empty() {
+        return Err("composition market adapter requires an individual mandate".into());
+    }
+    let market_actor = sim.world.town_market.as_ref().map(|_| actors[0]);
+    if market_actor.is_some_and(|actor| {
+        sim.world
+            .participants
+            .iter()
+            .any(|p| p.agent != actor && p.capacity.quantity != 0)
+    }) {
+        return Err("composition town adapter currently requires passive counterparties".into());
+    }
+    let mut order_actions = vec![];
+    if let Some(actor) = market_actor {
+        let round = crate::town_market::evaluate(&sim.world, &sim.state)?;
+        order_actions = round
+            .orders
+            .iter()
+            .filter(|o| o.agent == actor)
+            .map(|o| (o.market, o.side))
+            .collect();
+        order_actions.sort();
     }
     let context = ForecastContext::new(&sim.world, &sim.state);
     let relevant = relevant(&sim.world, &actors);
@@ -391,6 +449,23 @@ pub fn choose(
         }
     }
     descriptions.sort_by_key(|d| (d.request.offer, d.request.agent));
+    let action_count = descriptions.len() + order_actions.len();
+    let package = |indices: &[usize]| {
+        let requests: Vec<_> = indices
+            .iter()
+            .filter(|&&i| i < descriptions.len())
+            .map(|&i| descriptions[i].request.clone())
+            .collect();
+        let orders = market_actor.map(|actor| crate::town_market::OrderSelection {
+            actor,
+            submit: indices
+                .iter()
+                .filter(|&&i| i >= descriptions.len())
+                .map(|&i| order_actions[i - descriptions.len()])
+                .collect(),
+        });
+        (requests, orders)
+    };
     let root = Node {
         indices: vec![],
         hint: 0,
@@ -418,20 +493,20 @@ pub fn choose(
                 metrics.exhausted = true;
                 break;
             }
-            let requests: Vec<_> = node
-                .indices
-                .iter()
-                .map(|&i| descriptions[i].request.clone())
-                .collect();
-            // Preparation happens again in the evaluator, intentionally keeping
-            // the execution adapter authoritative rather than trusting hints.
-            let (batch, score, branch) = forecast_package(sim, &requests, budget.months)?;
+            let (requests, orders) = package(&node.indices);
+            let (batch, _, branch) =
+                forecast_orders(sim, &requests, orders.as_ref(), budget.months)?;
+            let score = match market_actor {
+                Some(actor) => market::actor_score(&branch, actor),
+                None => calibration::score(&branch, scoring)?,
+            };
             metrics.forecasts += 1;
             metrics.forecast_months += u64::from(budget.months);
             if best.as_ref().is_none_or(|b| score < b.score) {
                 best = Some(Selection {
                     opening: context.clone(),
                     requests,
+                    orders,
                     batch,
                     score,
                     metrics: Metrics::default(),
@@ -466,14 +541,11 @@ pub fn choose(
                 });
             }
             if node.indices.len() == MAX_PACKAGE {
-                metrics.exhausted |= node
-                    .indices
-                    .last()
-                    .is_some_and(|i| i + 1 < descriptions.len());
+                metrics.exhausted |= node.indices.last().is_some_and(|i| i + 1 < action_count);
                 continue;
             }
             let start = node.indices.last().map_or(0, |i| i + 1);
-            for i in start..descriptions.len() {
+            for i in start..action_count {
                 if metrics.expansions == budget.expansions {
                     metrics.exhausted = true;
                     break;
@@ -481,13 +553,20 @@ pub fn choose(
                 metrics.expansions += 1;
                 let mut indices = node.indices.clone();
                 indices.push(i);
-                let requests: Vec<_> = indices
-                    .iter()
-                    .map(|&i| descriptions[i].request.clone())
-                    .collect();
-                match offers::prepare(sim, &requests) {
+                let (requests, orders) = package(&indices);
+                match market::prepare(sim, &requests, orders.as_ref()) {
                     Ok(_) => frontier.push(Node {
-                        hint: hint(sim, &descriptions, &indices),
+                        hint: hint(
+                            sim,
+                            &descriptions,
+                            &indices
+                                .iter()
+                                .copied()
+                                .filter(|&i| i < descriptions.len())
+                                .collect::<Vec<_>>(),
+                        ) - (indices.iter().filter(|&&i| i >= descriptions.len()).count()
+                            as i64
+                            * PREREQUISITE_WEIGHT),
                         indices,
                     }),
                     Err(e) => {

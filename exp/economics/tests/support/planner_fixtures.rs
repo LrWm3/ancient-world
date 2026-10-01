@@ -176,3 +176,78 @@ pub fn acquire(sim: &mut Simulation) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// B4b: finite stationary grain merchant also needs wood. No production or
+/// omniscient future decisions are delegated to that counterparty by the planner.
+pub fn wood_market(backend: Backend, buyer_present: bool) -> Result<(Simulation, Scope), String> {
+    use economics_compute_smoke::{marketplace::Side, production_market::WOOD_MARKET};
+    let (mut w, mut s) = economics_compute_smoke::production_market::reciprocal_scenario(true);
+    w.production_market = None;
+    w.participants.retain(|p| [PERSON, 89].contains(&p.agent));
+    w.techniques.clear();
+    w.practice_rules.clear();
+    s.practice.clear();
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == GROW)
+        .unwrap()
+        .enabled = false;
+    let wood = w
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == PREPARE_FUEL)
+        .unwrap();
+    wood.outputs = vec![Amount::new(FUEL, 3)];
+    wood.stages[0].monthly_services = vec![Amount::new(LABOR, 1)];
+    for p in &mut w.participants {
+        p.capacity.quantity = if p.agent == PERSON { 1 } else { 0 };
+        w.storage.capacities.insert(p.agent, 200);
+    }
+    s.balances.clear();
+    s.balances.extend([
+        ((PERSON, GRAIN), 3),
+        ((PERSON, FUEL), 2),
+        ((PERSON, TOKEN), 0),
+        ((89, GRAIN), 100),
+        ((89, FUEL), 0),
+        ((89, TOKEN), 100),
+    ]);
+    let m = w.town_market.as_mut().unwrap();
+    m.adaptive = false;
+    m.order_horizon = economics_compute_smoke::town_market::OrderHorizon::Aligned(2);
+    for t in &mut m.traders {
+        t.side = if t.trader.agent == PERSON {
+            Side::Buy
+        } else {
+            Side::Sell
+        };
+        t.trader.limit = 1;
+        t.trader.opening_quote = 1;
+    }
+    m.traders.retain(|t| [PERSON, 89].contains(&t.trader.agent));
+    for l in &mut m.additional {
+        assert_eq!(l.market, WOOD_MARKET);
+        l.traders.retain(|t| [PERSON, 89].contains(&t.trader.agent));
+        for t in &mut l.traders {
+            t.side = if t.trader.agent == PERSON {
+                Side::Sell
+            } else {
+                Side::Buy
+            };
+            t.trader.limit = 1;
+            t.trader.opening_quote = 1;
+        }
+        if !buyer_present {
+            l.match_limit = Some(0);
+        }
+    }
+    for v in &mut w.marketplaces {
+        for m in &mut v.markets {
+            m.goods.quantity = 1;
+            m.price_tick = 1;
+        }
+    }
+    add_condition_rules(&mut w, "dead");
+    w.condition_rules.retain(|r| r.subject == PERSON);
+    Ok((Simulation::new(w, s, backend)?, Scope::Person(PERSON)))
+}

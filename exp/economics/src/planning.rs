@@ -14,7 +14,7 @@ const MAX_FORECAST_PARTICIPANTS: usize = 4;
 const MAX_FORECAST_REQUIREMENTS: usize = 4;
 const MAX_POSTED_OFFERS: usize = 4;
 const MAX_SUBSTITUTE_PRODUCERS: usize = 4;
-const SCORE_SCALE: u64 = 1000;
+pub(crate) const SCORE_SCALE: u64 = 1000;
 
 /// Survival, impairment, deprivation, broken commitments, coverage, then work; lower wins.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
