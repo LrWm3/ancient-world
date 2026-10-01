@@ -4,6 +4,8 @@ use super::{Budget, Metrics, Scope, Strategy};
 use crate::{compute::Backend, forecast::ForecastContext, model::*, simulation::Simulation};
 use std::collections::BTreeMap;
 
+pub mod persons;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Policy {
     Monthly,
@@ -17,6 +19,7 @@ pub enum Reason {
     Monthly,
     HorizonEnded,
     ObservationChanged,
+    AdmissionRejected,
     Retained,
     Continued,
 }
@@ -50,6 +53,9 @@ pub struct Controller {
     budget: Budget,
     policy: Policy,
     review_at: Option<u32>,
+    land_limit: Option<usize>,
+    admission_rejected: bool,
+    alternatives: Vec<Vec<crate::offers::Request>>,
     pub frames: BTreeMap<u32, Frame>,
     pub history: Vec<Receipt>,
 }
@@ -94,12 +100,23 @@ impl Controller {
             budget,
             policy,
             review_at: None,
+            land_limit: None,
+            admission_rejected: false,
+            alternatives: vec![],
             frames: BTreeMap::new(),
             history: vec![],
         }
     }
 
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
+        self.step_comparing(sim, |a, b| a == b)
+    }
+
+    fn step_comparing(
+        &mut self,
+        sim: &mut Simulation,
+        same: impl Fn(&ForecastContext, &ForecastContext) -> bool,
+    ) -> Result<(), String> {
         // This is an explicit experiment configuration, never a silent rewrite
         // of the world's existing default decision policy.
         if sim.world.priority != Priority::ContinuingFirst || sim.world.competition.is_some() {
@@ -132,9 +149,10 @@ impl Controller {
         let changed = self
             .frames
             .get(&month)
-            .is_some_and(|f| f.expected != ForecastContext::new(&sim.world, &sim.state));
+            .is_some_and(|f| !same(&f.expected, &ForecastContext::new(&sim.world, &sim.state)));
         let reason = match self.review_at {
             None => Reason::Initial,
+            _ if self.admission_rejected => Reason::AdmissionRejected,
             _ if self.policy == Policy::Monthly => Reason::Monthly,
             Some(end) if month >= end => Reason::HorizonEnded,
             _ if self.policy == Policy::RetainRepair
@@ -158,7 +176,16 @@ impl Controller {
             starts: vec![],
         };
         if search {
-            let selection = super::choose(sim, &self.scope, self.strategy, self.budget)?;
+            let mut alternatives = vec![];
+            let selection = super::choose_limited(
+                sim,
+                &self.scope,
+                self.strategy,
+                self.budget,
+                super::calibration::Scoring::PrivateBuffers,
+                self.land_limit,
+                &mut alternatives,
+            )?;
             let end = month
                 .checked_add(self.budget.months)
                 .ok_or("review date overflow")?;
@@ -209,6 +236,7 @@ impl Controller {
                 .unwrap_or_default();
             selection.accept(sim)?;
             receipt.search = Some(selection.metrics);
+            self.alternatives = alternatives;
             self.frames = frames;
             self.review_at = Some(end);
         } else {
@@ -233,6 +261,7 @@ impl Controller {
             sim.ledger.push(batch);
             receipt.cheap_preview_steps = 2;
         }
+        self.admission_rejected = false;
         self.history.push(receipt);
         Ok(())
     }

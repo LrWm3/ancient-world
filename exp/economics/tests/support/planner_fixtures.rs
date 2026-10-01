@@ -177,6 +177,77 @@ pub fn acquire(sim: &mut Simulation) -> Result<(), String> {
     Ok(())
 }
 
+/// Frozen per-person endowments; plot count varies independently. Shared wood
+/// scales with population in the abundant control rather than duplicating it.
+pub fn persons(people: u32, plots: u32, backend: Backend) -> Result<Simulation, String> {
+    if !(2..=32).contains(&people) || plots == 0 || plots > people {
+        return Err("person fixture needs 2..32 people and 1..people plots".into());
+    }
+    let (mut w, mut s) = economics_compute_smoke::competition::scenario(plots.min(2), 7)?;
+    w.priority = Priority::ContinuingFirst;
+    w.resources.push(Resource {
+        id: TOKEN,
+        name: "coin".into(),
+        kind: ResourceKind::Stock,
+    });
+    for offset in 2..people {
+        let agent = PERSON + offset;
+        w.agents.push(Agent {
+            id: agent,
+            name: format!("person {agent}"),
+        });
+        let mut participant = w.participants[0].clone();
+        participant.agent = agent;
+        w.participants.push(participant);
+        let rules: Vec<_> = w
+            .condition_rules
+            .iter()
+            .filter(|r| r.subject == PERSON)
+            .cloned()
+            .collect();
+        for mut r in rules {
+            r.subject = agent;
+            w.condition_rules.push(r);
+        }
+        let stocks: Vec<_> = s
+            .balances
+            .iter()
+            .filter(|((a, _), _)| *a == PERSON)
+            .map(|((_, r), q)| (*r, *q))
+            .collect();
+        for (r, q) in stocks {
+            s.balances.insert((agent, r), q);
+        }
+        if let Some(capacity) = w.storage.capacities.get(&PERSON).copied() {
+            w.storage.capacities.insert(agent, capacity);
+        }
+        let policy = w.transaction_policy.as_mut().unwrap();
+        policy
+            .agent_types
+            .insert(agent, policy.agent_types[&PERSON]);
+    }
+    for offset in 2..plots {
+        let mut asset = w.assets[0].clone();
+        asset.id += offset;
+        w.assets.push(asset);
+        let mut right = w.rights[0].clone();
+        right.id += offset;
+        right.asset += offset;
+        w.rights.push(right);
+        let mut offer = w.access_offers[0].clone();
+        offer.id += offset;
+        offer.right += offset;
+        w.access_offers.push(offer);
+    }
+    w.open_access_offers = w.access_offers.iter().map(|a| a.id).collect();
+    for pool in &mut w.pools {
+        pool.capacity = 12 * people as i32;
+        pool.monthly_regeneration = people as i32;
+        s.balances.insert(pool.account, pool.capacity);
+    }
+    Simulation::new(w, s, backend)
+}
+
 /// B4b: finite stationary grain merchant also needs wood. No production or
 /// omniscient future decisions are delegated to that counterparty by the planner.
 pub fn wood_market(backend: Backend, buyer_present: bool) -> Result<(Simulation, Scope), String> {

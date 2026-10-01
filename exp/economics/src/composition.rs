@@ -436,6 +436,18 @@ pub fn choose_with_scoring(
     budget: Budget,
     scoring: calibration::Scoring,
 ) -> Result<Selection, String> {
+    choose_limited(sim, scope, strategy, budget, scoring, None, &mut Vec::new())
+}
+
+pub(super) fn choose_limited(
+    sim: &Simulation,
+    scope: &Scope,
+    strategy: Strategy,
+    budget: Budget,
+    scoring: calibration::Scoring,
+    land_limit: Option<usize>,
+    alternatives: &mut Vec<Vec<Request>>,
+) -> Result<Selection, String> {
     let actors = validate_search(sim, scope, budget)?;
     let market_actor = sim.world.town_market.as_ref().map(|_| actors[0]);
     let mut order_actions = vec![];
@@ -514,6 +526,12 @@ pub fn choose_with_scoring(
             metrics.forecasts += 1;
             metrics.forecast_months += u64::from(budget.months);
             if best.as_ref().is_none_or(|b| score < b.score) {
+                alternatives.clear();
+            }
+            if best.as_ref().is_none_or(|b| score <= b.score) {
+                alternatives.push(requests.clone());
+            }
+            if best.as_ref().is_none_or(|b| score < b.score) {
                 best = Some(Selection {
                     opening: context.clone(),
                     requests,
@@ -565,6 +583,20 @@ pub fn choose_with_scoring(
                 let mut indices = node.indices.clone();
                 indices.push(i);
                 let (requests, orders) = package(&indices);
+                if land_limit.is_some_and(|limit| {
+                    requests
+                        .iter()
+                        .filter(|r| matches!(r.offer, Id::Land(_)))
+                        .count()
+                        > limit
+                }) {
+                    metrics.rejected += 1;
+                    *metrics
+                        .rejections
+                        .entry("new land request limit".into())
+                        .or_default() += 1;
+                    continue;
+                }
                 match market::prepare(sim, &requests, orders.as_ref()) {
                     Ok(_) => frontier.push(Node {
                         hint: hint(
