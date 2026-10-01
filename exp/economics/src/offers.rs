@@ -293,6 +293,18 @@ pub(crate) fn resolve(
 /// productive work; its first execution still occurs at Productive. All existing
 /// processes precede requested new work. Automatic planning uses its own ordering.
 pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
+    prepare_with_acquisition(sim, requests, None)
+}
+
+/// An explicit market adapter supplies a validated acquisition receipt before work.
+pub(crate) fn prepare_with_acquisition(
+    sim: &Simulation,
+    requests: &[Request],
+    acquisition: Option<Batch>,
+) -> Result<Batch, String> {
+    if acquisition.is_some() && requests.iter().any(|r| !matches!(r.offer, Id::Process(_))) {
+        return Err("market work adapter currently accepts process offers only".into());
+    }
     if requests.iter().any(|r| financial::is_financial(r.offer)) {
         if requests.iter().all(|r| financial::is_financial(r.offer)) {
             return financial::prepare(sim, requests);
@@ -342,7 +354,7 @@ pub fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> 
     {
         return Err("prerequisites must precede process offers".into());
     }
-    let mut batch = Batch::empty(&sim.state);
+    let mut batch = acquisition.unwrap_or_else(|| Batch::empty(&sim.state));
     if sim.state.phase == Phase::Acquire && crate::acquisition::search_composition(&sim.world) {
         // Feasibility observes the same configured, funded advances as the live
         // Acquire boundary. No loan offer is treated as already delivered stock.

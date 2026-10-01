@@ -90,6 +90,7 @@ pub enum OrderReason {
     Inactive,
     Ineligible,
     PurchasePolicy,
+    PlannerWithheld,
     OtherSideSelected,
     NoNeedImprovement,
     InsufficientOpeningStock,
@@ -118,7 +119,13 @@ pub struct Attempt {
     pub round: negotiation::Round,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OrderSelection {
+    pub actor: AgentId,
+    pub submit: BTreeSet<(marketplace::MarketId, Side)>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub selection: Option<Box<OrderSelection>>,
     pub cooperation: Option<Box<crate::cooperation::Boundary>>,
     pub planning: Option<crate::production_market::Decision>,
     pub month: u32,
@@ -371,7 +378,54 @@ pub(crate) fn evaluate_with(
     opening: &Resources,
     planning_state: &State,
 ) -> Result<Round, String> {
+    evaluate_selected_with(world, state, opening, planning_state, None)
+}
+
+/// Opt-in submission of a subset of one actor's ordinary eligible need orders.
+/// Counterparty orders, quotes, reserve policy and clearing remain authoritative.
+pub fn evaluate_selected(
+    world: &World,
+    state: &State,
+    selection: &OrderSelection,
+) -> Result<Round, String> {
+    evaluate_selected_with(
+        world,
+        state,
+        &Resources::opening(world, state),
+        state,
+        Some(selection),
+    )
+}
+fn evaluate_selected_with(
+    world: &World,
+    state: &State,
+    opening: &Resources,
+    planning_state: &State,
+    selection: Option<&OrderSelection>,
+) -> Result<Round, String> {
     validate(world)?;
+    if let Some(selection) = selection {
+        if crate::acquisition::shared(world)
+            || world.production_market.is_some()
+            || !world.households.is_empty()
+        {
+            return Err("explicit town orders require a plain individual town book".into());
+        }
+        let c = world.town_market.as_ref().ok_or("missing town market")?;
+        if !world
+            .participants
+            .iter()
+            .any(|p| p.agent == selection.actor)
+            || selection.submit.iter().any(|(market, _)| {
+                !listings(c).iter().any(|l| {
+                    l.market == *market
+                        && l.traders.iter().any(|t| t.trader.agent == selection.actor)
+                })
+            })
+        {
+            return Err("unknown explicit order actor or listing".into());
+        }
+    }
     if state.phase != Phase::Acquire {
         return Err("town matching requires Acquire".into());
     }
@@ -393,6 +447,7 @@ pub(crate) fn evaluate_with(
     }
     let mut pricing_state = state.clone();
     let mut result = Round {
+        selection: selection.cloned().map(Box::new),
         cooperation: None,
         month: state.month,
         planning,
@@ -406,7 +461,20 @@ pub(crate) fn evaluate_with(
     let books = listings(c)
         .into_iter()
         .map(|c| {
-            let (orders, receipts) = orders(world, state, &c, &choices, opening)?;
+            let (mut orders, mut receipts) = orders(world, state, &c, &choices, opening)?;
+            if let Some(selected) = selection {
+                orders.retain(|o| {
+                    o.agent != selected.actor || selected.submit.contains(&(o.market, o.side))
+                });
+                for r in &mut receipts {
+                    if r.agent == selected.actor
+                        && r.reason == OrderReason::Submitted
+                        && !selected.submit.contains(&(r.market, r.side))
+                    {
+                        r.reason = OrderReason::PlannerWithheld;
+                    }
+                }
+            }
             result.order_receipts.extend(receipts);
             Ok((c, orders))
         })
@@ -682,7 +750,16 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
     } else {
         match state.phase {
             Phase::Open => Some(Boundary::Admission(admission(world, state)?)),
-            Phase::Acquire => Some(Boundary::Market(evaluate(world, state)?)),
+            Phase::Acquire => {
+                let selection = batch.town_market.as_ref().and_then(|b| match b {
+                    Boundary::Market(r) => r.selection.as_deref(),
+                    _ => None,
+                });
+                Some(Boundary::Market(match selection {
+                    Some(selected) => evaluate_selected(world, state, selected)?,
+                    None => evaluate(world, state)?,
+                }))
+            }
             _ => None,
         }
     };

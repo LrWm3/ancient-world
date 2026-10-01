@@ -818,6 +818,7 @@ pub(crate) fn evaluate_with(
         _ => unreachable!(),
     };
     let mut round = Round {
+        selection: None,
         cooperation: None,
         planning: None,
         month: s.month,
