@@ -3,7 +3,8 @@
 Verified economics v1 is candidate `a1b99fa`; subsequent opt-in planner coverage
 is recorded separately in [the comparison](PLANNER-COMPARISON.md) and its
 [calibration/market follow-up](PLANNER-CALIBRATION.md), plus the
-[continuation-policy comparison](PLANNER-CONTINUATION.md).
+[continuation-policy comparison](PLANNER-CONTINUATION.md) and
+[independent multi-person admission](PLANNER-PERSONS.md).
 [Release results](V1-RESULTS.md) record the completed bounded gates.
 This page describes supported combinations and present exclusions. The
 [v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
@@ -43,6 +44,7 @@ prove that every combination of those systems works together.
 | Household + joint work/sale planning | Dated shared-input, contributed-labor and output-pooling receipts; bounded comparison with up to four participants | Changes one participant's new work while peers keep ordinary decisions; no collective horizon optimizer |
 | Household + common acceptance | Financial requests and explicit citizenship/land/process bundles prepare through ordinary household boundaries; member claims stay private while harvests pool | Mixed financial/productive search bundles remain excluded |
 | Experimental offer composition | Beam/best-first discover bounded person or explicitly member-consented household packages; ordinary acceptance, accounting and land allocation remain authoritative | Current membership/land/process lots; separately, person need-order subsets with passive town counterparties. No household market/finance composition, general dated schedule optimization or default-policy replacement |
+| Independent person composition + shared resources | Same-opening personal searches, equal-score alternatives, explicit whole-package admission, fallback work and separate review schedules; two/four-person repeated harvests and 32-person opening contention | One new plot per reviewed package; ordered admission, not optimal joint matching; forecasts do not predict competitors; no active trade, households or finance in this adapter |
 | Experimental plan continuation | Isolated crop/household scopes compare monthly search, retain/repair and horizon reviews; fresh dated work, observation-triggered reconsideration, CPU/reference/accounting and cloned checkpoint checks | All household participants must consent. Exact full-context deviation detection; no market continuation, active counterparties, optimized local repair or durable controller serialization |
 | Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |

@@ -10,7 +10,11 @@ The [continuation comparison](PLANNER-CONTINUATION.md) adds a bounded P7 pilot:
 monthly search versus observed-deviation repair and horizon reviews, using the
 same cheap continuation in forecast and execution. General local plan repair,
 selective materiality triggers and market continuation remain open. P4–P6 and P8
-remain proposals. No default was replaced.
+remain proposals. The [multi-person follow-up](PLANNER-PERSONS.md) extends P3/P7:
+independent searches and review schedules feed explicit admission against shared
+resources, retaining equal-score alternatives. Two/four-person repeated harvests
+and scarcity controls are exercised; this is not active counterparty market planning
+or a general solution to complementary-input allocation. No default was replaced.
 Baseline: verified v1 code `a1b99fa`, results published at `b3cbcef`.
 This is a bounded research plan, not an extension of the completed
 [v1 release checklist](V1-RELEASE.md) or a commitment to implement every technique.

@@ -26,6 +26,9 @@ and its original adapter gaps. The [follow-up](PLANNER-CALIBRATION.md) adds a
 bounded person market-order adapter and measures forecast/replanning divergence.
 The [continuation experiment](PLANNER-CONTINUATION.md) compares monthly search,
 observed-deviation repair and scheduled reviews, including shortages and deaths.
+The [multi-person follow-up](PLANNER-PERSONS.md) now collects independently searched
+packages before resolving shared plots and wood. Review schedules remain individual;
+active counterparty trade and multi-household planning remain outside that adapter.
 This does not change the verified v1 scope.
 
 ## Purpose and consistency

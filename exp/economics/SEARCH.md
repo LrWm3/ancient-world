@@ -174,6 +174,21 @@ Checkpoint the controller alongside the simulation; cloning both is exercised,
 not a durable serialization format. See [continuation results](PLANNER-CONTINUATION.md)
 for costs, shocks, economic regressions and exclusions.
 
+`composition::continuation::persons::Persons` coordinates one such controller per
+person. All search from the same opening in separate branches; none directs another
+person's production. It retains equally scored packages actually explored by each
+search so that interchangeable plots need not create avoidable rejection. An
+explicit allocation policy orders whole-package admission through common offer
+preparation. Existing work and previously admitted packages constrain each next
+admission; fresh dated work commits once. Rejected actors can request cheap fallback
+work and reconsider at their next Acquire, including under scheduled review.
+This pilot limits each reviewed package to one new land agreement. Its comparison
+view ignores unrelated private changes and global IDs while retaining own resources,
+commitments and observed shared availability; it is not a private-information model.
+Checkpoint `Persons` with the simulation. See [multi-person results](PLANNER-PERSONS.md)
+for two/four-person repeated harvests, scarce access, CPU/accounting checks and
+exclusions. Household, finance and active trading drivers remain unsupported here.
+
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain
 visible. This experiment does not supersede the historical verification above;

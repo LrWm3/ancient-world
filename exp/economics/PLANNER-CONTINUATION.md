@@ -5,6 +5,9 @@ The simulation default, monthly scheduler, household charter, search score and
 resource quantities are unchanged. This exercises a bounded portion of P7 in
 [the experiment plan](PLANNER-EXPERIMENTS.md); it does not complete that roadmap
 or replace the historical [v1 verification](V1-RESULTS.md).
+The later [multi-person follow-up](PLANNER-PERSONS.md) adds independently reviewed
+persons and shared admission. The settings, results and isolated-scope limitations
+below describe this earlier comparison.
 
 Keeping forecast and execution policy aligned removes one source of harvest
 timing drift and greatly reduces search work. It does not consistently improve

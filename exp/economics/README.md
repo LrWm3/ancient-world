@@ -15,7 +15,10 @@ The [calibration and market follow-up](PLANNER-CALIBRATION.md) compares forecast
 continuation with replanning and adds a bounded person market-order adapter.
 The [continuation comparison](PLANNER-CONTINUATION.md) tests monthly search,
 retaining a forecast until observations change, and scheduled reviews under shocks.
-Results remain mixed; defaults are unchanged. See the
+The [multi-person follow-up](PLANNER-PERSONS.md) adds independent review schedules
+and shared admission of competing packages, including equivalent plot alternatives.
+Two- and four-person controls complete repeated harvests; scarcity still produces
+shortages. Results remain bounded; defaults are unchanged. See the
 [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
 ## Current progress — 2026-10-01
@@ -32,7 +35,7 @@ current blanket restrictions.
 
 | Area | Implemented and exercised | Main remaining boundary |
 | --- | --- | --- |
-| Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search and dated commitments | General discovery across all drivers and sustainable autonomous cooperation |
+| Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search, independent multi-person review and shared dated admission | General discovery across all drivers and sustainable autonomous cooperation |
 | State and law | Citizenship, action permissions, prohibitions, selected agreement recognition/term limits, issuance and physical minting | Autonomous state objectives, general founding/jurisdiction law and state governance |
 | Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Composition with market/finance drivers, robust collective forecasts, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
