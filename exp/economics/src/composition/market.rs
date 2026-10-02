@@ -68,3 +68,26 @@ pub(super) fn actor_score(branch: &Simulation, actor: AgentId) -> crate::plannin
         .count() as u64;
     score
 }
+
+/// Only used within isolated forecast branches. Actual clearing receives the
+/// independently selected masks, never this counterparty hypothesis.
+pub(super) fn prepare_expected(
+    sim: &Simulation,
+    requests: &[offers::Request],
+    selection: Option<&OrderSelection>,
+    expectation: Option<&super::expectations::Snapshot>,
+) -> Result<Batch, String> {
+    let Some(expectation) = expectation else {
+        return prepare(sim, requests, selection);
+    };
+    if requests.iter().any(|r| r.agent != expectation.actor)
+        || selection.is_some_and(|s| s.actor != expectation.actor)
+    {
+        return Err("forecast exceeds expectation actor mandate".into());
+    }
+    let mut masks = expectation.masks(&sim.world, sim.state.month)?;
+    if let Some(selection) = selection {
+        masks.insert(selection.actor, selection.submit.clone());
+    }
+    prepare_all(sim, requests, &masks)
+}

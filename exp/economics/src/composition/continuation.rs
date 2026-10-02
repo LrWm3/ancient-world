@@ -56,6 +56,7 @@ pub struct Controller {
     land_limit: Option<usize>,
     admission_rejected: bool,
     order_forecast: super::market::OrderForecast,
+    counterparties: Option<super::expectations::Snapshot>,
     alternatives: Vec<Vec<crate::offers::Request>>,
     pub frames: BTreeMap<u32, Frame>,
     pub history: Vec<Receipt>,
@@ -104,6 +105,7 @@ impl Controller {
             land_limit: None,
             admission_rejected: false,
             order_forecast: super::market::OrderForecast::CurrentBoundaryOnly,
+            counterparties: None,
             alternatives: vec![],
             frames: BTreeMap::new(),
             history: vec![],
@@ -185,6 +187,7 @@ impl Controller {
                 super::calibration::Scoring::PrivateBuffers,
                 super::SearchOptions {
                     land_limit: self.land_limit,
+                    counterparties: self.counterparties.as_ref(),
                     persistent_orders: sim.world.town_market.is_some()
                         && self.order_forecast == super::market::OrderForecast::StandingPolicy,
                 },

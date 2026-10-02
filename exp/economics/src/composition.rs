@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod calibration;
 pub mod continuation;
+pub mod expectations;
 pub mod market;
 
 const BEAM_WIDTH: usize = 8;
@@ -259,7 +260,7 @@ pub fn forecast_orders(
     orders: Option<&crate::town_market::OrderSelection>,
     months: u32,
 ) -> Result<(Batch, Score, Simulation), String> {
-    forecast_orders_using(sim, requests, orders, months, false)
+    forecast_orders_using(sim, requests, orders, months, false, None)
 }
 
 fn forecast_orders_using(
@@ -268,11 +269,12 @@ fn forecast_orders_using(
     orders: Option<&crate::town_market::OrderSelection>,
     months: u32,
     persistent_orders: bool,
+    counterparties: Option<&expectations::Snapshot>,
 ) -> Result<(Batch, Score, Simulation), String> {
     if months == 0 {
         return Err("forecast needs a positive horizon".into());
     }
-    let mut batch = market::prepare(sim, requests, orders)?;
+    let mut batch = market::prepare_expected(sim, requests, orders, counterparties)?;
     let (mut w, s) = ForecastContext::new(&sim.world, &sim.state).into_parts();
     w.priority = Priority::ContinuingFirst;
     w.competition = None;
@@ -323,8 +325,13 @@ fn forecast_orders_using(
         .checked_add(months)
         .ok_or("forecast horizon overflow")?;
     while branch.state.month < end {
-        if persistent_orders && branch.state.phase == Phase::Acquire {
-            let batch = market::prepare(&branch, &[], orders)?;
+        if (persistent_orders || counterparties.is_some()) && branch.state.phase == Phase::Acquire {
+            let batch = market::prepare_expected(
+                &branch,
+                &[],
+                if persistent_orders { orders } else { None },
+                counterparties,
+            )?;
             crate::settlement::commit(
                 &branch.world,
                 &mut branch.state,
@@ -470,9 +477,10 @@ pub fn choose_with_scoring(
 }
 
 #[derive(Clone, Copy, Default)]
-struct SearchOptions {
+struct SearchOptions<'a> {
     land_limit: Option<usize>,
     persistent_orders: bool,
+    counterparties: Option<&'a expectations::Snapshot>,
 }
 
 fn choose_limited(
@@ -481,7 +489,7 @@ fn choose_limited(
     strategy: Strategy,
     budget: Budget,
     scoring: calibration::Scoring,
-    options: SearchOptions,
+    options: SearchOptions<'_>,
     alternatives: &mut Vec<Vec<Request>>,
 ) -> Result<Selection, String> {
     let actors = validate_search(sim, scope, budget)?;
@@ -577,6 +585,7 @@ fn choose_limited(
                 orders.as_ref(),
                 budget.months,
                 options.persistent_orders,
+                options.counterparties,
             )?;
             let score = match market_actor {
                 Some(actor) => market::actor_score(&branch, actor),
@@ -656,7 +665,12 @@ fn choose_limited(
                         .or_default() += 1;
                     continue;
                 }
-                match market::prepare(sim, &requests, orders.as_ref()) {
+                match market::prepare_expected(
+                    sim,
+                    &requests,
+                    orders.as_ref(),
+                    options.counterparties,
+                ) {
                     Ok(_) => frontier.push(Node {
                         hint: hint(
                             sim,

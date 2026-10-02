@@ -3,7 +3,7 @@
 use super::{Controller, Policy};
 use crate::{
     allocation::{self, Claim, Context, Outcome, Receipt},
-    composition::{Budget, Scope, Strategy},
+    composition::{Budget, Scope, Strategy, expectations},
     compute::Backend,
     forecast::ForecastContext,
     model::*,
@@ -35,6 +35,7 @@ pub struct Round {
 /// are native goods units by listing and side, never credited from a prediction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Exchange {
+    pub expectations: expectations::Snapshot,
     pub submit: BTreeSet<(crate::marketplace::MarketId, crate::marketplace::Side)>,
     pub expected: BTreeMap<(crate::marketplace::MarketId, crate::marketplace::Side), i32>,
     pub actual: BTreeMap<(crate::marketplace::MarketId, crate::marketplace::Side), i32>,
@@ -70,6 +71,7 @@ fn fills(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Persons {
     pub controllers: BTreeMap<AgentId, Controller>,
+    pub counterparty_policy: expectations::Policy,
     pub order_forecast: crate::composition::market::OrderForecast,
     pub policy: allocation::Policy,
     pub seed: u64,
@@ -270,6 +272,7 @@ impl Persons {
         }
         Ok(Self {
             controllers,
+            counterparty_policy: expectations::Policy::Ordinary,
             order_forecast: crate::composition::market::OrderForecast::StandingPolicy,
             policy,
             seed,
@@ -278,6 +281,7 @@ impl Persons {
     }
 
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
+        self.counterparty_policy.validate()?;
         if !sim.world.households.is_empty() || sim.world.priority != Priority::ContinuingFirst {
             return Err("independent continuation requires persons without households and with ContinuingFirst".into());
         }
@@ -312,6 +316,11 @@ impl Persons {
         let mut selections = town_market::OrderSelections::new();
         for (&agent, controller) in &mut next.controllers {
             controller.order_forecast = self.order_forecast;
+            let expectation =
+                expectations::Snapshot::observe(&sim.state, agent, self.counterparty_policy)?;
+            controller.counterparties = (sim.world.town_market.is_some()
+                && self.counterparty_policy != expectations::Policy::Ordinary)
+                .then(|| expectation.clone());
             let mut branch = local(sim, agent);
             controller.step_comparing(&mut branch, |a, b| {
                 observation(a, agent) == observation(b, agent)
@@ -326,18 +335,24 @@ impl Persons {
             if let Some(town_market::Boundary::Market(round)) =
                 &branch.ledger.last().unwrap().town_market
             {
-                let selected = round
-                    .selection
-                    .as_ref()
-                    .ok_or("missing personal order mask")?;
-                if selected.actor != agent {
-                    return Err("order mask exceeds person mandate".into());
-                }
-                selections.insert(agent, selected.submit.clone());
+                let selected = if let Some(selected) = &round.selection {
+                    if selected.actor != agent {
+                        return Err("order mask exceeds person mandate".into());
+                    }
+                    &selected.submit
+                } else {
+                    round
+                        .selections
+                        .as_ref()
+                        .and_then(|s| s.get(&agent))
+                        .ok_or("missing personal order mask")?
+                };
+                selections.insert(agent, selected.clone());
                 exchanges.insert(
                     agent,
                     Exchange {
-                        submit: selected.submit.clone(),
+                        expectations: expectation,
+                        submit: selected.clone(),
                         expected: fills(round, agent),
                         actual: BTreeMap::new(),
                     },
