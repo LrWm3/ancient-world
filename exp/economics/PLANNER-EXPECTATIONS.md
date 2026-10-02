@@ -161,4 +161,6 @@ A useful next bounded comparison would let actors disclose an actionable conditi
 offer, then test whether the existing agreement machinery can make complementary
 plans reliable. Learning from completed books remains useful evidence, but cannot
 by itself communicate a willingness to act if the other person also acts. That
-extension is proposed, not implemented here.
+extension is implemented subsequently for a [reciprocal spot package](PLANNER-POSTED.md).
+It does not yet integrate future delivery schedules into composition search; this
+report retains the earlier expectation-only comparison.

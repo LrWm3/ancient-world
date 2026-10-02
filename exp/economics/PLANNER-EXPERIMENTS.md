@@ -9,8 +9,8 @@ composition, active counterparty planning and forecast calibration remain limite
 The [continuation comparison](PLANNER-CONTINUATION.md) adds a bounded P7 pilot:
 monthly search versus observed-deviation repair and horizon reviews, using the
 same cheap continuation in forecast and execution. General local plan repair,
-selective materiality triggers and retained market plans remain open. P4–P6 and the
-broader P8 scenario comparison remain proposals; the P8 precursor below is narrower.
+selective materiality triggers and retained market plans remain open. P4/P5 and the
+broader P6/P8 experiments remain proposals; the scoped precursors below are narrower.
 The [multi-person follow-up](PLANNER-PERSONS.md) extends P3/P7:
 independent searches and review schedules feed explicit admission against shared
 resources, retaining equal-score alternatives. Two/four-person repeated harvests
@@ -22,8 +22,12 @@ This remains limited counterparty modeling, not a general solution to complement
 inputs or mutually sustainable plans. A bounded precursor to P8 is now exercised by
 [observed counterparty expectations](PLANNER-EXPECTATIONS.md): expiring eligible
 submission evidence versus ordinary assumptions, with matched failed controls.
-It does not implement probabilistic scenarios or solve coordination. Existing
-simulation defaults were not replaced.
+It does not implement probabilistic scenarios or solve coordination. A
+[conditional spot-offer comparison](PLANNER-POSTED.md) now exercises two-delivery
+atomic acceptance after independent assessments, a narrow precursor to P6; it does
+not compose tool financing or dated future delivery contracts. Extra search cost
+and failed survival controls remain explicit. Existing simulation defaults were
+not replaced.
 Baseline: verified v1 code `a1b99fa`, results published at `b3cbcef`.
 This is a bounded research plan, not an extension of the completed
 [v1 release checklist](V1-RELEASE.md) or a commitment to implement every technique.

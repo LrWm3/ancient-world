@@ -267,3 +267,14 @@ existing terms; it creates no damages, arrears or refund obligation. The complet
 schedule remains inspectable in the typed exchange view. Tests check successful
 completion, first-delivery failure, CPU/checkpoint parity, read-only inspection,
 and rejection of missing accepted terms.
+
+
+## Composition planner follow-up
+
+The later [conditional spot adapter](PLANNER-POSTED.md) reuses `Delivery` terms and
+normal town-book transfers for an atomic reciprocal package. It adds independent
+composition assessments after public preliminary masks, without using this pilot's
+joint discovery or prescribed work preferences. Only the current month's terms
+bind; composing this document's future schedules and cancellation consequences
+with the newer search remains a proposed next integration. The two reports use
+different fixtures and are not matched performance comparisons.

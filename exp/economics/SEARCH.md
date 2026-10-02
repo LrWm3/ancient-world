@@ -221,6 +221,16 @@ records fewer optimistic misses in some cases but worse coordination under longe
 memory. Ordinary expectations remain the default; peer production and reliable
 mutually compatible plans remain gaps.
 
+`composition::continuation::posted::Controller` optionally wraps `Persons` for a
+two-person reciprocal spot offer. After public preliminary order masks, each actor
+searches its own outside option and offered package. Two consents require exact
+current deliveries and feasible combined work before publication; otherwise the
+original spot decision remains the fallback. It reuses existing market transfers
+and `cooperation::Delivery` terms. Future submission is only an explicit renewal
+hypothesis, not a dated promise. See [posted-offer results](PLANNER-POSTED.md) for
+extra search costs, failed high-cash controls and the six-month agreement adapter
+still missing from composition.
+
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain
 visible. This experiment does not supersede the historical verification above;

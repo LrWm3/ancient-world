@@ -33,7 +33,9 @@ chosen orders before live clearing and revalidates work against actual fills. A
 low-cash best-first control sustains exchange, but beam and higher-cash controls
 fail. [Observed counterparty expectations](PLANNER-EXPECTATIONS.md) add an opt-in
 expiring submission hypothesis, but do not solve coordination and can worsen it.
-Peer-production forecasts and reliable mutually compatible plans remain open. Multi-household
+[Conditional spot offers](PLANNER-POSTED.md) add independent acceptance and atomic
+reciprocal exchange, but do not establish sustainable cooperation. Peer-production
+forecasts and composed multi-month delivery commitments remain open. Multi-household
 and financial composition remain outside this adapter.
 This does not change the verified v1 scope.
 

@@ -24,7 +24,10 @@ with a consistent own-order forecast sustains a low-cash two-person control; bea
 search and higher-cash controls still fail. The [counterparty expectation comparison](PLANNER-EXPECTATIONS.md)
 adds expiring observations of eligible submissions/withholding. Some fill errors
 fall, but longer memory can suppress exchange and worsen survival; the ordinary
-expectation model remains the default. Existing simulation defaults are unchanged. See the
+expectation model remains the default. [Conditional reciprocal spot offers](PLANNER-POSTED.md)
+now let both people consent to an atomic exchange. Some withheld trades execute,
+but higher-cash cases still fail and future delivery promises remain unintegrated
+with composition search. Existing simulation defaults are unchanged. See the
 [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
 ## Current progress — 2026-10-01
