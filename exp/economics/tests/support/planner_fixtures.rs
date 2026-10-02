@@ -322,3 +322,95 @@ pub fn wood_market(backend: Backend, buyer_present: bool) -> Result<(Simulation,
     w.condition_rules.retain(|r| r.subject == PERSON);
     Ok((Simulation::new(w, s, backend)?, Scope::Person(PERSON)))
 }
+
+/// Two productive persons, finite coins, supplied rights and fixed unit prices.
+/// Separate plot/woodland rights permit complementary production. No counterparty work
+/// is injected into their private search. Trading-off changes only match limits.
+pub fn trading_persons(backend: Backend, trading: bool) -> Result<Simulation, String> {
+    use economics_compute_smoke::{marketplace::Side, production_market::WOOD_MARKET};
+    let (mut w, mut s) = economics_compute_smoke::production_market::reciprocal_scenario(true);
+    w.production_market = None;
+    w.participants.retain(|p| [PERSON, 89].contains(&p.agent));
+    w.condition_rules
+        .retain(|r| [PERSON, 89].contains(&r.subject));
+    w.techniques.clear();
+    w.practice_rules.clear();
+    s.practice.clear();
+    w.rights.retain(|r| r.holder == 89);
+    w.assets.retain(|a| a.id == 89);
+    w.assets.push(Asset {
+        id: PERSON,
+        owner: STATE_AGENT,
+        kind: 2,
+    });
+    w.rights.push(UseRight {
+        id: PERSON,
+        holder: PERSON,
+        asset: PERSON,
+        from: 1,
+        through: 240,
+        output_owner: PERSON,
+    });
+    let crop = w.definitions.iter_mut().find(|d| d.id == GROW).unwrap();
+    for stage in &mut crop.stages {
+        stage.monthly_services = vec![Amount::new(LABOR, 1)];
+    }
+    crop.outputs = vec![Amount::new(GRAIN, 8), Amount::new(SEED, 1)];
+    let wood = w
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == PREPARE_FUEL)
+        .unwrap();
+    wood.asset_kind = Some(2);
+    wood.stages[0].monthly_services = vec![Amount::new(LABOR, 1)];
+    wood.outputs = vec![Amount::new(FUEL, 3)];
+    for p in &mut w.participants {
+        p.capacity.quantity = 1;
+        w.storage.capacities.insert(p.agent, 64);
+    }
+    s.balances.clear();
+    s.balances.extend([
+        ((PERSON, GRAIN), 3),
+        ((PERSON, FUEL), 4),
+        ((PERSON, TOKEN), 6),
+        ((89, GRAIN), 6),
+        ((89, FUEL), 3),
+        ((89, SEED), 1),
+        ((89, TOKEN), 6),
+    ]);
+    let m = w.town_market.as_mut().unwrap();
+    m.adaptive = false;
+    m.order_horizon = economics_compute_smoke::town_market::OrderHorizon::Aligned(2);
+    m.match_limit = (!trading).then_some(0);
+    m.traders.retain(|t| [PERSON, 89].contains(&t.trader.agent));
+    for t in &mut m.traders {
+        t.side = if t.trader.agent == PERSON {
+            Side::Buy
+        } else {
+            Side::Sell
+        };
+        t.trader.limit = 1;
+        t.trader.opening_quote = 1;
+    }
+    for l in &mut m.additional {
+        assert_eq!(l.market, WOOD_MARKET);
+        l.match_limit = (!trading).then_some(0);
+        l.traders.retain(|t| [PERSON, 89].contains(&t.trader.agent));
+        for t in &mut l.traders {
+            t.side = if t.trader.agent == PERSON {
+                Side::Sell
+            } else {
+                Side::Buy
+            };
+            t.trader.limit = 1;
+            t.trader.opening_quote = 1;
+        }
+    }
+    for venue in &mut w.marketplaces {
+        for market in &mut venue.markets {
+            market.goods.quantity = 1;
+        }
+    }
+    add_condition_rules(&mut w, "dead");
+    Simulation::new(w, s, backend)
+}

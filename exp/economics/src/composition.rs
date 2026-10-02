@@ -259,6 +259,16 @@ pub fn forecast_orders(
     orders: Option<&crate::town_market::OrderSelection>,
     months: u32,
 ) -> Result<(Batch, Score, Simulation), String> {
+    forecast_orders_using(sim, requests, orders, months, false)
+}
+
+fn forecast_orders_using(
+    sim: &Simulation,
+    requests: &[Request],
+    orders: Option<&crate::town_market::OrderSelection>,
+    months: u32,
+    persistent_orders: bool,
+) -> Result<(Batch, Score, Simulation), String> {
     if months == 0 {
         return Err("forecast needs a positive horizon".into());
     }
@@ -313,7 +323,19 @@ pub fn forecast_orders(
         .checked_add(months)
         .ok_or("forecast horizon overflow")?;
     while branch.state.month < end {
-        branch.step()?;
+        if persistent_orders && branch.state.phase == Phase::Acquire {
+            let batch = market::prepare(&branch, &[], orders)?;
+            crate::settlement::commit(
+                &branch.world,
+                &mut branch.state,
+                &batch,
+                Backend::Reference,
+                branch.effect_limit,
+            )?;
+            branch.ledger.push(batch);
+        } else {
+            branch.step()?;
+        }
     }
     let mut score = crate::planning::score(&branch);
     score.broken_commitments = branch
@@ -436,29 +458,61 @@ pub fn choose_with_scoring(
     budget: Budget,
     scoring: calibration::Scoring,
 ) -> Result<Selection, String> {
-    choose_limited(sim, scope, strategy, budget, scoring, None, &mut Vec::new())
+    choose_limited(
+        sim,
+        scope,
+        strategy,
+        budget,
+        scoring,
+        SearchOptions::default(),
+        &mut Vec::new(),
+    )
 }
 
-pub(super) fn choose_limited(
+#[derive(Clone, Copy, Default)]
+struct SearchOptions {
+    land_limit: Option<usize>,
+    persistent_orders: bool,
+}
+
+fn choose_limited(
     sim: &Simulation,
     scope: &Scope,
     strategy: Strategy,
     budget: Budget,
     scoring: calibration::Scoring,
-    land_limit: Option<usize>,
+    options: SearchOptions,
     alternatives: &mut Vec<Vec<Request>>,
 ) -> Result<Selection, String> {
     let actors = validate_search(sim, scope, budget)?;
     let market_actor = sim.world.town_market.as_ref().map(|_| actors[0]);
     let mut order_actions = vec![];
     if let Some(actor) = market_actor {
-        let round = crate::town_market::evaluate(&sim.world, &sim.state)?;
-        order_actions = round
-            .orders
-            .iter()
-            .filter(|o| o.agent == actor)
-            .map(|o| (o.market, o.side))
-            .collect();
+        if options.persistent_orders {
+            // A standing policy can submit when needs/stocks later make an order
+            // eligible. It cannot bypass the ordinary order gates or promise a fill.
+            for listing in crate::town_market::listings(sim.world.town_market.as_ref().unwrap()) {
+                if let Some(entry) = listing.traders.iter().find(|t| t.trader.agent == actor) {
+                    let sides = if listing.adaptive {
+                        vec![
+                            crate::marketplace::Side::Buy,
+                            crate::marketplace::Side::Sell,
+                        ]
+                    } else {
+                        vec![entry.side]
+                    };
+                    order_actions.extend(sides.into_iter().map(|side| (listing.market, side)));
+                }
+            }
+        } else {
+            let round = crate::town_market::evaluate(&sim.world, &sim.state)?;
+            order_actions = round
+                .orders
+                .iter()
+                .filter(|o| o.agent == actor)
+                .map(|o| (o.market, o.side))
+                .collect();
+        }
         order_actions.sort();
     }
     let context = ForecastContext::new(&sim.world, &sim.state);
@@ -517,8 +571,13 @@ pub(super) fn choose_limited(
                 break;
             }
             let (requests, orders) = package(&node.indices);
-            let (batch, _, branch) =
-                forecast_orders(sim, &requests, orders.as_ref(), budget.months)?;
+            let (batch, _, branch) = forecast_orders_using(
+                sim,
+                &requests,
+                orders.as_ref(),
+                budget.months,
+                options.persistent_orders,
+            )?;
             let score = match market_actor {
                 Some(actor) => market::actor_score(&branch, actor),
                 None => calibration::score(&branch, scoring)?,
@@ -583,7 +642,7 @@ pub(super) fn choose_limited(
                 let mut indices = node.indices.clone();
                 indices.push(i);
                 let (requests, orders) = package(&indices);
-                if land_limit.is_some_and(|limit| {
+                if options.land_limit.is_some_and(|limit| {
                     requests
                         .iter()
                         .filter(|r| matches!(r.offer, Id::Land(_)))

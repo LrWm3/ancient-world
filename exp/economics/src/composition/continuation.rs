@@ -55,6 +55,7 @@ pub struct Controller {
     review_at: Option<u32>,
     land_limit: Option<usize>,
     admission_rejected: bool,
+    order_forecast: super::market::OrderForecast,
     alternatives: Vec<Vec<crate::offers::Request>>,
     pub frames: BTreeMap<u32, Frame>,
     pub history: Vec<Receipt>,
@@ -102,6 +103,7 @@ impl Controller {
             review_at: None,
             land_limit: None,
             admission_rejected: false,
+            order_forecast: super::market::OrderForecast::CurrentBoundaryOnly,
             alternatives: vec![],
             frames: BTreeMap::new(),
             history: vec![],
@@ -129,10 +131,8 @@ impl Controller {
             return sim.step();
         }
         let actors = super::validate_search(sim, &self.scope, self.budget)?;
-        if sim.world.town_market.is_some() {
-            return Err(
-                "continuation experiment currently covers isolated crop/household fixtures".into(),
-            );
+        if sim.world.town_market.is_some() && self.policy != Policy::Monthly {
+            return Err("market continuation currently requires monthly review".into());
         }
         if let Scope::Household { .. } = &self.scope
             && sim
@@ -183,7 +183,11 @@ impl Controller {
                 self.strategy,
                 self.budget,
                 super::calibration::Scoring::PrivateBuffers,
-                self.land_limit,
+                super::SearchOptions {
+                    land_limit: self.land_limit,
+                    persistent_orders: sim.world.town_market.is_some()
+                        && self.order_forecast == super::market::OrderForecast::StandingPolicy,
+                },
                 &mut alternatives,
             )?;
             let end = month

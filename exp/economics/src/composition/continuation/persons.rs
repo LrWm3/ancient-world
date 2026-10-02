@@ -9,6 +9,7 @@ use crate::{
     model::*,
     offers::{self, Id, Request},
     simulation::Simulation,
+    town_market,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -18,6 +19,7 @@ const NEW_PLOTS_PER_REVIEW: usize = 1;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
     pub month: u32,
+    pub exchanges: BTreeMap<AgentId, Exchange>,
     pub context: Context,
     pub policy: allocation::Policy,
     pub proposals: BTreeMap<AgentId, Vec<Request>>,
@@ -29,28 +31,82 @@ pub struct Round {
     pub fallback_rejections: Vec<(AgentId, Id, String)>,
 }
 
+/// Conditional forecast fills versus the jointly cleared live book. Quantities
+/// are native goods units by listing and side, never credited from a prediction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Exchange {
+    pub submit: BTreeSet<(crate::marketplace::MarketId, crate::marketplace::Side)>,
+    pub expected: BTreeMap<(crate::marketplace::MarketId, crate::marketplace::Side), i32>,
+    pub actual: BTreeMap<(crate::marketplace::MarketId, crate::marketplace::Side), i32>,
+}
+
+fn fills(
+    round: &town_market::Round,
+    actor: AgentId,
+) -> BTreeMap<(crate::marketplace::MarketId, crate::marketplace::Side), i32> {
+    let mut result = BTreeMap::new();
+    for attempt in &round.attempts {
+        if !matches!(
+            attempt.round.outcome,
+            crate::negotiation::Outcome::Traded { .. }
+        ) {
+            continue;
+        }
+        let session = &attempt.session;
+        let side = if session.buyer.agent == actor {
+            crate::marketplace::Side::Buy
+        } else if session.seller.agent == actor {
+            crate::marketplace::Side::Sell
+        } else {
+            continue;
+        };
+        *result.entry((session.market, side)).or_default() += session.goods.quantity;
+    }
+    result
+}
+
 /// Checkpoint this coordinator alongside Simulation. Person review schedules and
 /// rejected intentions survive continuation independently of the physical ledger.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Persons {
     pub controllers: BTreeMap<AgentId, Controller>,
+    pub order_forecast: crate::composition::market::OrderForecast,
     pub policy: allocation::Policy,
     pub seed: u64,
     pub history: Vec<Round>,
 }
 
-/// Other persons remain named asset owners/counterparties, but their hypothetical
-/// production and consumption are never directed by this actor's search.
+/// Other persons remain named asset owners/counterparties. Market forecasts keep
+/// their ordinary consumption/orders, but never schedule their productive work.
 fn local(sim: &Simulation, agent: AgentId) -> Simulation {
     let mut local = sim.clone();
     local.backend = Backend::Reference;
     local.ledger.clear();
     local.reports.clear();
     local.world.competition = None;
-    local.world.participants.retain(|p| p.agent == agent);
-    local.world.condition_rules.retain(|r| r.subject == agent);
-    local.state.conditions.retain(|(a, _), _| *a == agent);
-    local.state.terminal.retain(|a, _| *a == agent);
+    if local.world.town_market.is_some() {
+        // Explicit conditional forecast: peers keep current needs/stocks and
+        // ordinary order generation, but produce nothing new. Live peers search
+        // independently; their accepted work never comes from this branch.
+        local
+            .world
+            .capacity_overrides
+            .retain(|(_, a), _| *a == agent);
+        for p in &mut local.world.participants {
+            if p.agent != agent {
+                p.capacity.quantity = 0;
+                local
+                    .state
+                    .balances
+                    .insert((p.agent, p.capacity.resource), 0);
+            }
+        }
+    } else {
+        local.world.participants.retain(|p| p.agent == agent);
+        local.world.condition_rules.retain(|r| r.subject == agent);
+        local.state.conditions.retain(|(a, _), _| *a == agent);
+        local.state.terminal.retain(|a, _| *a == agent);
+    }
     local.state.processes.retain(|_, p| p.operator == agent);
     local.state.pending_production = None;
     local
@@ -148,7 +204,11 @@ fn intentions(batch: &Batch, agent: AgentId) -> Result<Vec<Request>, String> {
 
 /// Common preparation checks cumulative rights, stocks, capacity and storage.
 /// Even an empty new package must reserve existing work for every person.
-fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
+fn prepare(
+    sim: &Simulation,
+    requests: &[Request],
+    acquisition: Option<&Batch>,
+) -> Result<Batch, String> {
     let ordered: Vec<_> = requests
         .iter()
         .filter(|r| !matches!(r.offer, Id::Process(_)))
@@ -159,7 +219,7 @@ fn prepare(sim: &Simulation, requests: &[Request]) -> Result<Batch, String> {
         )
         .cloned()
         .collect();
-    let mut batch = offers::prepare(sim, &ordered)?;
+    let mut batch = offers::prepare_with_acquisition(sim, &ordered, acquisition.cloned())?;
     if batch.production_plan.is_none() {
         let mut preview = sim.clone();
         crate::settlement::commit(
@@ -210,6 +270,7 @@ impl Persons {
         }
         Ok(Self {
             controllers,
+            order_forecast: crate::composition::market::OrderForecast::StandingPolicy,
             policy,
             seed,
             history: vec![],
@@ -217,11 +278,8 @@ impl Persons {
     }
 
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
-        if !sim.world.households.is_empty()
-            || sim.world.town_market.is_some()
-            || sim.world.priority != Priority::ContinuingFirst
-        {
-            return Err("independent continuation requires persons without households/markets and ContinuingFirst".into());
+        if !sim.world.households.is_empty() || sim.world.priority != Priority::ContinuingFirst {
+            return Err("independent continuation requires persons without households and with ContinuingFirst".into());
         }
         let participants: BTreeSet<_> = sim.world.participants.iter().map(|p| p.agent).collect();
         if participants != self.controllers.keys().copied().collect()
@@ -231,6 +289,9 @@ impl Persons {
         }
         // Reject unsupported drivers before advancing any phase.
         for (&agent, controller) in &self.controllers {
+            if sim.world.town_market.is_some() && controller.policy != Policy::Monthly {
+                return Err("multi-person market planning requires monthly review".into());
+            }
             let mut branch = local(sim, agent);
             branch.state.phase = Phase::Acquire;
             super::super::validate_search(&branch, &Scope::Person(agent), controller.budget)?;
@@ -247,7 +308,10 @@ impl Persons {
         let mut next = self.clone();
         let mut proposals = BTreeMap::new();
         let mut alternatives = BTreeMap::new();
+        let mut exchanges = BTreeMap::new();
+        let mut selections = town_market::OrderSelections::new();
         for (&agent, controller) in &mut next.controllers {
+            controller.order_forecast = self.order_forecast;
             let mut branch = local(sim, agent);
             controller.step_comparing(&mut branch, |a, b| {
                 observation(a, agent) == observation(b, agent)
@@ -259,7 +323,26 @@ impl Persons {
                     agent,
                 )?,
             );
-            if controller
+            if let Some(town_market::Boundary::Market(round)) =
+                &branch.ledger.last().unwrap().town_market
+            {
+                let selected = round
+                    .selection
+                    .as_ref()
+                    .ok_or("missing personal order mask")?;
+                if selected.actor != agent {
+                    return Err("order mask exceeds person mandate".into());
+                }
+                selections.insert(agent, selected.submit.clone());
+                exchanges.insert(
+                    agent,
+                    Exchange {
+                        submit: selected.submit.clone(),
+                        expected: fills(round, agent),
+                        actual: BTreeMap::new(),
+                    },
+                );
+            } else if controller
                 .history
                 .last()
                 .is_some_and(|r| r.search.is_some())
@@ -267,6 +350,18 @@ impl Persons {
                 alternatives.insert(agent, controller.alternatives.clone());
             }
         }
+        let acquisition = if sim.world.town_market.is_some() {
+            let batch = crate::composition::market::prepare_all(sim, &[], &selections)?;
+            let Some(town_market::Boundary::Market(round)) = &batch.town_market else {
+                return Err("missing jointly prepared town book".into());
+            };
+            for (&agent, exchange) in &mut exchanges {
+                exchange.actual = fills(round, agent);
+            }
+            Some(batch)
+        } else {
+            None
+        };
         let context = Context {
             seed: self.seed,
             pool: PACKAGE_POOL,
@@ -283,7 +378,7 @@ impl Persons {
             .collect();
         let mut accepted = vec![];
         let mut accepted_packages = BTreeMap::new();
-        let mut batch = prepare(sim, &accepted)?;
+        let mut batch = prepare(sim, &accepted, acquisition.as_ref())?;
         let admission = allocation::resolve(
             context,
             &self.policy,
@@ -300,7 +395,7 @@ impl Persons {
                     }
                     let mut candidate = accepted.clone();
                     candidate.extend(proposal.clone());
-                    match prepare(sim, &candidate) {
+                    match prepare(sim, &candidate, acquisition.as_ref()) {
                         Ok(prepared) => {
                             accepted_packages.insert(agent, proposal.clone());
                             accepted = candidate;
@@ -323,16 +418,17 @@ impl Persons {
             // Rejection invalidates the proposed acquisition, not a binding contract.
             // Retry at the next Acquire even under scheduled review.
             next.controllers.get_mut(&agent).unwrap().admission_rejected = true;
-            let mut preview = local(sim, agent);
-            let mut acquisition = batch.clone();
-            acquisition.production_plan = None;
+            let mut preview = sim.clone();
+            let mut settled = batch.clone();
+            settled.production_plan = None;
             crate::settlement::commit(
                 &preview.world,
                 &mut preview.state,
-                &acquisition,
+                &settled,
                 Backend::Reference,
                 preview.effect_limit,
             )?;
+            let preview = local(&preview, agent);
             let mut ignored = Batch::empty(&preview.state);
             let work = preview.productive_requests(&mut ignored, false, None)?;
             for r in work.into_iter().filter(|r| r.existing.is_none()) {
@@ -344,7 +440,7 @@ impl Persons {
                 };
                 let mut candidate = accepted.clone();
                 candidate.push(request.clone());
-                match prepare(sim, &candidate) {
+                match prepare(sim, &candidate, acquisition.as_ref()) {
                     Ok(prepared) => {
                         accepted = candidate;
                         batch = prepared;
@@ -363,6 +459,7 @@ impl Persons {
         )?;
         next.history.push(Round {
             month: batch.month,
+            exchanges,
             context,
             policy: self.policy,
             proposals,

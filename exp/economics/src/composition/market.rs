@@ -6,6 +6,15 @@ use crate::{
     town_market::{self, OrderSelection},
 };
 
+/// What the candidate assumes about its own later order submission. Neither
+/// option authorizes a future trade or chooses a counterparty's live actions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OrderForecast {
+    #[default]
+    CurrentBoundaryOnly,
+    StandingPolicy,
+}
+
 pub fn prepare(
     sim: &Simulation,
     requests: &[offers::Request],
@@ -24,6 +33,21 @@ pub fn prepare(
             offers::prepare_with_acquisition(sim, requests, Some(batch))
         }
     }
+}
+
+/// Joint spot-book acceptance with explicitly supplied masks for every participant.
+/// Work is checked against actual fills. Orders and work remain separate intents:
+/// callers may admit a smaller work set without undoing an already accepted book.
+pub fn prepare_all(
+    sim: &Simulation,
+    requests: &[offers::Request],
+    selections: &town_market::OrderSelections,
+) -> Result<Batch, String> {
+    let round = town_market::evaluate_selections(&sim.world, &sim.state, selections)?;
+    let mut batch = Batch::empty(&sim.state);
+    batch.transactions = round.transactions.clone();
+    batch.town_market = Some(town_market::Boundary::Market(round));
+    offers::prepare_with_acquisition(sim, requests, Some(batch))
 }
 
 /// Counterparties retain their own ordinary execution policy. Only this actor's

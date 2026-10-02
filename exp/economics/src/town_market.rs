@@ -123,8 +123,12 @@ pub struct OrderSelection {
     pub actor: AgentId,
     pub submit: BTreeSet<(marketplace::MarketId, Side)>,
 }
+/// Explicit submission masks collected from independently deciding participants.
+pub type OrderSelections = BTreeMap<AgentId, BTreeSet<(marketplace::MarketId, Side)>>;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub selections: Option<Box<OrderSelections>>,
     pub selection: Option<Box<OrderSelection>>,
     pub cooperation: Option<Box<crate::cooperation::Boundary>>,
     pub planning: Option<crate::production_market::Decision>,
@@ -378,7 +382,7 @@ pub(crate) fn evaluate_with(
     opening: &Resources,
     planning_state: &State,
 ) -> Result<Round, String> {
-    evaluate_selected_with(world, state, opening, planning_state, None)
+    evaluate_selected_with(world, state, opening, planning_state, None, None)
 }
 
 /// Opt-in submission of a subset of one actor's ordinary eligible need orders.
@@ -394,6 +398,34 @@ pub fn evaluate_selected(
         &Resources::opening(world, state),
         state,
         Some(selection),
+        None,
+    )
+}
+
+/// Clear only the masks supplied by all participants. An empty mask withholds
+/// that actor's orders; there is no automatic counterparty submission here.
+pub fn evaluate_selections(
+    world: &World,
+    state: &State,
+    selections: &OrderSelections,
+) -> Result<Round, String> {
+    let participants: BTreeSet<_> = world.participants.iter().map(|p| p.agent).collect();
+    if selections.keys().copied().collect::<BTreeSet<_>>() != participants
+        || world.town_market.as_ref().is_some_and(|c| {
+            c.traders
+                .iter()
+                .any(|t| !selections.contains_key(&t.trader.agent))
+        })
+    {
+        return Err("explicit town book requires every participant's order mask".into());
+    }
+    evaluate_selected_with(
+        world,
+        state,
+        &Resources::opening(world, state),
+        state,
+        None,
+        Some(selections),
     )
 }
 fn evaluate_selected_with(
@@ -402,9 +434,14 @@ fn evaluate_selected_with(
     opening: &Resources,
     planning_state: &State,
     selection: Option<&OrderSelection>,
+    selections: Option<&OrderSelections>,
 ) -> Result<Round, String> {
     validate(world)?;
+    let mut masks = selections.cloned().unwrap_or_default();
     if let Some(selection) = selection {
+        masks.insert(selection.actor, selection.submit.clone());
+    }
+    for (&actor, submit) in &masks {
         if crate::acquisition::shared(world)
             || world.production_market.is_some()
             || !world.households.is_empty()
@@ -412,14 +449,10 @@ fn evaluate_selected_with(
             return Err("explicit town orders require a plain individual town book".into());
         }
         let c = world.town_market.as_ref().ok_or("missing town market")?;
-        if !world
-            .participants
-            .iter()
-            .any(|p| p.agent == selection.actor)
-            || selection.submit.iter().any(|(market, _)| {
+        if !world.participants.iter().any(|p| p.agent == actor)
+            || submit.iter().any(|(market, _)| {
                 !listings(c).iter().any(|l| {
-                    l.market == *market
-                        && l.traders.iter().any(|t| t.trader.agent == selection.actor)
+                    l.market == *market && l.traders.iter().any(|t| t.trader.agent == actor)
                 })
             })
         {
@@ -447,6 +480,7 @@ fn evaluate_selected_with(
     }
     let mut pricing_state = state.clone();
     let mut result = Round {
+        selections: selections.cloned().map(Box::new),
         selection: selection.cloned().map(Box::new),
         cooperation: None,
         month: state.month,
@@ -462,14 +496,17 @@ fn evaluate_selected_with(
         .into_iter()
         .map(|c| {
             let (mut orders, mut receipts) = orders(world, state, &c, &choices, opening)?;
-            if let Some(selected) = selection {
+            if !masks.is_empty() {
                 orders.retain(|o| {
-                    o.agent != selected.actor || selected.submit.contains(&(o.market, o.side))
+                    masks
+                        .get(&o.agent)
+                        .is_none_or(|submit| submit.contains(&(o.market, o.side)))
                 });
                 for r in &mut receipts {
-                    if r.agent == selected.actor
-                        && r.reason == OrderReason::Submitted
-                        && !selected.submit.contains(&(r.market, r.side))
+                    if r.reason == OrderReason::Submitted
+                        && masks
+                            .get(&r.agent)
+                            .is_some_and(|submit| !submit.contains(&(r.market, r.side)))
                     {
                         r.reason = OrderReason::PlannerWithheld;
                     }
@@ -751,13 +788,21 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
         match state.phase {
             Phase::Open => Some(Boundary::Admission(admission(world, state)?)),
             Phase::Acquire => {
-                let selection = batch.town_market.as_ref().and_then(|b| match b {
-                    Boundary::Market(r) => r.selection.as_deref(),
+                let round = batch.town_market.as_ref().and_then(|b| match b {
+                    Boundary::Market(r) => Some(r),
                     _ => None,
                 });
-                Some(Boundary::Market(match selection {
-                    Some(selected) => evaluate_selected(world, state, selected)?,
-                    None => evaluate(world, state)?,
+                Some(Boundary::Market(match round {
+                    Some(r) if r.selection.is_some() && r.selections.is_some() => {
+                        return Err("conflicting town order masks".into());
+                    }
+                    Some(r) if r.selections.is_some() => {
+                        evaluate_selections(world, state, r.selections.as_ref().unwrap())?
+                    }
+                    Some(r) if r.selection.is_some() => {
+                        evaluate_selected(world, state, r.selection.as_ref().unwrap())?
+                    }
+                    _ => evaluate(world, state)?,
                 }))
             }
             _ => None,
