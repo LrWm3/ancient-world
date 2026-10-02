@@ -31,7 +31,9 @@ packages before resolving shared plots and wood. Review schedules remain individ
 the [active exchange extension](PLANNER-EXCHANGE.md) also collects independently
 chosen orders before live clearing and revalidates work against actual fills. A
 low-cash best-first control sustains exchange, but beam and higher-cash controls
-fail; counterparty forecasts and reliable coordination remain open. Multi-household
+fail. [Observed counterparty expectations](PLANNER-EXPECTATIONS.md) add an opt-in
+expiring submission hypothesis, but do not solve coordination and can worsen it.
+Peer-production forecasts and reliable mutually compatible plans remain open. Multi-household
 and financial composition remain outside this adapter.
 This does not change the verified v1 scope.
 

@@ -195,5 +195,8 @@ explicit, swappable counterparty expectations informed by completed order/fill
 observations, while keeping these same endowments and budgets. Compare it against
 this conditional baseline and preserve the failing beam/higher-cash controls.
 Reliable posted commitments are another possible approach. Neither extension is
-implemented here; making forecasts agree with likely counterparties is the gap
-these results expose.
+implemented in this original comparison; making forecasts agree with likely
+counterparties is the gap these results expose. The subsequent
+[observed-expectations comparison](PLANNER-EXPECTATIONS.md) implements an expiring
+submission hypothesis and preserves the failed controls. It reduces some optimistic
+errors but does not solve coordination; conditional commitments remain proposed.

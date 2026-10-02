@@ -5,7 +5,8 @@ is recorded separately in [the comparison](PLANNER-COMPARISON.md) and its
 [calibration/market follow-up](PLANNER-CALIBRATION.md), plus the
 [continuation-policy comparison](PLANNER-CONTINUATION.md) and
 [independent multi-person admission](PLANNER-PERSONS.md) and
-[active exchange comparison](PLANNER-EXCHANGE.md).
+[active exchange comparison](PLANNER-EXCHANGE.md), followed by
+[observed counterparty expectations](PLANNER-EXPECTATIONS.md).
 [Release results](V1-RESULTS.md) record the completed bounded gates.
 This page describes supported combinations and present exclusions. The
 [v1 release checklist](V1-RELEASE.md) defines release requirements and exclusions;
@@ -46,7 +47,7 @@ prove that every combination of those systems works together.
 | Household + common acceptance | Financial requests and explicit citizenship/land/process bundles prepare through ordinary household boundaries; member claims stay private while harvests pool | Mixed financial/productive search bundles remain excluded |
 | Experimental offer composition | Beam/best-first discover bounded person or explicitly member-consented household packages; ordinary acceptance, accounting and land allocation remain authoritative | Current membership/land/process lots; separately, person need-order subsets with passive town counterparties. No household market/finance composition, general dated schedule optimization or default-policy replacement |
 | Independent person composition + shared resources | Same-opening personal searches, equal-score alternatives, explicit whole-package admission, fallback work and separate review schedules; two/four-person repeated harvests and 32-person opening contention | One new plot per reviewed package; ordered admission, not optimal joint matching; forecasts do not predict competitors; trade is covered separately below; no households or finance in this adapter |
-| Independent person composition + town exchange | Every person chooses work and order submissions; common clearing, actual-fill work checks, finite money, expected/actual receipts, CPU/restart/separate accounting controls | Monthly review only; preexisting rights, fixed supplied listings/quotes in the comparison; peer forecasts omit new production and do not predict actual order choices. Beam and higher-cash controls fail |
+| Independent person composition + town exchange | Every person chooses work and order submissions; common clearing, actual-fill work checks, finite money, expected/actual receipts, CPU/restart/separate accounting controls | Monthly review only; preexisting rights, fixed supplied listings/quotes in the comparison; peer forecasts omit new production; optional recent-submission hypotheses can suppress trade and worsen survival. Beam and higher-cash controls fail |
 | Experimental plan continuation | Isolated crop/household scopes compare monthly search, retain/repair and horizon reviews; fresh dated work, observation-triggered reconsideration, CPU/reference/accounting and cloned checkpoint checks | All household participants must consent. Exact full-context deviation detection; retained market plans, optimized local repair and durable controller serialization remain absent; monthly active exchange is covered separately above |
 | Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |

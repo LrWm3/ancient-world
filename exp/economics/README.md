@@ -21,8 +21,10 @@ Two- and four-person controls complete repeated harvests; scarcity still produce
 shortages. The [active exchange comparison](PLANNER-EXCHANGE.md) now combines
 independent production and order choices in one live town book. Best-first search
 with a consistent own-order forecast sustains a low-cash two-person control; beam
-search and higher-cash controls still fail. Existing simulation defaults are
-unchanged. See the
+search and higher-cash controls still fail. The [counterparty expectation comparison](PLANNER-EXPECTATIONS.md)
+adds expiring observations of eligible submissions/withholding. Some fill errors
+fall, but longer memory can suppress exchange and worsen survival; the ordinary
+expectation model remains the default. Existing simulation defaults are unchanged. See the
 [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
 ## Current progress — 2026-10-01

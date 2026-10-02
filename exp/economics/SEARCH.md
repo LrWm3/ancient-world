@@ -208,7 +208,18 @@ existing behavior. Neither option retains live orders between months. Peer forec
 use current stocks, ordinary consumption/orders and no new peer production; live
 peers decide independently. Receipts expose expected versus actual fills. No peer
 forecast is a promise or an allocation. Retain/repair and scheduled market review
-are rejected before advancing; future counterparty expectations remain a gap.
+are rejected before advancing.
+
+`Persons::counterparty_policy` independently selects ordinary peer submission or
+`RecentSubmission { memory_months }`. The latter freezes each actor's view of earlier
+settled eligible submission/withholding receipts, with expiry during the forecast.
+Submitted-but-unfilled orders remain evidence of willingness. Ineligible orders do
+not erase a still-fresh eligible observation. Only the actor's own resulting mask
+enters live clearing; hypothesized peer masks never authorize peer actions.
+`Exchange::expectations` exposes the evidence. The [expectation comparison](PLANNER-EXPECTATIONS.md)
+records fewer optimistic misses in some cases but worse coordination under longer
+memory. Ordinary expectations remain the default; peer production and reliable
+mutually compatible plans remain gaps.
 
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain
