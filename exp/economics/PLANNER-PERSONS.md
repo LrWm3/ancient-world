@@ -7,6 +7,10 @@ for the same plot or wood without publishing duplicate grants. This extends the
 bounded P3/P7 experiments in [the planner plan](PLANNER-EXPERIMENTS.md); defaults,
 the monthly scheduler and the historical [v1 verification](V1-RESULTS.md) are unchanged.
 
+The subsequent [active exchange comparison](PLANNER-EXCHANGE.md) extends this
+coordinator to monthly independent production and order choices. This report retains
+the earlier non-market settings, results and exclusions.
+
 ## Independent intentions, shared resources
 
 `composition::continuation::persons::Persons` contains one `Controller` per
@@ -189,4 +193,6 @@ A useful next bounded experiment would add two active trading counterparties to
 this same collection/admission boundary, retaining separate budgets and exposing
 failed expected trades to each person's next forecast. That would address the
 missing food outlet for landless persons only if the supplied opportunities and
-exchange terms make such a livelihood feasible. It remains a proposed follow-up.
+exchange terms make such a livelihood feasible. This follow-up is now implemented
+in [active exchange](PLANNER-EXCHANGE.md), with mixed economic outcomes and explicit
+forecast-versus-fill receipts; learning counterparty submission behavior remains open.

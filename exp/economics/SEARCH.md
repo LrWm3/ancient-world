@@ -157,7 +157,9 @@ private work. Common-offer composition requires an isolated person or household
 branch. The [market adapter](PLANNER-CALIBRATION.md) additionally supports one
 planning person with passive town counterparties: it selects eligible need-order
 subsets alongside productive offers, and scores only that person. Active
-counterparty production, household market search and finance remain excluded.
+counterparty production remains excluded from direct `choose` calls; the `Persons`
+coordinator below supplies private forecast branches for independently active
+traders. Household market search and finance remain excluded.
 
 `choose_with_scoring` exposes private-buffer and household-consumption buffer
 variants for calibration. Fixed forecasts reproduce fixed execution, but monthly
@@ -187,7 +189,26 @@ view ignores unrelated private changes and global IDs while retaining own resour
 commitments and observed shared availability; it is not a private-information model.
 Checkpoint `Persons` with the simulation. See [multi-person results](PLANNER-PERSONS.md)
 for two/four-person repeated harvests, scarce access, CPU/accounting checks and
-exclusions. Household, finance and active trading drivers remain unsupported here.
+exclusions. Household and finance composition remain unsupported here.
+
+The [active exchange extension](PLANNER-EXCHANGE.md) supports a plain town book
+with monthly review. Every person selects its own productive package and a mask
+of listing/side order submissions. The coordinator clears all masks together,
+then checks work against actual fills. Existing admission and settlement enforce
+opening cash, stocks, storage and dated capacity. Work rejection can leave a valid
+spot trade in place; these are separate intents, not conditional trade bundles.
+Market packages do not use the request-only equal-score alternatives above, which
+do not preserve order choices.
+
+`Persons::order_forecast` selects `CurrentBoundaryOnly` (later hypothetical orders
+use ordinary generation) or `StandingPolicy` (the actor retains its selected sides
+through the forecast, including sides eligible only later). `StandingPolicy` is
+the default for this new opt-in market coordinator; direct `choose` retains its
+existing behavior. Neither option retains live orders between months. Peer forecasts
+use current stocks, ordinary consumption/orders and no new peer production; live
+peers decide independently. Receipts expose expected versus actual fills. No peer
+forecast is a promise or an allocation. Retain/repair and scheduled market review
+are rejected before advancing; future counterparty expectations remain a gap.
 
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain

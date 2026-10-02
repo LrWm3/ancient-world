@@ -28,7 +28,11 @@ The [continuation experiment](PLANNER-CONTINUATION.md) compares monthly search,
 observed-deviation repair and scheduled reviews, including shortages and deaths.
 The [multi-person follow-up](PLANNER-PERSONS.md) now collects independently searched
 packages before resolving shared plots and wood. Review schedules remain individual;
-active counterparty trade and multi-household planning remain outside that adapter.
+the [active exchange extension](PLANNER-EXCHANGE.md) also collects independently
+chosen orders before live clearing and revalidates work against actual fills. A
+low-cash best-first control sustains exchange, but beam and higher-cash controls
+fail; counterparty forecasts and reliable coordination remain open. Multi-household
+and financial composition remain outside this adapter.
 This does not change the verified v1 scope.
 
 ## Purpose and consistency
