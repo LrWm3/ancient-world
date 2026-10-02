@@ -34,9 +34,11 @@ low-cash best-first control sustains exchange, but beam and higher-cash controls
 fail. [Observed counterparty expectations](PLANNER-EXPECTATIONS.md) add an opt-in
 expiring submission hypothesis, but do not solve coordination and can worsen it.
 [Conditional spot offers](PLANNER-POSTED.md) add independent acceptance and atomic
-reciprocal exchange, but do not establish sustainable cooperation. Peer-production
-forecasts and composed multi-month delivery commitments remain open. Multi-household
-and financial composition remain outside this adapter.
+reciprocal exchange, but do not establish sustainable cooperation. The bounded
+[dated agreement adapter](PLANNER-SCHEDULED.md) now reuses future delivery execution
+and cancellation while each person independently selects work. Both survive its
+24-month controls; contract-menu search and calibrated counterparty performance
+remain open. Multi-household and financial composition remain outside this adapter.
 This does not change the verified v1 scope.
 
 ## Purpose and consistency

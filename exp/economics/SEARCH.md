@@ -228,8 +228,17 @@ current deliveries and feasible combined work before publication; otherwise the
 original spot decision remains the fallback. It reuses existing market transfers
 and `cooperation::Delivery` terms. Future submission is only an explicit renewal
 hypothesis, not a dated promise. See [posted-offer results](PLANNER-POSTED.md) for
-extra search costs, failed high-cash controls and the six-month agreement adapter
-still missing from composition.
+extra search costs and failed high-cash controls.
+
+`composition::continuation::scheduled::Controller` now assesses one public six-month
+delivery-only schedule using independent own-work searches. Forecasts condition on
+peer performance while retaining the actor's actual budgets. The shared cooperative
+executor owns the accepted book, checks opening resources and cancels future terms
+on a failed delivery. Terms persist independently of controller work choices.
+[The dated comparison](PLANNER-SCHEDULED.md) sustains both persons at all tested cash
+endowments for 24 months, but adds searches, assumes peer performance and uses a
+single supplied terms menu. Low-cash best-first spot has fewer shortfalls. General
+schedule optimization, residual spot clearing and risk estimation remain open.
 
 Expansion and full-forecast budgets are distinct. Metrics include pruning,
 exhaustion, rejection reasons and forecast-months. Failed economic outcomes remain

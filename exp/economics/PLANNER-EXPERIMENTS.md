@@ -25,9 +25,11 @@ submission evidence versus ordinary assumptions, with matched failed controls.
 It does not implement probabilistic scenarios or solve coordination. A
 [conditional spot-offer comparison](PLANNER-POSTED.md) now exercises two-delivery
 atomic acceptance after independent assessments, a narrow precursor to P6; it does
-not compose tool financing or dated future delivery contracts. Extra search cost
-and failed survival controls remain explicit. Existing simulation defaults were
-not replaced.
+not compose tool financing. A [dated-delivery follow-up](PLANNER-SCHEDULED.md) now
+connects six-month public schedules to independent composition search and the
+existing cancellation executor. Both people survive the matched controls, but the
+single menu and conditional peer-performance hypothesis remain explicit limits.
+General P6 financial composition is still proposed. Existing defaults were not replaced.
 Baseline: verified v1 code `a1b99fa`, results published at `b3cbcef`.
 This is a bounded research plan, not an extension of the completed
 [v1 release checklist](V1-RELEASE.md) or a commitment to implement every technique.

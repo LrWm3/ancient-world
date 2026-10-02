@@ -12,6 +12,8 @@ promises into composition search. The older [cooperative agreement](COOPERATION.
 pilot already has dated future delivery schedules and cancellation consequences,
 but uses a different work-choice planner and different fixtures. That pilot remains
 intact; its long-run results are not a controlled comparison with this experiment.
+The later [dated-delivery adapter](PLANNER-SCHEDULED.md) now integrates that executor
+with independent composition search; the spot results below remain unchanged.
 
 ## Public intentions and independent acceptance
 
@@ -177,4 +179,5 @@ Generated CSVs and logs remain under ignored `output/`. The next bounded questio
 is whether composition can assess and honor a small dated delivery schedule through
 the existing cooperative agreement executor, with failed-delivery consequences,
 instead of treating later trade as an assumed renewal. That integration remains
-proposed; current spot success must not be treated as a future commitment.
+implemented in the separate [dated-delivery comparison](PLANNER-SCHEDULED.md);
+current spot success still must not be treated as a future commitment.

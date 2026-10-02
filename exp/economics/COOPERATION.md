@@ -275,6 +275,11 @@ The later [conditional spot adapter](PLANNER-POSTED.md) reuses `Delivery` terms 
 normal town-book transfers for an atomic reciprocal package. It adds independent
 composition assessments after public preliminary masks, without using this pilot's
 joint discovery or prescribed work preferences. Only the current month's terms
-bind; composing this document's future schedules and cancellation consequences
-with the newer search remains a proposed next integration. The two reports use
-different fixtures and are not matched performance comparisons.
+bind. The [dated-delivery adapter](PLANNER-SCHEDULED.md) now also reuses this
+executor, with `Contract::independent` and empty prescribed work choices. Explicit
+party consents admit the terms; subsequent ordinary stepping continues them even
+if the composition controller is replaced. The common exchange view derives parties
+from deliveries for these contracts. Each actor separately chooses work, conditional
+on the peer meeting its promises. Failed current deliveries cancel the remainder
+without erasing prior completed trades. These newer planner fixtures and this
+older pilot remain different experiments, not matched performance comparisons.

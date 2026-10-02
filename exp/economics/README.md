@@ -26,8 +26,11 @@ adds expiring observations of eligible submissions/withholding. Some fill errors
 fall, but longer memory can suppress exchange and worsen survival; the ordinary
 expectation model remains the default. [Conditional reciprocal spot offers](PLANNER-POSTED.md)
 now let both people consent to an atomic exchange. Some withheld trades execute,
-but higher-cash cases still fail and future delivery promises remain unintegrated
-with composition search. Existing simulation defaults are unchanged. See the
+but higher-cash cases still fail. The [dated delivery adapter](PLANNER-SCHEDULED.md)
+now connects independent composition search to accepted schedules and cancellation
+consequences. Both people survive its matched 24-month controls at all tested cash
+endowments, though low-cash best-first spot trading has fewer shortfalls. Existing
+simulation defaults are unchanged. See the
 [experiment plan](PLANNER-EXPERIMENTS.md) for the bounded scope.
 
 ## Current progress — 2026-10-01
