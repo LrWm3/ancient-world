@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 pub mod persons;
 pub mod posted;
+pub mod scheduled;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Policy {

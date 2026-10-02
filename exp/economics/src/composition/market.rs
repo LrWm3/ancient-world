@@ -66,6 +66,21 @@ pub(super) fn actor_score(branch: &Simulation, actor: AgentId) -> crate::plannin
         .values()
         .filter(|p| p.operator == actor && p.status == Status::Aborted)
         .count() as u64;
+    score.broken_commitments += branch
+        .ledger
+        .iter()
+        .filter_map(|b| b.town_market.as_ref())
+        .filter_map(|b| match b {
+            town_market::Boundary::Market(r) => r.cooperation.as_deref(),
+            _ => None,
+        })
+        .filter(|b| {
+            b.failure.is_some()
+                && b.terms
+                    .as_ref()
+                    .is_some_and(|c| c.parties().contains(&actor))
+        })
+        .count() as u64;
     score
 }
 
@@ -73,6 +88,11 @@ pub(super) fn actor_score(branch: &Simulation, actor: AgentId) -> crate::plannin
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Counterparties {
     Observed(super::expectations::Snapshot),
+    /// Conditional on the counterparty meeting dated terms; own budgets remain real.
+    Schedule {
+        actor: AgentId,
+        contract: crate::cooperation::Contract,
+    },
     Announced {
         actor: AgentId,
         orders: town_market::OrderSelections,
@@ -82,13 +102,19 @@ impl Counterparties {
     fn actor(&self) -> AgentId {
         match self {
             Self::Observed(s) => s.actor,
-            Self::Announced { actor, .. } => *actor,
+            Self::Announced { actor, .. } | Self::Schedule { actor, .. } => *actor,
         }
     }
     fn masks(&self, sim: &Simulation) -> Result<town_market::OrderSelections, String> {
         match self {
             Self::Observed(s) => s.masks(&sim.world, sim.state.month),
             Self::Announced { orders, .. } => Ok(orders.clone()),
+            Self::Schedule { .. } => Ok(sim
+                .world
+                .participants
+                .iter()
+                .map(|p| (p.agent, Default::default()))
+                .collect()),
         }
     }
 }
@@ -109,9 +135,121 @@ pub(super) fn prepare_expected(
     {
         return Err("forecast exceeds expectation actor mandate".into());
     }
+    if let Counterparties::Schedule { contract, .. } = expectation {
+        if sim.state.month == contract.start
+            && crate::cooperation::active_independent(&sim.state).is_none()
+        {
+            let round = crate::cooperation::evaluate_schedule(
+                &sim.world,
+                &sim.state,
+                Some(contract),
+                &contract.parties().into_iter().collect(),
+            )?;
+            let mut batch = Batch::empty(&sim.state);
+            batch.transactions = round.transactions.clone();
+            batch.town_market = Some(town_market::Boundary::Market(round));
+            return offers::prepare_with_acquisition(sim, requests, Some(batch));
+        }
+        // The accepted executor owns the book; once ended, do not assume renewal.
+        return prepare_all(sim, requests, &expectation.masks(sim)?);
+    }
     let mut masks = expectation.masks(sim)?;
     if let Some(selection) = selection {
         masks.insert(selection.actor, selection.submit.clone());
     }
     prepare_all(sim, requests, &masks)
+}
+
+/// Conditional projection only: budget the peer's remaining promises without
+/// inspecting its productive plan. Never grant goods or credit to the actor.
+pub(super) fn promise_view(
+    sim: &Simulation,
+    expectation: Option<&Counterparties>,
+) -> Result<Option<Simulation>, String> {
+    let Some(Counterparties::Schedule { actor, contract }) = expectation else {
+        return Ok(None);
+    };
+    let mut branch = sim.clone();
+    for p in &mut branch.world.participants {
+        if p.agent != *actor {
+            p.needs.clear();
+            p.capacity.quantity = 0;
+            branch.world.storage.capacities.remove(&p.agent);
+            branch.state.balances.retain(|(a, _), _| *a != p.agent);
+        }
+    }
+    branch.world.condition_rules.retain(|r| r.subject == *actor);
+    branch.state.conditions.retain(|(a, _), _| *a == *actor);
+    branch.state.processes.retain(|_, p| p.operator == *actor);
+    for d in contract
+        .deliveries
+        .iter()
+        .filter(|d| d.month >= branch.state.month)
+    {
+        for t in [&d.goods, &d.payment] {
+            if t.from != *actor {
+                let q = branch
+                    .state
+                    .balances
+                    .entry((t.from, t.amount.resource))
+                    .or_default();
+                *q = q
+                    .checked_add(t.amount.quantity)
+                    .ok_or("promise forecast overflow")?;
+            }
+        }
+    }
+    Ok(Some(branch))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn conditional_resources_are_only_a_peer_promise_not_an_actor_endowment() {
+        let (mut w, s) = crate::production_market::reciprocal_scenario(true);
+        w.production_market = None;
+        // Build explicit terms without referring to either party's private work.
+        let actor = crate::scenario::PERSON;
+        let contract = crate::cooperation::Contract {
+            independent: true,
+            start: 1,
+            through: 6,
+            choices: Default::default(),
+            deliveries: vec![crate::cooperation::Delivery {
+                month: 2,
+                market: 1,
+                goods: crate::finance::Transfer {
+                    from: 89,
+                    to: actor,
+                    amount: Amount::new(crate::scenario::GRAIN, 2),
+                },
+                payment: crate::finance::Transfer {
+                    from: actor,
+                    to: 89,
+                    amount: Amount::new(crate::scenario::TOKEN, 2),
+                },
+            }],
+        };
+        let sim = Simulation::new(w, s, crate::compute::Backend::Reference).unwrap();
+        let before = sim.state.clone();
+        let view = promise_view(&sim, Some(&Counterparties::Schedule { actor, contract }))
+            .unwrap()
+            .unwrap();
+        for (&account, &quantity) in sim.state.balances.iter().filter(|(a, _)| a.0 == actor) {
+            assert_eq!(view.state.balances[&account], quantity);
+        }
+        assert_eq!(view.state.balance(89, crate::scenario::GRAIN), 2);
+        assert_eq!(view.state.balance(89, crate::scenario::TOKEN), 0);
+        assert!(
+            view.world
+                .participants
+                .iter()
+                .find(|p| p.agent == 89)
+                .unwrap()
+                .needs
+                .is_empty()
+        );
+        assert_eq!(sim.state, before);
+    }
 }

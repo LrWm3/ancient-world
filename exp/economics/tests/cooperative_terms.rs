@@ -13,6 +13,7 @@ use economics_compute_smoke::{
 fn fixture() -> Simulation {
     let (mut w, s) = calibration::scenario(true);
     w.production_market.as_mut().unwrap().policy = Policy::Agreement(Box::new(Contract {
+        independent: false,
         start: 1,
         through: 6,
         choices: [CROP_PERSON, WOOD_PERSON]

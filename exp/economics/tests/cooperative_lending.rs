@@ -18,6 +18,7 @@ fn fixture(buyer_lends: bool, funded: bool, delivery_month: u32) -> (World, Stat
     let (mut w, mut s) = calibration::scenario(true);
     // Retain real needs; isolate acquisition from production profitability.
     w.production_market.as_mut().unwrap().policy = Policy::Agreement(Box::new(Contract {
+        independent: false,
         start: 1,
         through: 6,
         choices: [CROP_PERSON, WOOD_PERSON]

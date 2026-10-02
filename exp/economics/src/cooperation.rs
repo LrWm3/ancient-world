@@ -11,9 +11,10 @@ use crate::{
     simulation::Simulation,
     town_market::{self, MarketResult, Round},
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-const TERM_MONTHS: u32 = 6;
+pub(crate) const TERM_MONTHS: u32 = 6;
+pub(crate) const INDEPENDENT_PARTIES: usize = 2;
 const BUFFER_MONTHS: i128 = 2;
 const MAX_DELIVERIES: usize = 12;
 
@@ -31,6 +32,8 @@ pub struct Delivery {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Contract {
+    /// Delivery-only contracts leave productive work to independent controllers.
+    pub independent: bool,
     pub start: u32,
     pub through: u32,
     pub choices: BTreeMap<AgentId, Choice>,
@@ -71,6 +74,8 @@ pub struct Assessment {
 pub struct Boundary {
     /// Start month identifies the single scoped agreement, including its failure receipt.
     pub agreement: Option<u32>,
+    /// Explicit signatories for independently planned delivery-only schedules.
+    pub consents: BTreeSet<AgentId>,
     /// Accepted schedule survives failure; active is the continuing work grant.
     pub terms: Option<Contract>,
     pub active: Option<Contract>,
@@ -152,6 +157,9 @@ pub fn validate(w: &World) -> Result<(), String> {
         return Err("cooperation pilot requires two people and a six-month horizon".into());
     }
     if let Some(Policy::Agreement(c)) = policy(w) {
+        if c.independent {
+            return Err("independent delivery schedules do not use a production policy".into());
+        }
         validate_contract(w, c)?;
     }
     Ok(())
@@ -159,13 +167,30 @@ pub fn validate(w: &World) -> Result<(), String> {
 fn validate_contract(w: &World, c: &Contract) -> Result<(), String> {
     if c.start == 0
         || c.start.checked_add(TERM_MONTHS - 1) != Some(c.through)
-        || c.choices.keys().copied().collect::<Vec<_>>() != people(w)
+        || if c.independent {
+            w.participants.len() != INDEPENDENT_PARTIES
+                || !c.choices.is_empty()
+                || c.parties() != people(w)
+                || c.deliveries.is_empty()
+        } else {
+            c.choices.keys().copied().collect::<Vec<_>>() != people(w)
+        }
         || c.choices
             .values()
             .any(|choice| !candidates(w).contains(choice))
         || c.deliveries.len() > MAX_DELIVERIES
     {
         return Err("invalid cooperative contract".into());
+    }
+    if c.independent
+        && c.deliveries
+            .iter()
+            .map(|d| (d.month, d.market))
+            .collect::<BTreeSet<_>>()
+            .len()
+            != c.deliveries.len()
+    {
+        return Err("independent schedule repeats a market in one month".into());
     }
     let venue = marketplace::venue(w, w.town_market.as_ref().ok_or("missing market")?.venue)
         .ok_or("missing venue")?;
@@ -179,10 +204,13 @@ fn validate_contract(w: &World, c: &Contract) -> Result<(), String> {
             || d.goods.amount != m.goods
             || d.payment.amount.resource != m.payment
             || d.payment.amount.quantity <= 0
+            || (c.independent
+                && (m.price_tick <= 0 || d.payment.amount.quantity % m.price_tick != 0))
             || d.goods.from != d.payment.to
             || d.goods.to != d.payment.from
-            || !c.choices.contains_key(&d.goods.from)
-            || !c.choices.contains_key(&d.goods.to)
+            || d.goods.from == d.goods.to
+            || !c.parties().contains(&d.goods.from)
+            || !c.parties().contains(&d.goods.to)
         {
             return Err("invalid dated delivery terms".into());
         }
@@ -204,6 +232,9 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     if latest(s)
         .and_then(|b| b.active.as_ref())
         .is_some_and(|c| s.month <= c.through)
+        && !latest(s)
+            .and_then(|b| b.active.as_ref())
+            .is_some_and(|c| c.independent)
         && !matches!(policy(w), Some(Policy::Cooperate(_) | Policy::Agreement(_)))
     {
         return Err("cannot discard an active cooperative agreement by changing planner".into());
@@ -216,11 +247,74 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
     {
         return Err("cannot rewrite an active cooperative agreement".into());
     }
+    let mut independent: Option<&Contract> = None;
+    let mut previous_month = 0;
+    let mut independent_starts = BTreeSet::new();
     let mut accepted = BTreeMap::new();
     for r in &s.town_market.history {
+        if let Some(c) = independent.filter(|c| r.month <= c.through)
+            && (r.month != previous_month + 1
+                || r.cooperation.as_ref().and_then(|b| b.terms.as_ref()) != Some(c))
+        {
+            return Err("missing continuing independent schedule".into());
+        }
         if let Some(b) = &r.cooperation {
             if let Some(c) = &b.terms {
                 validate_contract(w, c)?;
+                if c.independent {
+                    if r.month == c.start {
+                        if !independent_starts.insert(c.start) {
+                            return Err("duplicate schedule admission".into());
+                        }
+                    } else if independent != Some(c) {
+                        return Err("unaccepted or cancelled schedule continuation".into());
+                    }
+                    let due: Vec<_> = c
+                        .deliveries
+                        .iter()
+                        .filter(|d| d.month == r.month)
+                        .cloned()
+                        .collect();
+                    if (b.failure.is_none() && b.completed != due)
+                        || r.selection.is_some()
+                        || r.selections.is_some()
+                        || r.conditional.is_some()
+                        || !r.orders.is_empty()
+                        || !r.attempts.is_empty()
+                    {
+                        return Err("invalid independent delivery receipt".into());
+                    }
+                    let transactions = b
+                        .completed
+                        .iter()
+                        .map(|d| delivery_transaction(c, d))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let mut markets: BTreeMap<_, _> = r
+                        .markets
+                        .keys()
+                        .map(|&id| (id, MarketResult::default()))
+                        .collect();
+                    for d in &b.completed {
+                        let m = markets
+                            .get_mut(&d.market)
+                            .ok_or("missing delivery market observation")?;
+                        m.volume = m
+                            .volume
+                            .checked_add(d.goods.amount.quantity)
+                            .ok_or("delivery volume overflow")?;
+                        m.posted_price = Some(d.payment.amount.quantity);
+                    }
+                    if r.transactions != transactions || r.markets != markets {
+                        return Err("altered independent settlement history".into());
+                    }
+                    independent = b.active.as_ref();
+                }
+                if c.independent
+                    && ((r.month == c.start && b.consents != c.parties().into_iter().collect())
+                        || (r.month != c.start && !b.consents.is_empty()))
+                {
+                    return Err("invalid independent schedule consents".into());
+                }
                 if b.agreement != Some(c.start)
                     || !(c.start..=c.through).contains(&r.month)
                     || accepted
@@ -248,6 +342,17 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
             if b.completed.iter().any(|d| d.month != r.month) {
                 return Err("misdated contract receipt".into());
             }
+        }
+        previous_month = r.month;
+    }
+    if independent.is_some_and(|c| s.month <= c.through) {
+        let completed_month = if matches!(s.phase, Phase::Open | Phase::Due | Phase::Acquire) {
+            s.month - 1
+        } else {
+            s.month
+        };
+        if previous_month != completed_month || w.production_market.is_some() {
+            return Err("missing independent schedule boundary or conflicting work driver".into());
         }
     }
     Ok(())
@@ -342,6 +447,7 @@ fn contract(
     deliveries: Vec<Delivery>,
 ) -> Result<Contract, String> {
     Ok(Contract {
+        independent: false,
         start: s.month,
         through: s
             .month
@@ -353,7 +459,7 @@ fn contract(
 }
 fn eligible(w: &World, s: &State, c: &Contract) -> bool {
     let town = w.town_market.as_ref().unwrap();
-    c.choices.keys().all(|a| {
+    c.parties().iter().all(|a| {
         !s.terminal.contains_key(a)
             && s.town_market
                 .admission
@@ -371,6 +477,16 @@ fn settle(
 ) -> Result<Vec<Transaction>, String> {
     if !eligible(w, s, c) {
         return Err("participant unavailable or outside marketplace".into());
+    }
+    if c.independent
+        && c.deliveries.iter().filter(|d| d.month == s.month).any(|d| {
+            town_market::listings(w.town_market.as_ref().unwrap())
+                .iter()
+                .find(|l| l.market == d.market)
+                .is_none_or(|l| l.match_limit == Some(0))
+        })
+    {
+        return Err("due delivery market unavailable".into());
     }
     let mut resources = opening.clone();
     if resources.pooling.is_none() {
@@ -400,28 +516,32 @@ fn settle(
                 ));
             }
         }
-        let mut effects = d.goods.effects()?;
-        effects.extend(d.payment.effects()?);
-        let t = Transaction {
-            cause: format!(
-                "cooperative agreement {} market {} delivery",
-                c.start, d.market
-            ),
-            effects,
-            process: None,
-            technique_use: None,
-            trade: None,
-            stock_trade: None,
-            forward: None,
-            delivery: None,
-            royalty: None,
-        };
+        let t = delivery_transaction(c, d)?;
         resources
             .reserve(w, std::slice::from_ref(&t))
             .map_err(|e| format!("market {} due {}: {e}", d.market, d.month))?;
         transactions.push(t);
     }
     Ok(transactions)
+}
+
+fn delivery_transaction(c: &Contract, d: &Delivery) -> Result<Transaction, String> {
+    let mut effects = d.goods.effects()?;
+    effects.extend(d.payment.effects()?);
+    Ok(Transaction {
+        cause: format!(
+            "cooperative agreement {} market {} delivery",
+            c.start, d.market
+        ),
+        effects,
+        process: None,
+        technique_use: None,
+        trade: None,
+        stock_trade: None,
+        forward: None,
+        delivery: None,
+        royalty: None,
+    })
 }
 
 #[derive(Clone)]
@@ -757,6 +877,123 @@ fn discover(
     }
 }
 
+impl Contract {
+    pub fn parties(&self) -> Vec<AgentId> {
+        if self.independent {
+            self.deliveries
+                .iter()
+                .flat_map(|d| [d.goods.from, d.goods.to])
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect()
+        } else {
+            self.choices.keys().copied().collect()
+        }
+    }
+}
+
+/// The latest independent schedule owns the book through completion or failure.
+/// A later ordinary receipt cannot erase a still-live commitment.
+pub fn active_independent(s: &State) -> Option<&Contract> {
+    s.town_market
+        .history
+        .iter()
+        .rev()
+        .filter_map(|r| r.cooperation.as_deref())
+        .find(|b| b.terms.as_ref().is_some_and(|c| c.independent))?
+        .active
+        .as_ref()
+        .filter(|c| s.month <= c.through)
+}
+
+/// Admit explicit delivery-only terms, or execute the already accepted schedule.
+/// Same executor, opening budgets and cancel-remainder consequence as the older pilot.
+pub fn evaluate_schedule(
+    w: &World,
+    s: &State,
+    proposal: Option<&Contract>,
+    consents: &BTreeSet<AgentId>,
+) -> Result<Round, String> {
+    if s.phase != Phase::Acquire
+        || w.production_market.is_some()
+        || w.participants.len() != INDEPENDENT_PARTIES
+        || crate::acquisition::shared(w)
+        || !w.households.is_empty()
+    {
+        return Err("independent schedule requires a plain two-person Acquire book".into());
+    }
+    let current = active_independent(s);
+    let (contract, accepted) = match (current, proposal) {
+        (Some(c), None) if consents.is_empty() => (c.clone(), false),
+        (None, Some(c))
+            if c.independent
+                && c.start == s.month
+                && consents.iter().copied().collect::<Vec<_>>() == people(w)
+                && !s.town_market.history.iter().any(|r| {
+                    r.cooperation
+                        .as_ref()
+                        .is_some_and(|b| b.agreement == Some(c.start))
+                }) =>
+        {
+            validate_contract(w, c)?;
+            if !eligible(w, s, c) {
+                return Err("ineligible schedule signatory".into());
+            }
+            let listings = town_market::listings(w.town_market.as_ref().ok_or("missing market")?);
+            for d in &c.deliveries {
+                let listing = listings
+                    .iter()
+                    .find(|l| l.market == d.market)
+                    .ok_or("unlisted delivery")?;
+                if listing.match_limit == Some(0) {
+                    return Err("delivery market closed".into());
+                }
+                let seller = listing
+                    .traders
+                    .iter()
+                    .find(|t| {
+                        t.trader.agent == d.goods.from
+                            && (listing.adaptive || t.side == marketplace::Side::Sell)
+                    })
+                    .ok_or("unregistered schedule seller")?;
+                let buyer = listing
+                    .traders
+                    .iter()
+                    .find(|t| {
+                        t.trader.agent == d.goods.to
+                            && (listing.adaptive || t.side == marketplace::Side::Buy)
+                    })
+                    .ok_or("unregistered schedule buyer")?;
+                if d.payment.amount.quantity < seller.trader.limit
+                    || d.payment.amount.quantity > buyer.trader.limit
+                {
+                    return Err("schedule price outside participant limits".into());
+                }
+            }
+            (c.clone(), true)
+        }
+        _ => return Err("missing consents, stale proposal or replacement of live schedule".into()),
+    };
+    let b = Boundary {
+        agreement: None,
+        consents: if accepted {
+            consents.clone()
+        } else {
+            BTreeSet::new()
+        },
+        terms: None,
+        active: None,
+        offers: vec![],
+        assessments: vec![],
+        event: if accepted { "Accepted" } else { "Continuing" }.into(),
+        projections: 0,
+        joint_projections: 0,
+        completed: vec![],
+        failure: None,
+    };
+    Ok(finish(w, s, &Resources::opening(w, s), Some(contract), b))
+}
+
 pub fn evaluate(w: &World, s: &State) -> Result<Option<Round>, String> {
     evaluate_with(w, s, &Resources::opening(w, s), s)
 }
@@ -767,6 +1004,9 @@ pub(crate) fn evaluate_with(
     opening: &Resources,
     planning_state: &State,
 ) -> Result<Option<Round>, String> {
+    if active_independent(s).is_some() {
+        return evaluate_schedule(w, s, None, &BTreeSet::new()).map(Some);
+    }
     let Some(policy @ (Policy::Cooperate(_) | Policy::Agreement(_))) = policy(w) else {
         return Ok(None);
     };
@@ -776,6 +1016,7 @@ pub(crate) fn evaluate_with(
     }
     let mut b = Boundary {
         agreement: None,
+        consents: BTreeSet::new(),
         terms: None,
         active: None,
         offers: vec![],
@@ -817,6 +1058,16 @@ pub(crate) fn evaluate_with(
         }
         _ => unreachable!(),
     };
+    Ok(Some(finish(w, s, opening, current, b)))
+}
+
+fn finish(
+    w: &World,
+    s: &State,
+    opening: &Resources,
+    current: Option<Contract>,
+    mut b: Boundary,
+) -> Round {
     let mut round = Round {
         conditional: None,
         selections: None,
@@ -862,7 +1113,7 @@ pub(crate) fn evaluate_with(
         }
     }
     round.cooperation = Some(Box::new(b));
-    Ok(Some(round))
+    round
 }
 
 #[cfg(test)]

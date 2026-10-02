@@ -274,6 +274,8 @@ fn forecast_orders_using(
     if months == 0 {
         return Err("forecast needs a positive horizon".into());
     }
+    let hypothesis = market::promise_view(sim, counterparties)?;
+    let sim = hypothesis.as_ref().unwrap_or(sim);
     let mut batch = market::prepare_expected(sim, requests, orders, counterparties)?;
     let (mut w, s) = ForecastContext::new(&sim.world, &sim.state).into_parts();
     w.priority = Priority::ContinuingFirst;
@@ -494,6 +496,7 @@ fn choose_limited(
     alternatives: &mut Vec<Vec<Request>>,
 ) -> Result<Selection, String> {
     let actors = validate_search(sim, scope, budget)?;
+    let conditional_preview = market::promise_view(sim, options.counterparties)?;
     let market_actor = sim.world.town_market.as_ref().map(|_| actors[0]);
     let mut order_actions = vec![];
     if let Some(actor) = market_actor {
@@ -672,7 +675,7 @@ fn choose_limited(
                     continue;
                 }
                 match market::prepare_expected(
-                    sim,
+                    conditional_preview.as_ref().unwrap_or(sim),
                     &requests,
                     orders.as_ref(),
                     options.counterparties,

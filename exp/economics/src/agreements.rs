@@ -276,7 +276,7 @@ impl View<'_> {
 
     pub fn parties(&self) -> Vec<AgentId> {
         if let Self::Exchange(a) = self {
-            return a.terms.choices.keys().copied().collect();
+            return a.terms.parties();
         }
         if let Self::Household(a) = self {
             let mut parties = a.terms.adults.clone();

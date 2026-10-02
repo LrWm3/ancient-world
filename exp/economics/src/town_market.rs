@@ -812,6 +812,19 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
                     Some(r) if r.selection.is_some() && r.selections.is_some() => {
                         return Err("conflicting town order masks".into());
                     }
+                    Some(r)
+                        if r.cooperation
+                            .as_ref()
+                            .is_some_and(|b| !b.consents.is_empty()) =>
+                    {
+                        let b = r.cooperation.as_ref().unwrap();
+                        crate::cooperation::evaluate_schedule(
+                            world,
+                            state,
+                            b.terms.as_ref(),
+                            &b.consents,
+                        )?
+                    }
                     Some(r) if r.conditional.is_some() => evaluate_conditional(
                         world,
                         state,
