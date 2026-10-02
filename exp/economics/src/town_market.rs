@@ -9,6 +9,8 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_LISTINGS: usize = 2;
+pub(crate) const CONDITIONAL_SPOT_PARTIES: usize = 2;
+pub(crate) const CONDITIONAL_SPOT_DELIVERIES: usize = 2;
 const MAX_TRADERS: usize = 32;
 const SECOND_BUYER: AgentId = 91;
 const SECOND_SELLER: AgentId = 92;
@@ -128,10 +130,11 @@ pub type OrderSelections = BTreeMap<AgentId, BTreeSet<(marketplace::MarketId, Si
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
+    pub conditional: Option<Vec<crate::cooperation::Delivery>>,
     pub selections: Option<Box<OrderSelections>>,
     pub selection: Option<Box<OrderSelection>>,
     pub cooperation: Option<Box<crate::cooperation::Boundary>>,
-    pub planning: Option<crate::production_market::Decision>,
+    pub planning: Option<Box<crate::production_market::Decision>>,
     pub month: u32,
     pub orders: Vec<Order>,
     pub order_receipts: Vec<OrderReceipt>,
@@ -305,6 +308,18 @@ pub(crate) fn validate_state(world: &World, state: &State) -> Result<(), String>
         };
     };
     let ids: BTreeSet<_> = listings(c).iter().map(|l| l.market).collect();
+    for r in &book.history {
+        if let Some(terms) = &r.conditional {
+            let consents = conditional_consents(world, r.month, terms)?;
+            if r.selection.is_some()
+                || r.cooperation.is_some()
+                || r.selections.as_deref() != Some(&consents)
+                || spot_deliveries(r) != *terms
+            {
+                return Err("inconsistent conditional spot receipt".into());
+            }
+        }
+    }
     if book.history.iter().any(|r| {
         r.markets.keys().copied().collect::<BTreeSet<_>>() != ids
             || r.markets.values().any(|m| {
@@ -480,11 +495,12 @@ fn evaluate_selected_with(
     }
     let mut pricing_state = state.clone();
     let mut result = Round {
+        conditional: None,
         selections: selections.cloned().map(Box::new),
         selection: selection.cloned().map(Box::new),
         cooperation: None,
         month: state.month,
-        planning,
+        planning: planning.map(Box::new),
         orders: vec![],
         order_receipts: vec![],
         attempts: vec![],
@@ -796,6 +812,14 @@ pub(crate) fn validate_batch(world: &World, state: &State, batch: &Batch) -> Res
                     Some(r) if r.selection.is_some() && r.selections.is_some() => {
                         return Err("conflicting town order masks".into());
                     }
+                    Some(r) if r.conditional.is_some() => evaluate_conditional(
+                        world,
+                        state,
+                        r.selections
+                            .as_deref()
+                            .ok_or("conditional exchange requires all consents")?,
+                        r.conditional.as_ref().unwrap(),
+                    )?,
                     Some(r) if r.selections.is_some() => {
                         evaluate_selections(world, state, r.selections.as_ref().unwrap())?
                     }
@@ -905,4 +929,91 @@ pub fn scenario() -> (World, State) {
         .map(|id| (id, 0))
         .collect();
     (w, s)
+}
+
+/// Two reciprocal spot deliveries: both settle in this book or neither does.
+/// Supplied masks are each participant's consent. No future obligation is created.
+pub fn evaluate_conditional(
+    world: &World,
+    state: &State,
+    selections: &OrderSelections,
+    terms: &[crate::cooperation::Delivery],
+) -> Result<Round, String> {
+    if &conditional_consents(world, state.month, terms)? != selections {
+        return Err("conditional spot exchange lacks exact party consents".into());
+    }
+    let mut round = evaluate_selections(world, state, selections)?;
+    let completed = spot_deliveries(&round);
+    let mut expected = terms.to_vec();
+    expected.sort_by_key(|d| d.market);
+    if completed != expected {
+        return Err("conditional spot package not fully funded or matched".into());
+    }
+    round.conditional = Some(expected);
+    Ok(round)
+}
+
+/// Public price/quantity terms of a quoted book, not its participants' work plans.
+pub fn spot_deliveries(round: &Round) -> Vec<crate::cooperation::Delivery> {
+    let mut result: Vec<_> = round
+        .attempts
+        .iter()
+        .filter_map(|a| {
+            let Outcome::Traded { price } = a.round.outcome else {
+                return None;
+            };
+            Some(crate::cooperation::Delivery {
+                month: round.month,
+                market: a.session.market,
+                goods: crate::finance::Transfer {
+                    from: a.session.seller.agent,
+                    to: a.session.buyer.agent,
+                    amount: a.session.goods.clone(),
+                },
+                payment: crate::finance::Transfer {
+                    from: a.session.buyer.agent,
+                    to: a.session.seller.agent,
+                    amount: Amount::new(a.session.payment, price),
+                },
+            })
+        })
+        .collect();
+    result.sort_by_key(|d| d.market);
+    result
+}
+
+fn conditional_consents(
+    world: &World,
+    month: u32,
+    terms: &[crate::cooperation::Delivery],
+) -> Result<OrderSelections, String> {
+    if terms.len() != CONDITIONAL_SPOT_DELIVERIES
+        || world.participants.len() != CONDITIONAL_SPOT_PARTIES
+    {
+        return Err("conditional spot pilot requires two reciprocal deliveries and people".into());
+    }
+    let a = &terms[0];
+    let b = &terms[1];
+    if a.market == b.market || a.goods.from != b.goods.to || a.goods.to != b.goods.from {
+        return Err("conditional spot terms must be reciprocal".into());
+    }
+    let mut required: OrderSelections = world
+        .participants
+        .iter()
+        .map(|p| (p.agent, BTreeSet::new()))
+        .collect();
+    for d in terms {
+        if d.month != month || d.goods.from != d.payment.to || d.goods.to != d.payment.from {
+            return Err("invalid conditional spot date or consideration".into());
+        }
+        required
+            .get_mut(&d.goods.from)
+            .ok_or("unknown conditional seller")?
+            .insert((d.market, Side::Sell));
+        required
+            .get_mut(&d.goods.to)
+            .ok_or("unknown conditional buyer")?
+            .insert((d.market, Side::Buy));
+    }
+    Ok(required)
 }

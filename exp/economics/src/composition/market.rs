@@ -69,23 +69,47 @@ pub(super) fn actor_score(branch: &Simulation, actor: AgentId) -> crate::plannin
     score
 }
 
+/// Frozen assumptions, distinct from the independently submitted live masks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Counterparties {
+    Observed(super::expectations::Snapshot),
+    Announced {
+        actor: AgentId,
+        orders: town_market::OrderSelections,
+    },
+}
+impl Counterparties {
+    fn actor(&self) -> AgentId {
+        match self {
+            Self::Observed(s) => s.actor,
+            Self::Announced { actor, .. } => *actor,
+        }
+    }
+    fn masks(&self, sim: &Simulation) -> Result<town_market::OrderSelections, String> {
+        match self {
+            Self::Observed(s) => s.masks(&sim.world, sim.state.month),
+            Self::Announced { orders, .. } => Ok(orders.clone()),
+        }
+    }
+}
+
 /// Only used within isolated forecast branches. Actual clearing receives the
 /// independently selected masks, never this counterparty hypothesis.
 pub(super) fn prepare_expected(
     sim: &Simulation,
     requests: &[offers::Request],
     selection: Option<&OrderSelection>,
-    expectation: Option<&super::expectations::Snapshot>,
+    expectation: Option<&Counterparties>,
 ) -> Result<Batch, String> {
     let Some(expectation) = expectation else {
         return prepare(sim, requests, selection);
     };
-    if requests.iter().any(|r| r.agent != expectation.actor)
-        || selection.is_some_and(|s| s.actor != expectation.actor)
+    if requests.iter().any(|r| r.agent != expectation.actor())
+        || selection.is_some_and(|s| s.actor != expectation.actor())
     {
         return Err("forecast exceeds expectation actor mandate".into());
     }
-    let mut masks = expectation.masks(&sim.world, sim.state.month)?;
+    let mut masks = expectation.masks(sim)?;
     if let Some(selection) = selection {
         masks.insert(selection.actor, selection.submit.clone());
     }

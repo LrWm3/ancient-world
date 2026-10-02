@@ -282,7 +282,7 @@ pub(crate) fn validate_state(w: &World, s: &State) -> Result<(), String> {
             .history
             .iter()
             .find(|r| r.month == s.month)
-            .and_then(|r| r.planning.as_ref())
+            .and_then(|r| r.planning.as_deref())
             .is_none()
     {
         return Err("missing accepted production decision".into());
@@ -351,7 +351,7 @@ pub(crate) fn work(sim: &Simulation) -> Result<Batch, String> {
         .history
         .iter()
         .find(|r| r.month == sim.state.month)
-        .and_then(|r| r.planning.as_ref());
+        .and_then(|r| r.planning.as_deref());
     let policies = crate::cooperation::choices(&sim.world, &sim.state)
         .unwrap_or_else(|| choices(&sim.world, decision));
     let mut b = Batch::empty(&sim.state);
@@ -560,7 +560,7 @@ fn prior_decision(s: &State) -> Option<&Decision> {
         .iter()
         .rev()
         .filter(|r| r.month < s.month)
-        .find_map(|r| r.planning.as_ref())
+        .find_map(|r| r.planning.as_deref())
 }
 fn observed_choices(w: &World, s: &State) -> BTreeMap<AgentId, ObservedChoice> {
     if w.production_market

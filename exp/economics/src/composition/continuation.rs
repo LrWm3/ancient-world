@@ -5,6 +5,7 @@ use crate::{compute::Backend, forecast::ForecastContext, model::*, simulation::S
 use std::collections::BTreeMap;
 
 pub mod persons;
+pub mod posted;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Policy {
@@ -56,7 +57,7 @@ pub struct Controller {
     land_limit: Option<usize>,
     admission_rejected: bool,
     order_forecast: super::market::OrderForecast,
-    counterparties: Option<super::expectations::Snapshot>,
+    counterparties: Option<super::market::Counterparties>,
     alternatives: Vec<Vec<crate::offers::Request>>,
     pub frames: BTreeMap<u32, Frame>,
     pub history: Vec<Receipt>,
@@ -188,6 +189,7 @@ impl Controller {
                 super::SearchOptions {
                     land_limit: self.land_limit,
                     counterparties: self.counterparties.as_ref(),
+                    required_orders: None,
                     persistent_orders: sim.world.town_market.is_some()
                         && self.order_forecast == super::market::OrderForecast::StandingPolicy,
                 },

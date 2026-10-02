@@ -115,7 +115,10 @@ fn decisions_are_dated_atomic_and_do_not_see_future_fixture_capacity() {
     let r = town_market::evaluate(&sim.world, &sim.state).unwrap();
     let mut altered = sim.world.clone();
     altered.capacity_overrides.insert((2, PERSON), 0);
-    assert_eq!(pm::choose(&altered, &sim.state).unwrap(), r.planning);
+    assert_eq!(
+        pm::choose(&altered, &sim.state).unwrap().as_ref(),
+        r.planning.as_deref()
+    );
     let mut b = Batch::empty(&sim.state);
     b.transactions = r.transactions.clone();
     b.town_market = Some(Boundary::Market(r));

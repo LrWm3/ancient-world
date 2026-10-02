@@ -50,7 +50,7 @@ pub(super) fn project(
             .history
             .iter()
             .find(|r| r.month == state.month)
-            .and_then(|r| r.planning.as_ref());
+            .and_then(|r| r.planning.as_deref());
         let choices = crate::production_market::choices(&world, decision);
         sim.world.production_market.as_mut().unwrap().policy =
             crate::production_market::Policy::Fixed(choices);

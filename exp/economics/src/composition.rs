@@ -269,7 +269,7 @@ fn forecast_orders_using(
     orders: Option<&crate::town_market::OrderSelection>,
     months: u32,
     persistent_orders: bool,
-    counterparties: Option<&expectations::Snapshot>,
+    counterparties: Option<&market::Counterparties>,
 ) -> Result<(Batch, Score, Simulation), String> {
     if months == 0 {
         return Err("forecast needs a positive horizon".into());
@@ -480,7 +480,8 @@ pub fn choose_with_scoring(
 struct SearchOptions<'a> {
     land_limit: Option<usize>,
     persistent_orders: bool,
-    counterparties: Option<&'a expectations::Snapshot>,
+    counterparties: Option<&'a market::Counterparties>,
+    required_orders: Option<&'a BTreeSet<(crate::marketplace::MarketId, crate::marketplace::Side)>>,
 }
 
 fn choose_limited(
@@ -521,6 +522,9 @@ fn choose_limited(
                 .map(|o| (o.market, o.side))
                 .collect();
         }
+        if options.required_orders.is_some() {
+            order_actions.clear();
+        }
         order_actions.sort();
     }
     let context = ForecastContext::new(&sim.world, &sim.state);
@@ -543,11 +547,13 @@ fn choose_limited(
             .collect();
         let orders = market_actor.map(|actor| crate::town_market::OrderSelection {
             actor,
-            submit: indices
-                .iter()
-                .filter(|&&i| i >= descriptions.len())
-                .map(|&i| order_actions[i - descriptions.len()])
-                .collect(),
+            submit: options.required_orders.cloned().unwrap_or_else(|| {
+                indices
+                    .iter()
+                    .filter(|&&i| i >= descriptions.len())
+                    .map(|&i| order_actions[i - descriptions.len()])
+                    .collect()
+            }),
         });
         (requests, orders)
     };

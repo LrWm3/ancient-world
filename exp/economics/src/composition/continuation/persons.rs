@@ -80,7 +80,7 @@ pub struct Persons {
 
 /// Other persons remain named asset owners/counterparties. Market forecasts keep
 /// their ordinary consumption/orders, but never schedule their productive work.
-fn local(sim: &Simulation, agent: AgentId) -> Simulation {
+pub(super) fn local(sim: &Simulation, agent: AgentId) -> Simulation {
     let mut local = sim.clone();
     local.backend = Backend::Reference;
     local.ledger.clear();
@@ -206,7 +206,7 @@ fn intentions(batch: &Batch, agent: AgentId) -> Result<Vec<Request>, String> {
 
 /// Common preparation checks cumulative rights, stocks, capacity and storage.
 /// Even an empty new package must reserve existing work for every person.
-fn prepare(
+pub(super) fn prepare(
     sim: &Simulation,
     requests: &[Request],
     acquisition: Option<&Batch>,
@@ -320,7 +320,7 @@ impl Persons {
                 expectations::Snapshot::observe(&sim.state, agent, self.counterparty_policy)?;
             controller.counterparties = (sim.world.town_market.is_some()
                 && self.counterparty_policy != expectations::Policy::Ordinary)
-                .then(|| expectation.clone());
+                .then(|| crate::composition::market::Counterparties::Observed(expectation.clone()));
             let mut branch = local(sim, agent);
             controller.step_comparing(&mut branch, |a, b| {
                 observation(a, agent) == observation(b, agent)
