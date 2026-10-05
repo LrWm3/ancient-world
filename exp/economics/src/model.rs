@@ -209,6 +209,7 @@ pub struct World {
     pub agent_search: BTreeMap<AgentId, crate::search::SearchConfig>,
     pub transaction_policy: Option<crate::opportunities::Policy>,
     pub state_governance: Option<crate::state_governance::Governance>,
+    pub state_founding: Option<crate::state_governance::formation::Template>,
     pub households: Vec<crate::households::Agreement>,
     pub market: Option<crate::exchange::Market>,
     pub activities: crate::activities::Activities,

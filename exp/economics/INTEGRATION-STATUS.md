@@ -42,6 +42,7 @@ prove that every combination of those systems works together.
 
 | Combination | Implemented coverage | Boundary still present |
 | --- | --- | --- |
+| State founding + household/person execution | Explicit founding signatures, atomic state/law/citizenship creation, immutable terms, later ordinary citizenship, governed household admission, six-month CPU/reference/checkpoint and accounting control | One bootstrap sovereign; consent supplied, no automatic capitalization, land transfer, secession or autonomous founding |
 | State governance + persons/households | Shared election tally, dated governor authority, admission pause/reopening, preserved ongoing farms/dues/households, CPU/checkpoint and separate-book controls | Supplied ballots/policy choices, one state, fixed policy menu; autonomous objectives/spending, broader legal terms and public political history in every private forecast remain open |
 | Direct lending + mortgages | One authoritative loan book, accrual, repayment, arrears and collateral terms | Direct advances use configured consent; general underwriting/discovery is absent |
 | Credit + negotiated/ZIP or town exchange | Shared opening cash, goods and storage; legal/venue checks; forged-batch rejection | Each market retains its own quote and matching policy; state posted bids do not learn ZIP prices |

@@ -27,6 +27,7 @@ pub fn pair() -> Result<(World, State), String> {
         );
     }
     w.state_governance = Some(Governance {
+        formation: None,
         state: STATE_AGENT,
         formed: s.month,
         constitution: Constitution {

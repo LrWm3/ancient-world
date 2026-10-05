@@ -9,6 +9,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod formation;
 pub mod scenario;
 
 const MAX_TURNOUT_PERCENT: u32 = 100;
@@ -54,6 +55,7 @@ pub struct AcceptedPolicy {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Governance {
+    pub formation: Option<formation::Agreement>,
     pub state: AgentId,
     pub formed: u32,
     pub constitution: Constitution,
@@ -244,6 +246,7 @@ pub fn cast(w: &mut World, s: &State, ballot: Ballot) -> Result<(), String> {
 }
 
 pub fn validate(w: &World, s: &State) -> Result<(), String> {
+    formation::validate(w, s)?;
     let Some(g) = &w.state_governance else {
         return Ok(());
     };

@@ -18,6 +18,7 @@ pub enum Identity {
     /// One bounded cooperative agreement per start month in the current pilot.
     CooperativeExchange(u32),
     Household(u32),
+    StateFormation(AgentId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -226,6 +227,7 @@ pub enum View<'a> {
     Guarantee(GuaranteeView),
     Exchange(Box<ExchangeView>),
     Household(HouseholdView<'a>),
+    StateFormation(StateFormationView<'a>),
 }
 
 impl View<'_> {
@@ -239,7 +241,7 @@ impl View<'_> {
             Self::Guarantee(a) => Ok(a.call.clone().into_iter().collect()),
             // Conditional delivery-versus-payment is an atomic package. Neither
             // leg is an independent debt collectible through the claim waterfall.
-            Self::Exchange(_) | Self::Household(_) => Ok(vec![]),
+            Self::Exchange(_) | Self::Household(_) | Self::StateFormation(_) => Ok(vec![]),
         }
     }
     pub fn identity(&self) -> Identity {
@@ -250,6 +252,7 @@ impl View<'_> {
             Self::Guarantee(a) => Identity::Guarantee(a.terms.id),
             Self::Exchange(a) => Identity::CooperativeExchange(a.terms.start),
             Self::Household(a) => Identity::Household(a.terms.id),
+            Self::StateFormation(a) => Identity::StateFormation(a.terms.terms.agent.id),
         }
     }
 
@@ -260,7 +263,7 @@ impl View<'_> {
             Self::Loan(a) => Some(Counterparty::Agent(a.record.creditor)),
             Self::Forward(a) => Some(Counterparty::Agent(a.creditor)),
             Self::Guarantee(a) => Some(Counterparty::Agent(a.terms.guarantor)),
-            Self::Exchange(_) | Self::Household(_) => None,
+            Self::Exchange(_) | Self::Household(_) | Self::StateFormation(_) => None,
         }
     }
 
@@ -270,11 +273,18 @@ impl View<'_> {
             Self::Loan(a) => Some(a.record.debtor),
             Self::Forward(a) => Some(a.debtor),
             Self::Guarantee(a) => Some(a.creditor),
-            Self::Exchange(_) | Self::Household(_) => None,
+            Self::Exchange(_) | Self::Household(_) | Self::StateFormation(_) => None,
         }
     }
 
     pub fn parties(&self) -> Vec<AgentId> {
+        if let Self::StateFormation(a) = self {
+            let mut parties = a.terms.founders.clone();
+            parties.push(a.terms.terms.agent.id);
+            parties.sort_unstable();
+            parties.dedup();
+            return parties;
+        }
         if let Self::Exchange(a) = self {
             return a.terms.parties();
         }
@@ -314,8 +324,17 @@ impl View<'_> {
             Self::Guarantee(a) => a.accepted_month,
             Self::Exchange(a) => a.terms.start,
             Self::Household(a) => a.terms.formed,
+            Self::StateFormation(a) => a.terms.formed,
         }
     }
+}
+
+/// Founding consent and current office; subsequent citizens have their own
+/// membership agreements, not retroactive signatures on the founding agreement.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StateFormationView<'a> {
+    pub terms: &'a crate::state_governance::formation::Agreement,
+    pub authority: Option<crate::state_governance::Authority>,
 }
 
 /// Accepted atomic exchanges and their committed outcome, derived from receipts.
@@ -621,6 +640,16 @@ pub fn for_agent<'a>(
             active_members,
             authority,
             status,
+        }));
+    }
+    if let Some(terms) = world
+        .state_governance
+        .as_ref()
+        .and_then(|g| g.formation.as_ref())
+    {
+        views.push(View::StateFormation(StateFormationView {
+            terms,
+            authority: crate::state_governance::authority(world, state),
         }));
     }
     views.retain(|a| a.accepted_month() <= state.month && a.parties().contains(&agent));

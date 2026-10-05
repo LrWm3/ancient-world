@@ -37,6 +37,9 @@ The [state-governance slice](STATE-GOVERNANCE.md) adds citizen governors,
 fixed/rotating/elected terms and dated choices within static constitutional policy
 menus. Its controls connect state admission law to individual farms and household
 governance; political choices remain supplied rather than autonomously planned.
+The [founding adapter](STATE-FORMATION.md) now creates the first state from an
+explicit agreement among persons, with initial law and citizenship, before the
+ordinary person–household loop begins. Founding preserves personal property.
 
 ## Current progress — 2026-10-01
 
@@ -53,7 +56,7 @@ current blanket restrictions.
 | Area | Implemented and exercised | Main remaining boundary |
 | --- | --- | --- |
 | Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search, independent multi-person review, shared dated admission and active trade composition | General discovery across all drivers and sustainable autonomous cooperation |
-| State and law | Citizenship, citizen governors and dated constitutional policy choices, permissions/prohibitions, selected agreement recognition/term limits, issuance and physical minting | Autonomous state objectives/spending, general founding/jurisdiction law and broader governed legal terms |
+| State and law | Explicit first-state founding, citizenship, citizen governors and dated constitutional policy choices, permissions/prohibitions, selected agreement recognition/term limits, issuance and physical minting | Autonomous state objectives/spending/founding, multiple jurisdictions and broader governed legal terms |
 | Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Composition with market/finance drivers, robust collective forecasts, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
 | Contracts and finance | Shared loan book and claim executor; mortgages, direct/tool forwards, wages, ranked/proportional allocation, guarantees and dated recourse | Remaining typed acceptance/performance adapters, autonomous underwriting and joint multi-resource allocation |

@@ -10,8 +10,9 @@ not create a second population, labor supply, treasury or accounting system.
 `World.state_governance` identifies the existing state agent and its founding
 month. The state must be the transaction policy's authority and have state type.
 Its founding governor must be a person with that state's accepted citizenship.
-The first version initializes this institution explicitly; it does not implement
-a state-founding agreement or let a state elect itself.
+Older fixtures initialize this institution explicitly. The subsequent
+[state-founding adapter](STATE-FORMATION.md) creates a fresh state, initial law,
+governance and founder citizenships atomically from a signed bootstrap template.
 
 | Record | Responsibility |
 | --- | --- |
@@ -31,7 +32,7 @@ ordering is deterministic.
 
 Regular terms admit citizens accepted before the opening month. Joining during
 that month cannot change an already opened election or rotation. Founding citizens
-are supplied at initialization. A governor dying during a term vacates the office;
+are supplied at initialization or granted by the founding agreement. A governor dying during a term vacates the office;
 there is no emergency succession yet. Historical eligibility uses dated deaths,
 so a later death cannot erase a previously valid vote or policy instruction.
 Vacancy leaves the effective law in force but authorizes no new instruction.
@@ -128,7 +129,7 @@ Still outside this slice:
 
 - Autonomous voter preferences, state objectives, policy search and spending;
   minting and issuance continue using their configured policies.
-- General state founding, citizenship exit, councils, emergency succession and
+- Founding under another sovereign, citizenship exit, councils, emergency succession and
   constitutional or charter amendment.
 - Multiple jurisdictions, delegated lawmaking, general changes to recognition,
   household constitutional limits, tax terms and liquidation law.

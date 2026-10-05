@@ -594,6 +594,22 @@ impl Audit {
     pub fn book(&self) -> &Book {
         &self.book
     }
+    /// Founding creates identity and citizenship, not financial positions. Keep
+    /// an existing audit at the accepted boundary without reopening its books.
+    /// This is deliberately not a general-purpose checkpoint rebase.
+    pub fn accept_state_founding(
+        &mut self,
+        world: &mut World,
+        state: &mut State,
+        agreement: crate::state_governance::formation::Agreement,
+    ) -> Result<(), String> {
+        if *state != self.boundary {
+            return Err("accounting checkpoint/boundary mismatch".into());
+        }
+        crate::state_governance::formation::accept(world, state, agreement)?;
+        self.boundary = state.clone();
+        Ok(())
+    }
     /// Finalize only months whose Close boundary has already committed.
     pub fn finalize_through(&mut self, month: u32) -> Result<(), String> {
         if month >= self.boundary.month {

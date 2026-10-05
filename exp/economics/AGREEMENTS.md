@@ -14,9 +14,10 @@ Offer eligibility and atomic acceptance remain in their domain resolvers.
 
 `agreements::for_agent(world, state, agent)` now provides a shared inspection entry
 point for accepted membership, land, process, loan, forward, guarantee, cooperative
-exchange and household agreements. `View::parties()` includes asymmetric agreement
+exchange, household and [state-founding](STATE-FORMATION.md) agreements. `View::parties()` includes asymmetric agreement
 roles, all three guarantee parties, both exchange participants and current/former
-household signatories plus the household agent.
+household signatories plus the household agent, and founding persons plus their
+new state. Later citizenship does not add retrospective founding signatures.
 It excludes unaccepted catalog offers and retains terminal agreements. It groups domains and orders by stable IDs, independent of catalog row
 order. It is a read-only query over validated state, not an acceptance or payment
 interface. A separate output beneficiary who is neither holder nor grantor is not
