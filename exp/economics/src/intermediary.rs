@@ -203,6 +203,7 @@ fn project(
     expectations: &BTreeMap<(AgentId, Account), Estimate>,
 ) -> Result<(Score, u64, Vec<Harm>), String> {
     let mut f = sim.clone();
+    crate::state_governance::preserve_history(&mut f.world, &f.state);
     f.backend = Backend::Reference;
     f.world.competition = None;
     f.world.priority = Priority::ContinuingFirst;

@@ -181,6 +181,8 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub agency: BTreeMap<AgentId, crate::agency::Controller>,
+    pub governance_observation: Option<crate::state_governance::PublicHistory>,
     /// Explicitly consented commodity prepayments, independent of equipment purchases.
     pub prepaid_admission: crate::forward::direct::AdmissionPolicy,
     pub prepaid_deliveries: Vec<crate::forward::direct::Terms>,

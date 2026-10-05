@@ -42,6 +42,17 @@ impl Simulation {
     /// One committed visibility barrier. Cloning Simulation gives an in-memory
     /// checkpoint including configuration, pending fixture intents and receipts.
     pub fn step(&mut self) -> Result<(), String> {
+        if self.state.phase == Phase::Open && !self.world.agency.is_empty() {
+            let mut next = self.clone();
+            crate::agency::open(&mut next.world, &next.state)?;
+            if next.world.households.is_empty() {
+                next.step_core()?;
+            } else {
+                crate::households::step(&mut next)?;
+            }
+            *self = next;
+            return Ok(());
+        }
         if !self.world.households.is_empty() {
             return crate::households::step(self);
         }

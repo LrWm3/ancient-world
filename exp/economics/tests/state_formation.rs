@@ -80,6 +80,7 @@ fn fixture() -> (World, State, households::Agreement) {
         },
         law,
         citizenship_offer: 1,
+        agency: None,
     });
     settlement::validate_world(&w, &s).unwrap();
     (w, s, household)
@@ -89,6 +90,86 @@ fn found(w: &mut World, s: &mut State) -> f::Agreement {
     let a = f::propose(w, s, &[SECOND_PERSON, PERSON]).unwrap();
     f::accept(w, s, a.clone()).unwrap();
     a
+}
+
+#[test]
+fn founding_installs_signed_operating_mandate_then_generates_votes_alongside_household_work() {
+    use economics_compute_smoke::agency::{
+        self, Command, Program,
+        objectives::{Metric, Objective, Scope},
+    };
+    let (mut w, mut s, mut home) = fixture();
+    let mut config = agency::scenario::config(
+        vec![Objective {
+            scope: Scope::Members,
+            metric: Metric::NeedDeficit(NUTRITION),
+        }],
+        [(
+            0,
+            Program {
+                name: "open admissions".into(),
+                commands: vec![Command::StatePolicy(0)],
+            },
+        )]
+        .into(),
+    );
+    config.horizon = 2;
+    for person in [PERSON, SECOND_PERSON] {
+        config.preferences.insert(person, config.objectives.clone());
+    }
+    w.state_founding.as_mut().unwrap().agency = Some(config.clone());
+    let before = w.clone();
+    let proposal = f::propose(&w, &s, &[PERSON, SECOND_PERSON]).unwrap();
+    assert_eq!(w, before);
+    f::accept(&mut w, &mut s, proposal).unwrap();
+    assert_eq!(w.agency[&NEW_STATE].config, config);
+    home.governance.ballots.clear();
+    households::form(&mut w, &s, home).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(4).unwrap();
+    assert_eq!(sim.world.agency[&NEW_STATE].history.len(), 4);
+    assert_eq!(
+        sim.world.state_governance.as_ref().unwrap().ballots.len(),
+        4
+    );
+    assert_eq!(
+        g::authority(&sim.world, &sim.state).unwrap().governor,
+        Some(PERSON)
+    );
+    assert!(
+        sim.state
+            .processes
+            .values()
+            .any(|p| p.status == Status::Completed)
+    );
+    sim.world.agency.get_mut(&NEW_STATE).unwrap().config.horizon += 1;
+    assert!(f::validate(&sim.world, &sim.state).is_err());
+}
+
+#[test]
+fn founding_rejects_an_operating_program_outside_its_constitution() {
+    use economics_compute_smoke::agency::{
+        self, Command, Program,
+        objectives::{Metric, Objective, Scope},
+    };
+    let (mut w, s, _) = fixture();
+    w.state_founding.as_mut().unwrap().agency = Some(agency::scenario::config(
+        vec![Objective {
+            scope: Scope::Members,
+            metric: Metric::Deaths,
+        }],
+        [(
+            0,
+            Program {
+                name: "illegal".into(),
+                commands: vec![Command::StatePolicy(99)],
+            },
+        )]
+        .into(),
+    ));
+    let before = w.clone();
+    assert!(f::propose(&w, &s, &[PERSON, SECOND_PERSON]).is_err());
+    assert_eq!(w, before);
 }
 
 fn death(w: &mut World, s: &mut State, id: AgentId) {

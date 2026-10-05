@@ -622,7 +622,7 @@ impl Audit {
         let mut next = sim.clone();
         next.step()?;
         self.record(
-            &sim.world,
+            &next.world,
             &sim.state,
             next.ledger.last().ok_or("missing committed batch")?,
             &next.state,

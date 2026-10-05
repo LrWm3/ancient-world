@@ -363,6 +363,7 @@ pub struct Config {
 /// are not known; settlement remains responsible for shared-resource contention.
 fn local(sim: &Simulation, agent: AgentId) -> Simulation {
     let mut local = sim.clone();
+    crate::state_governance::preserve_history(&mut local.world, &local.state);
     local.world.competition = None;
     local.world.participants.retain(|p| p.agent == agent);
     local.world.condition_rules.retain(|r| r.subject == agent);

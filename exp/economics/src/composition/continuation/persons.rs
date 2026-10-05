@@ -82,6 +82,7 @@ pub struct Persons {
 /// their ordinary consumption/orders, but never schedule their productive work.
 pub(super) fn local(sim: &Simulation, agent: AgentId) -> Simulation {
     let mut local = sim.clone();
+    crate::state_governance::preserve_history(&mut local.world, &local.state);
     local.backend = Backend::Reference;
     local.ledger.clear();
     local.reports.clear();

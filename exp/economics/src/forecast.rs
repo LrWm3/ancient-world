@@ -12,13 +12,30 @@ pub struct ForecastContext {
 impl ForecastContext {
     pub fn new(world: &World, state: &State) -> Self {
         let mut world = world.clone();
+        crate::state_governance::preserve_history(&mut world, state);
         // After Open, the current own endowment is observed independently of
         // unspent or purchased hours. Household shares still need that input.
         // Future overrides (and unopened current ones) remain fixture events.
         world
             .capacity_overrides
             .retain(|(month, _), _| *month == state.month && state.phase != Phase::Open);
-        world.scheduled_starts.retain(|s| s.month == state.month);
+        let accepted: Vec<_> = world
+            .scheduled_starts
+            .iter()
+            .filter(|s| {
+                crate::agency::accepted_start(&world, s)
+                // A generated mint order policy publishes its dated target
+                // catalog. Keep the matching starts, including completed dates
+                // required by validation; they cannot execute a second time.
+                || world.minting.as_ref().is_some_and(|m| m.issuer == s.agent
+                    && m.definition == s.definition && m.order_policy.as_ref().is_some_and(|p|
+                        p.month == s.month || p.additional_months.contains(&s.month)))
+            })
+            .cloned()
+            .collect();
+        world
+            .scheduled_starts
+            .retain(|s| s.month == state.month || accepted.contains(s));
         if let Some(credit) = &mut world.credit {
             // Cash already observed stays in State; future discretionary funding
             // is not a contractual receivable. Accepted loan due dates remain.

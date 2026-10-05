@@ -173,6 +173,18 @@ impl<W: Write> Observer<W> {
         let result = advance(sim);
         for batch in &sim.ledger[batches..] {
             if self.month(batch.month) {
+                if self.config.settlement && batch.phase == Phase::Open {
+                    for (&agent, controller) in &sim.world.agency {
+                        if self.agent(agent)
+                            && let Some(d) =
+                                controller.history.last().filter(|d| d.month == batch.month)
+                        {
+                            self.log(json!({"kind":"organization_decision", "agent":agent,
+                                "objectives":format!("{:?}",controller.config.objectives),
+                                "accepted_program":d.accepted.as_ref().map(|p| format!("{p:?}")), "decision":d}))?;
+                        }
+                    }
+                }
                 if batch.phase == Phase::Open
                     && let Some(a) = &state_authority
                     && (self.agent(a.state) || a.governor.is_some_and(|id| self.agent(id)))

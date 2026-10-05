@@ -31,7 +31,7 @@ impl Default for Rules {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Ballot {
     pub term_start: u32,
     pub voter: AgentId,

@@ -19,6 +19,8 @@ pub struct Template {
     pub charter: Charter,
     pub law: Policy,
     pub citizenship_offer: u32,
+    /// Optional static operating mandate signed with the other founding terms.
+    pub agency: Option<crate::agency::Config>,
 }
 
 /// A complete founding proposal, retained as the accepted agreement after commit.
@@ -111,6 +113,12 @@ fn stage(w: &World, s: &State, a: &Agreement) -> Result<(World, State), String> 
         ballots: vec![],
         changes: vec![],
     });
+    if let Some(config) = &a.terms.agency {
+        world.agency.insert(
+            a.terms.agent.id,
+            crate::agency::Controller::new(config.clone()),
+        );
+    }
     // Citizenship is an explicit founding grant. Founders need not already be
     // citizens, but the new law must permit their membership action. Ordinary
     // later entrants still accept the posted offer through Acquire settlement.
@@ -154,6 +162,11 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     let Some(a) = &g.formation else {
         return Ok(());
     };
+    if let Some(config) = &a.terms.agency
+        && w.agency.get(&g.state).is_none_or(|c| &c.config != config)
+    {
+        return Err("state operating mandate differs from founding agreement".into());
+    }
     check_terms(&a.terms, &a.founders)?;
     let p = w
         .transaction_policy
@@ -171,7 +184,7 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
         || base != a.terms.law
         || a.founders.windows(2).any(|pair| pair[0] >= pair[1])
         || a.founders.iter().any(|id| {
-            s.memberships.get(&(*id, g.state, CITIZEN)).is_none_or(|m| {
+            super::membership_at(w, s, *id, g.state).is_none_or(|m| {
                 m.accepted_month != a.formed || m.source_offer != a.terms.citizenship_offer
             })
         })

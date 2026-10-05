@@ -77,11 +77,57 @@ pub struct Authority {
     pub instruction: Option<AcceptedPolicy>,
 }
 
+/// Observed political history survives economic forecasts that omit peer work.
+/// Forecast-only data; live worlds read their authoritative State records.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PublicHistory {
+    pub memberships:
+        BTreeMap<(AgentId, AgentId, crate::membership::Role), crate::membership::Agreement>,
+    pub deaths: BTreeMap<AgentId, crate::maintenance::TerminalTransition>,
+}
+
+pub(crate) fn preserve_history(w: &mut World, s: &State) {
+    if w.state_governance.is_none() && w.agency.is_empty() {
+        return;
+    }
+    let history = w
+        .governance_observation
+        .get_or_insert_with(|| PublicHistory {
+            memberships: Default::default(),
+            deaths: Default::default(),
+        });
+    history.memberships.extend(s.memberships.clone());
+    history.deaths.extend(s.terminal.clone());
+    for controller in w.agency.values_mut() {
+        controller.autonomous = false;
+    }
+}
+
+fn membership_at(
+    w: &World,
+    s: &State,
+    member: AgentId,
+    state: AgentId,
+) -> Option<crate::membership::Agreement> {
+    let key = (member, state, CITIZEN);
+    s.memberships
+        .get(&key)
+        .or_else(|| w.governance_observation.as_ref()?.memberships.get(&key))
+        .cloned()
+}
+
+fn death_at(w: &World, s: &State, id: AgentId) -> Option<u32> {
+    s.terminal
+        .get(&id)
+        .or_else(|| w.governance_observation.as_ref()?.deaths.get(&id))
+        .map(|t| t.month)
+}
+
 fn citizen_at(w: &World, s: &State, g: &Governance, id: AgentId, month: u32) -> bool {
     w.transaction_policy.as_ref().is_some_and(|p| {
         p.agent_types.get(&id) == Some(&PERSON_TYPE)
-            && s.memberships.get(&(id, g.state, CITIZEN)).is_some_and(|m| {
-                m.accepted_month <= month && s.terminal.get(&id).is_none_or(|t| t.month >= month)
+            && membership_at(w, s, id, g.state).is_some_and(|m| {
+                m.accepted_month <= month && death_at(w, s, id).is_none_or(|date| date >= month)
             })
     })
 }
@@ -94,7 +140,13 @@ fn term_start(g: &Governance, month: u32) -> Option<u32> {
 }
 
 fn electorate(w: &World, s: &State, g: &Governance, start: u32) -> Vec<AgentId> {
-    s.memberships
+    let mut memberships = w
+        .governance_observation
+        .as_ref()
+        .map(|h| h.memberships.clone())
+        .unwrap_or_default();
+    memberships.extend(s.memberships.clone());
+    memberships
         .values()
         .filter(|m| {
             m.organization == g.state
@@ -119,9 +171,14 @@ fn election(w: &World, s: &State, g: &Governance, start: u32) -> ElectionResult 
 
 /// Historical opening authority. A later death cannot invalidate an already
 /// accepted instruction; death during a month prevents new live instructions.
-fn governor_at_open(w: &World, s: &State, g: &Governance, month: u32) -> Option<AgentId> {
+pub(crate) fn governor_at_open(
+    w: &World,
+    s: &State,
+    g: &Governance,
+    month: u32,
+) -> Option<AgentId> {
     let start = term_start(g, month)?;
-    if s.terminal.get(&g.state).is_some_and(|t| t.month < month) {
+    if death_at(w, s, g.state).is_some_and(|date| date < month) {
         return None;
     }
     let winner = match g.constitution.leadership {
@@ -161,7 +218,7 @@ pub fn authority(w: &World, s: &State) -> Option<Authority> {
         state: g.state,
         leadership: g.constitution.leadership,
         governor: governor_at_open(w, s, g, s.month)
-            .filter(|id| !s.terminal.contains_key(id) && !s.terminal.contains_key(&g.state)),
+            .filter(|id| death_at(w, s, *id).is_none() && death_at(w, s, g.state).is_none()),
         term_start: start,
         election: (g.constitution.leadership == Leadership::Elected && start != g.formed)
             .then(|| election(w, s, g, start)),
@@ -222,11 +279,11 @@ pub fn cast(w: &mut World, s: &State, ballot: Ballot) -> Result<(), String> {
         .state_governance
         .as_ref()
         .ok_or("missing state governance")?;
-    if s.terminal.contains_key(&g.state)
-        || s.terminal.contains_key(&ballot.voter)
+    if death_at(w, s, g.state).is_some()
+        || death_at(w, s, ballot.voter).is_some()
         || ballot
             .candidate
-            .is_some_and(|id| s.terminal.contains_key(&id))
+            .is_some_and(|id| death_at(w, s, id).is_some())
     {
         return Err("state ballot requires living participants".into());
     }
@@ -281,9 +338,7 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
             || b.term_start <= accepted.issued_month
             || term_start(g, b.term_start) != Some(b.term_start)
             || !seen.insert((b.term_start, b.voter))
-            || s.terminal
-                .get(&g.state)
-                .is_some_and(|t| t.month < accepted.issued_month)
+            || death_at(w, s, g.state).is_some_and(|month| month < accepted.issued_month)
             || !citizen_at(w, s, g, b.voter, accepted.issued_month)
             || b.candidate
                 .is_some_and(|id| !citizen_at(w, s, g, id, accepted.issued_month))

@@ -11,6 +11,8 @@ const MAX_PLANNING_HORIZON_MONTHS: u32 = 120;
 const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
+    crate::agency::validate(world)?;
+    crate::agency::validate_history(world, state)?;
     crate::opportunities::validate(world)?;
     crate::minting::validate(world)?;
     crate::employment::validate(world, state)?;

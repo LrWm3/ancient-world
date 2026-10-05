@@ -287,7 +287,7 @@ pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), Strin
 
 /// Governance changes only at month opening. A terminal transition at Close m
 /// affects selection from Open m+1, preserving earlier authority evidence.
-fn leader_at_open(a: &Agreement, state: &State, month: u32) -> Option<AgentId> {
+pub(crate) fn leader_at_open(a: &Agreement, state: &State, month: u32) -> Option<AgentId> {
     let g = &a.governance;
     if month < a.formed
         || g.charter.term_months == 0

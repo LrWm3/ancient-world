@@ -725,6 +725,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
 pub(crate) fn local(world: &World, state: &State, buyer: AgentId) -> (World, State) {
     let mut w = world.clone();
     let mut s = state.clone();
+    crate::state_governance::preserve_history(&mut w, &s);
     w.market = None;
     s.exchange = Default::default();
     // Local production comparisons exclude future bilateral funding and trades.
@@ -759,6 +760,11 @@ pub(crate) fn local(world: &World, state: &State, buyer: AgentId) -> (World, Sta
         }
     }
     w.households.clear();
+    w.agency.retain(|agent, _| {
+        w.state_governance
+            .as_ref()
+            .is_some_and(|g| g.state == *agent)
+    });
     s.household_remainders.clear();
     w.participants.retain(|p| p.agent == buyer);
     w.condition_rules.retain(|r| r.subject == buyer);

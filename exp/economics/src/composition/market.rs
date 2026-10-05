@@ -170,6 +170,7 @@ pub(super) fn promise_view(
         return Ok(None);
     };
     let mut branch = sim.clone();
+    crate::state_governance::preserve_history(&mut branch.world, &branch.state);
     for p in &mut branch.world.participants {
         if p.agent != *actor {
             p.needs.clear();
