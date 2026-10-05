@@ -125,9 +125,14 @@ State rulemaking is the initial focus; delegation and conflicts across layers ca
 be developed later. Current state-provided services are acceptable scaffolding,
 but should be delegable rather than intrinsic powers of a special state class.
 
-Eventually states should also have assets, membership, constitutions, governance,
-charters, objectives and goals. Autonomous state planning is a later priority than
-getting lawful formation and bounded organizational decisions working.
+The [first state-governance slice](STATE-GOVERNANCE.md) now connects accepted
+citizenship to person governors, fixed/rotating/elected terms and dated legal-policy
+choices. Its constitution fixes the allowed menu; its charter supplies static
+parameters. Admission changes compose with individual farms and household
+formation/governance without transferring ownership or rewriting existing dues.
+Ballots and policy instructions remain supplied. Autonomous state objectives,
+resource allocation and policy search are the next layer; general state founding
+and jurisdictional delegation remain longer-term work.
 
 ## Marketplaces and price formation
 

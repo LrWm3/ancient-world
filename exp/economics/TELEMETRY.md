@@ -316,3 +316,15 @@ the opening shortage and the candidate shortage after a voluntary donation, in t
 offered resource's native units. `accepted` remains the actual transfer; a rejected
 candidate can still show a projected improvement. Funding is not creditor payment.
 See [voluntary payment support](HOUSEHOLD-PAYMENT-SUPPORT.md).
+
+## State governance observer
+
+With settlement observation enabled, `state_governance` records the authority at
+each committed Open: state, person governor (or null for vacancy), leadership,
+term start, election tally, policy ID, effective-since month and the accepted
+instruction's issuance month/author. The initial constitutional policy has no
+instruction author. Selecting the state or current governor includes this record.
+It is captured before execution and emitted only after that opening commits;
+failed openings and private forecasts produce no record. Ordinary log date and
+record limits apply. The [state/household comparison](STATE-GOVERNANCE.md) checks
+CPU observed/reference unobserved equality with simultaneous financial auditing.

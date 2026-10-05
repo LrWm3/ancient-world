@@ -19,6 +19,7 @@ pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
     crate::production_market::validate(world)?;
     crate::pool_market::validate(world)?;
     crate::membership::validate(world, state)?;
+    crate::state_governance::validate(world, state)?;
     crate::households::validate(world, state)?;
     fn unique(ids: impl Iterator<Item = u32>) -> bool {
         let mut seen = BTreeSet::new();

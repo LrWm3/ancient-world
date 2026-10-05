@@ -152,6 +152,9 @@ pub enum Reason {
     Granted,
     Unclassified,
     NoGrant,
+    StatePolicy {
+        policy: crate::state_governance::PolicyId,
+    },
     TermLimit {
         term: Term,
         actual: u32,
@@ -226,6 +229,9 @@ pub fn evaluate(w: &World, s: &State, agent: AgentId, action: Action) -> Decisio
             }
             Requirement::Membership(_) => {}
         }
+    }
+    if let Some(policy) = crate::state_governance::prohibition(w, s, *kind, action) {
+        reasons.push(Reason::StatePolicy { policy });
     }
     let allowed = reasons.is_empty();
     if allowed {

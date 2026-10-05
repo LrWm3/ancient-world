@@ -1,6 +1,10 @@
 //! External observer: only the public, real simulation is stepped here.
 //! No hooks are installed in policies, settlement, or private forecast branches.
-use crate::{model::AgentId, simulation::Simulation, town_market};
+use crate::{
+    model::{AgentId, Phase},
+    simulation::Simulation,
+    town_market,
+};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -163,9 +167,23 @@ impl<W: Write> Observer<W> {
         let reports = sim.reports.len();
         let month = sim.state.month;
         let phase = format!("{:?}", sim.state.phase);
+        let state_authority = (self.config.settlement && sim.state.phase == Phase::Open)
+            .then(|| crate::state_governance::authority(&sim.world, &sim.state))
+            .flatten();
         let result = advance(sim);
         for batch in &sim.ledger[batches..] {
             if self.month(batch.month) {
+                if batch.phase == Phase::Open
+                    && let Some(a) = &state_authority
+                    && (self.agent(a.state) || a.governor.is_some_and(|id| self.agent(id)))
+                {
+                    self.log(json!({"kind":"state_governance", "month":batch.month,
+                        "state":a.state,"governor":a.governor,"term_start":a.term_start,
+                        "leadership":format!("{:?}",a.leadership),
+                        "election":a.election,"policy":a.policy,"effective_since":a.effective_since,
+                        "issued_month":a.instruction.as_ref().map(|p|p.issued_month),
+                        "authorized_by":a.instruction.as_ref().map(|p|p.change.authorized_by)}))?;
+                }
                 for record in observers::batch(&self.config, &sim.world, batch, &mut self.pending) {
                     self.log(record)?;
                 }

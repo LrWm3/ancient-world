@@ -30,8 +30,10 @@ Persons retain their own needs, holdings, rights and debts. Households have stat
 constitution/charter terms, governed contributed labor, resource/storage pooling,
 collective trading, external hiring, member support and explicit wind-down.
 Membership does not imply ownership or financial consolidation. Person
-self-directed policy changes remain deferred. Autonomous state governance,
-children, recruitment and automatic death estates remain extensions.
+self-directed policy changes remain deferred. [State governance](STATE-GOVERNANCE.md)
+now supports citizen governors and dated legal-policy choices within static
+constitutional menus. Autonomous political choices/spending, children, recruitment
+and automatic death estates remain extensions.
 
 ## Supported combinations
 
@@ -40,6 +42,7 @@ prove that every combination of those systems works together.
 
 | Combination | Implemented coverage | Boundary still present |
 | --- | --- | --- |
+| State governance + persons/households | Shared election tally, dated governor authority, admission pause/reopening, preserved ongoing farms/dues/households, CPU/checkpoint and separate-book controls | Supplied ballots/policy choices, one state, fixed policy menu; autonomous objectives/spending, broader legal terms and public political history in every private forecast remain open |
 | Direct lending + mortgages | One authoritative loan book, accrual, repayment, arrears and collateral terms | Direct advances use configured consent; general underwriting/discovery is absent |
 | Credit + negotiated/ZIP or town exchange | Shared opening cash, goods and storage; legal/venue checks; forged-batch rejection | Each market retains its own quote and matching policy; state posted bids do not learn ZIP prices |
 | Direct + tool-backed prepayments | Shared collection/admission resources and historical-cost reporting | Tool underwriting remains specialized; general negotiated forward formation is absent |

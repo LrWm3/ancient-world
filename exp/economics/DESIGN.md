@@ -337,6 +337,13 @@ founding constitutions, charters and the mandates of their human governors.
 Ownership, membership and policy-setting authority remain distinct. The
 [goals](GOALS.md) define these terms and the intended household redesign.
 
+The [state-governance extension](STATE-GOVERNANCE.md) now follows this separation:
+person citizens hold office and choose dated policies from a static constitution.
+State legal policies constrain ordinary admission; households still choose their
+own permitted allocation policies. Both institutions share election counting,
+while membership eligibility and constitutional mandates remain institution-specific.
+Political instructions are supplied in this first slice.
+
 Assets, process definitions and contracts are records, not automatically agents.
 Marketplaces should have institutional identity, participation rules and catalogs;
 the current venue pilot already uses an agent. Its order book, price observations

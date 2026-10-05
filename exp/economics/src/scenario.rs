@@ -181,6 +181,7 @@ pub fn baseline() -> (World, State) {
         open_access_offers: Default::default(),
         agent_search: Default::default(),
         transaction_policy: None,
+        state_governance: None,
         households: vec![],
         market: None,
         activities: Default::default(),
