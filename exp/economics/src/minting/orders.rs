@@ -65,6 +65,7 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
         Ok(())
     };
     let targets: BTreeSet<_> = std::iter::once(p.month)
+        .filter(|m| *m > 0)
         .chain(p.additional_months.iter().copied())
         .collect();
     let mut starts: Vec<_> = w
@@ -78,7 +79,7 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
         return Err("additional mint targets must follow the first target".into());
     }
     if !c.deals.is_empty()
-        || p.month == 0
+        || (p.month == 0 && !p.additional_months.is_empty())
         || p.quotes.len() > MAX_QUOTES
         || starts != targets.into_iter().collect::<Vec<_>>()
     {
@@ -184,6 +185,7 @@ pub(super) fn generate_fixed(
             .ok_or("unlisted market")
     };
     let target = std::iter::once(p.month)
+        .filter(|m| *m > 0)
         .chain(p.additional_months.iter().copied())
         .find(|m| *m >= s.month);
     let mut plan = Plan {

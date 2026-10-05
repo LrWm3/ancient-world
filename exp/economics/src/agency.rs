@@ -3,6 +3,7 @@
 use crate::{activities::WorkOrder, model::*, simulation::Simulation};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod discovery;
 pub mod integration;
 pub mod objectives;
 pub mod scenario;
@@ -46,16 +47,26 @@ pub struct Config {
 pub struct Controller {
     pub config: Config,
     pub autonomous: bool,
+    /// Discover commands from constitutional options and technology, rather than a menu.
+    pub discover_programs: bool,
     pub history: Vec<Decision>,
     pub applied_through: u32,
     /// Static operating mandate sealed at the first live opening.
-    mandate: Option<Config>,
+    mandate: Option<(Config, bool)>,
 }
 impl Controller {
+    pub fn discovering(mut config: Config) -> Self {
+        config.programs.clear();
+        Self {
+            discover_programs: true,
+            ..Self::new(config)
+        }
+    }
     pub fn new(config: Config) -> Self {
         Self {
             config,
             autonomous: true,
+            discover_programs: false,
             history: vec![],
             applied_through: 0,
             mandate: None,
@@ -81,6 +92,9 @@ pub struct Decision {
     /// Accepted command snapshot; later catalog edits cannot rewrite work.
     #[serde(skip)]
     pub accepted: Option<Program>,
+    /// Actual candidate catalog at this decision boundary.
+    #[serde(skip)]
+    pub catalog: BTreeMap<u32, Program>,
     pub alternatives: Vec<Alternative>,
     /// Current stocks/claims/history; need fulfillment is the preceding month.
     pub observed: Vec<i128>,
@@ -111,7 +125,11 @@ pub fn validate(w: &World) -> Result<(), String> {
             || c.objectives.is_empty()
             || c.emergency
                 .is_some_and(|(i, ceiling)| i >= c.objectives.len() || ceiling < 0)
-            || controller.mandate.as_ref().is_some_and(|m| m != c)
+            || controller
+                .mandate
+                .as_ref()
+                .is_some_and(|m| m != &(c.clone(), controller.discover_programs))
+            || (controller.discover_programs && !c.programs.is_empty())
             || (w.state_governance.as_ref().is_none_or(|g| g.state != agent)
                 && !w.households.iter().any(|h| h.agent == agent))
         {
@@ -184,6 +202,11 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
         if c.applied_through > s.month || (!c.history.is_empty() && c.mandate.is_none()) {
             return Err("invalid organization decision boundary".into());
         }
+        let catalog = if c.discover_programs {
+            discovery::programs(w, agent)?
+        } else {
+            c.config.programs.clone()
+        };
         let mut previous = 0;
         for d in &c.history {
             let authority =
@@ -198,7 +221,8 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
             if d.month <= previous
                 || d.month > s.month
                 || d.month.checked_add(1) != Some(d.effective_month)
-                || d.accepted.as_ref() != d.chosen.and_then(|id| c.config.programs.get(&id))
+                || d.accepted.as_ref() != d.chosen.and_then(|id| d.catalog.get(&id))
+                || d.catalog != catalog
                 || (d.chosen.is_some()
                     && (d.authorized_by.is_none() || d.authorized_by != authority))
             {
@@ -275,7 +299,9 @@ fn issue(w: &mut World, s: &State, agent: AgentId, p: &Program) -> Result<(), St
                         .order_policy
                         .as_mut()
                         .ok_or("agentic minting requires generated market orders")?;
-                    if month < policy.month {
+                    if policy.month == 0 {
+                        policy.month = month;
+                    } else if month < policy.month {
                         policy.additional_months.insert(policy.month);
                         policy.month = month;
                     } else if month > policy.month {
@@ -342,6 +368,7 @@ fn forecast(w: &World, s: &State, agent: AgentId, c: &Config, choice: Option<u32
                     authorized_by: governor(w, s, agent),
                     chosen: choice,
                     accepted: Some(c.programs[&id].clone()),
+                    catalog: c.programs.clone(),
                     alternatives: vec![],
                     observed: vec![],
                     reason: "hypothesis".into(),
@@ -510,7 +537,8 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
     validate(w)?;
     validate_history(w, s)?;
     for c in w.agency.values_mut().filter(|c| c.autonomous) {
-        c.mandate.get_or_insert_with(|| c.config.clone());
+        c.mandate
+            .get_or_insert_with(|| (c.config.clone(), c.discover_programs));
     }
     apply_due(w, s);
     let opening = w.clone();
@@ -522,6 +550,10 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
         .collect();
     for agent in actors {
         let c = &opening.agency[&agent];
+        let mut config = c.config.clone();
+        if c.discover_programs {
+            config.programs = discovery::programs(&opening, agent)?;
+        }
         let authority = governor(&opening, s, agent);
         let due = (s.month - 1).is_multiple_of(c.config.review_every);
         let observed = measure(&opening, s, &[], agent, &c.config.objectives)?;
@@ -531,6 +563,7 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
             authorized_by: authority,
             chosen: None,
             accepted: None,
+            catalog: config.programs.clone(),
             alternatives: vec![],
             observed,
             reason: "waiting for review".into(),
@@ -542,8 +575,8 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
             .is_some_and(|(i, ceiling)| decision.observed[i] > ceiling);
         if due || emergency || election_due(&opening, s, agent) {
             decision.alternatives = std::iter::once(None)
-                .chain(c.config.programs.keys().copied().map(Some))
-                .map(|choice| forecast(&opening, s, agent, &c.config, choice))
+                .chain(config.programs.keys().copied().map(Some))
+                .map(|choice| forecast(&opening, s, agent, &config, choice))
                 .collect();
             let preference = authority.filter(|id| c.config.preferences.contains_key(id));
             let selected = best(&decision.alternatives, preference);
@@ -564,8 +597,8 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
                 }
                 .into();
                 if let Some(id) = selected.program {
-                    issue(w, s, agent, &c.config.programs[&id])?;
-                    decision.accepted = Some(c.config.programs[&id].clone());
+                    issue(w, s, agent, &config.programs[&id])?;
+                    decision.accepted = Some(config.programs[&id].clone());
                 }
             } else {
                 decision.reason = "no valid projection; preserve accepted commitments".into();
