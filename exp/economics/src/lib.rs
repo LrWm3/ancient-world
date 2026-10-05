@@ -145,6 +145,7 @@ pub mod recovery_claims;
 
 pub mod delivery_relief;
 
+pub mod governance;
 pub mod household_governance;
 
 pub mod accounting;

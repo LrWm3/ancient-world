@@ -33,12 +33,7 @@ pub enum Purchasing {
     Collective,
     Members,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Leadership {
-    FixedFounder,
-    Rotating,
-    Elected,
-}
+pub use crate::governance::Leadership;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Constitution {
     /// Opt-in solvent wind-down under the static residual-recipient charter.
