@@ -46,10 +46,11 @@ can include a signed static operating mandate.
 
 The [combined agency scenario](INTEGRATED-AGENCY.md) now runs the state, household,
 three persons, mint marketplace, direct lending, a food forward and annual land
-dues together for 14 months on CPU, with separate audited books. It also exposes
-a planning gap: member food needs are met after the first month, but the household's
-forward delivery is late. Final financial reconciliation does not imply timely
-contract performance.
+dues together for 14 months on CPU, with separate audited books. Its baseline
+forward is late; an opt-in commitment-priority policy plus signed private-surplus
+funding delivers both wheat units in month 4, without additional food shortages.
+Controls retain the consequences of short horizons, missing seed or missing consent.
+This is bounded preparation, not guaranteed fulfillment of arbitrary contracts.
 
 ## Current progress — 2026-10-05
 

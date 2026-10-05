@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod disposal;
 pub mod dissolution;
+pub mod funding;
 pub(crate) mod hiring;
 pub mod income;
 pub(crate) mod income_reservations;
@@ -92,6 +93,8 @@ pub struct LaborDecision {
     pub projected_needs: Option<Vec<needs::Deficit>>,
     pub baseline_income: Option<income::Forecast>,
     pub projected_income: Option<income::Forecast>,
+    pub baseline_funding: Option<funding::Forecast>,
+    pub projected_funding: Option<funding::Forecast>,
     pub granted: i32,
     pub policy: crate::household_governance::Policy,
     pub leader: Option<AgentId>,
@@ -466,6 +469,7 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                 {
                     definitions.insert(process.definition);
                 }
+                definitions.extend(funding::candidates(world, state, member)?);
                 for id in definitions {
                     let d = world.definition(id);
                     let active = state.processes.values().find(|p| {
@@ -732,11 +736,13 @@ fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
         (b.reservations, b.before) = allocate(world, state, requests)?;
         apply(world, &mut staged, &b.before, Backend::Reference)?;
     }
-    if state.phase == Phase::Productive {
+    if matches!(state.phase, Phase::Acquire | Phase::Productive) {
         let (effects, receipts) = support::prepare(world, state, &staged)?;
         apply(world, &mut staged, &effects, Backend::Reference)?;
         b.before.extend(effects);
         b.support = receipts;
+    }
+    if state.phase == Phase::Productive {
         let (labor, decisions) = labor(world, &staged)?;
         b.labor = decisions;
         apply(world, &mut staged, &labor, Backend::Reference)?;
@@ -1163,6 +1169,8 @@ fn labor(world: &World, state: &State) -> Result<(Vec<Effect>, Vec<LaborDecision
             projected_needs: None,
             baseline_income: None,
             projected_income: None,
+            baseline_funding: None,
+            projected_funding: None,
             granted: 0,
             policy: a.governance.policy(state.month),
             leader: crate::household_governance::leader(a, state),
@@ -1195,13 +1203,17 @@ fn contributed_labor(
     let baseline = probe(world, state)?;
     let base_value = work_value(world, &baseline, &people);
     let policy = a.governance.policy(state.month);
-    let needs_first = matches!(policy, Policy::NeedsFirst | Policy::NeedsThenIncome);
+    let needs_first = matches!(
+        policy,
+        Policy::NeedsFirst | Policy::NeedsThenIncome | Policy::NeedsThenCommitments { .. }
+    );
     let baseline_needs = needs_first
         .then(|| needs::project(world, state, &baseline, &people))
         .transpose()?;
     let baseline_income = (policy == Policy::NeedsThenIncome)
         .then(|| income::project(world, state, &baseline, a.agent))
         .transpose()?;
+    let baseline_funding = funding::project(world, state, &baseline, a)?;
     let contributions: Vec<_> = order
         .iter()
         .map(|&member| {
@@ -1233,6 +1245,8 @@ fn contributed_labor(
         projected_needs: baseline_needs,
         baseline_income: baseline_income.clone(),
         projected_income: baseline_income,
+        baseline_funding: baseline_funding.clone(),
+        projected_funding: baseline_funding,
         granted: 0,
         policy,
         leader: crate::household_governance::leader(a, state),
@@ -1395,9 +1409,14 @@ fn contributed_labor(
         let projected_income = (policy == Policy::NeedsThenIncome)
             .then(|| income::project(world, &final_state, &final_plan, a.agent))
             .transpose()?;
+        let projected_funding = funding::project(world, &final_state, &final_plan, a)?;
         // Lexicographic need deficits precede the selected output/income objective.
         // No conversion of fulfillment units into a single monetary score.
-        let improves_secondary = if let Some(f) = &projected_income {
+        let improves_secondary = if let Some(f) = &projected_funding {
+            funding::compare(f, decision.projected_funding.as_ref().unwrap()).is_lt()
+                || (funding::compare(f, decision.projected_funding.as_ref().unwrap()).is_eq()
+                    && value > decision.projected_value)
+        } else if let Some(f) = &projected_income {
             income::improves(a, decision.projected_income.as_ref().unwrap(), f)
         } else {
             value > decision.projected_value
@@ -1409,6 +1428,7 @@ fn contributed_labor(
         }
         decision.projected_needs = projected_needs;
         decision.projected_income = projected_income;
+        decision.projected_funding = projected_funding;
         decision.recipient = Some(member);
         decision.projected_value = value;
         decision.granted = grant;

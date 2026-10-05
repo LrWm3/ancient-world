@@ -14,6 +14,10 @@ pub enum Policy {
     NeedsFirst,
     /// Current needs, then expected collective cash at the next town book.
     NeedsThenIncome,
+    /// Current needs, then accepted collective claim coverage, then net output.
+    NeedsThenCommitments {
+        months: u32,
+    },
     PreserveCommittedWork,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -211,6 +215,13 @@ impl Governance {
 
 pub fn validate(world: &World, state: &State, a: &Agreement) -> Result<(), String> {
     let g = &a.governance;
+    if g.constitution.permitted_policies.iter().any(|p| {
+        matches!(p, Policy::NeedsThenCommitments { months }
+            if !(1..=crate::need_orders::MAX_RESERVE_MONTHS).contains(months)
+                || !matches!(g.charter.contribution, Contribution::Percent(_)))
+    }) {
+        return Err("commitment policy requires a bounded horizon and percentage labor".into());
+    }
     if (g.charter.initial_policy == Policy::NeedsThenIncome
         || g.changes
             .iter()

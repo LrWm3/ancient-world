@@ -1,7 +1,10 @@
-//! Voluntary private-surplus offers, evaluated before contributed work. These
+//! Voluntary private-surplus offers. Commitment preparation runs at Acquire;
+//! other policies evaluate support before contributed work. These
 //! grants transfer ownership once; they are neither wages nor household claims.
 use super::*;
 use crate::household_governance::Policy;
+
+const CURRENT_MONTH_ONLY: u32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Mandate {
@@ -33,6 +36,7 @@ pub struct Receipt {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct PaymentFunding {
+    pub months: u32,
     /// Funding units of the mandate resource, never summed across denominations.
     /// Land alternatives use their accepted rate; the bill remains native.
     pub due: i128,
@@ -158,6 +162,11 @@ pub(super) fn prepare(
     let mut households: Vec<_> = world.households.iter().collect();
     households.sort_by_key(|h| h.agent);
     for h in households {
+        let early = funding::horizon(h, opening).is_some();
+        // Exactly one support window per policy/month, preserving mandate limits.
+        if (opening.phase == Phase::Acquire) != early {
+            continue;
+        }
         // Stable policy ordering also resolves competing surplus offers. No
         // alternative may allocate resources already accepted from another offer.
         for member in crate::household_governance::ordered(h, &staged) {
@@ -190,7 +199,9 @@ pub(super) fn prepare(
                 if parent(world, &staged, member) != Some(h.agent)
                     || !matches!(
                         h.governance.policy(staged.month),
-                        Policy::NeedsFirst | Policy::NeedsThenIncome
+                        Policy::NeedsFirst
+                            | Policy::NeedsThenIncome
+                            | Policy::NeedsThenCommitments { .. }
                     )
                     || !market::active(world, &staged, h.agent)
                 {
@@ -232,6 +243,61 @@ pub(super) fn prepare(
                 )?;
                 if feasible == 0 {
                     r.reason = "collective storage unavailable".into();
+                    receipts.push(r);
+                    continue;
+                }
+                if early {
+                    // Needs have already reserved shared stock. Private protection
+                    // uses existing claims, inputs and the member's signed horizon;
+                    // this grant never depends on later purchases or production.
+                    let months = funding::horizon(h, opening).unwrap();
+                    let due = funding::claims(world, &staged, h.agent, months)?
+                        .get(&m.resource)
+                        .copied()
+                        .unwrap_or(0);
+                    let shortfall = (due - i128::from(staged.balance(h.agent, m.resource))).max(0);
+                    let quantity = i128::from(feasible).min(shortfall) as i32;
+                    r.payment_funding = Some(PaymentFunding {
+                        months,
+                        due,
+                        shortfall,
+                        projected_shortfall: shortfall - i128::from(quantity),
+                    });
+                    let mut uncovered = false;
+                    for member in members(h, &staged) {
+                        // Inspect actual post-reservation private holdings. Do not
+                        // assume another shared transfer can bypass full storage.
+                        let mut stocks = crate::substitution::stocks(&staged, member);
+                        for (resource, claim) in
+                            crate::need_orders::claims(world, &staged, member, CURRENT_MONTH_ONLY)?
+                        {
+                            let held = stocks.entry(resource).or_default();
+                            *held = (*held - claim).max(0);
+                        }
+                        uncovered |= crate::need_orders::consume_person(
+                            world,
+                            &staged,
+                            member,
+                            CURRENT_MONTH_ONLY,
+                            &mut stocks,
+                            true,
+                        )
+                        .values()
+                        .any(|q| *q > 0);
+                    }
+                    if uncovered {
+                        // A failed opening food reservation must not let new
+                        // private surplus jump straight to external collection.
+                        r.reason = "current member needs lack stock cover".into();
+                    } else if h.governance.charter.accept_payment_support && quantity > 0 {
+                        let payment = transfer(member, h.agent, m.resource, quantity);
+                        apply(world, &mut staged, &payment, Backend::Reference)?;
+                        r.accepted = quantity;
+                        effects.extend(payment);
+                        r.reason = "accepted prospective voluntary payment funding".into();
+                    } else {
+                        r.reason = "payment support disabled or no accepted claim gap".into();
+                    }
                     receipts.push(r);
                     continue;
                 }
@@ -293,6 +359,7 @@ pub(super) fn prepare(
                     let shortfall = (due - i128::from(staged.balance(h.agent, m.resource))).max(0);
                     let quantity = i128::from(feasible).min(shortfall) as i32;
                     r.payment_funding = Some(PaymentFunding {
+                        months: CURRENT_MONTH_ONLY,
                         due,
                         shortfall,
                         projected_shortfall: shortfall - i128::from(quantity),

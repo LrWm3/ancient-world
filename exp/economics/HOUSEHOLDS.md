@@ -122,6 +122,13 @@ books or choose individual work assignments.
 
 ## Needs-first contributed labor
 
+The later [combined agency control](INTEGRATED-AGENCY.md#optional-commitment-preparation)
+adds the opt-in `NeedsThenCommitments { months }` policy: current needs, accepted
+collective claim cover, then net output. It adds direct productive demand and uses
+signed surplus funding at Acquire, without changing the default or appropriating
+private holdings. Its dated receipts, shortage controls and accounting checks are
+recorded there.
+
 `Policy::NeedsFirst` is an opt-in operational policy permitted by the contributed
 labor constitution. The default remains `PreserveCommittedWork`. A founding
 charter may select it, or the current governor may schedule it through the existing

@@ -7,7 +7,11 @@ use economics_compute_smoke::{
 };
 
 fn main() -> Result<(), String> {
-    let (w, s) = scenario()?;
+    let (w, s) = if std::env::args().any(|a| a == "--commitments") {
+        commitment_scenario()?
+    } else {
+        scenario()?
+    };
     let mut audit = audit(&w, &s)?;
     let mut sim = Simulation::new(w, s, Backend::CubeCpu)?;
     while sim.state.month <= RUN_MONTHS {

@@ -14,8 +14,10 @@ remain responsible for individual acceptance and work.
 
 The [combined 14-month control](INTEGRATED-AGENCY.md) now exercises both controllers
 alongside person work, paid mint inputs, lending, a household forward and annual
-land dues. CPU/reference books agree, including a late forward that exposes the
-remaining collective commitment-planning gap.
+land dues. CPU/reference books agree. Its baseline forward is late; an optional
+household commitment-priority policy with personally signed surplus funding pays
+on time without additional food shortages. This uses the same organizational
+controller and bounded constitutional program menu.
 
 ## Responsibilities and reusable parts
 

@@ -61,6 +61,21 @@ pub(crate) fn claims(
     agent: AgentId,
     months: u32,
 ) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = accepted_claims(world, state, agent, months)?;
+    for (resource, quantity) in process_claims(world, state, agent) {
+        *result.entry(resource).or_default() += quantity;
+    }
+    Ok(result)
+}
+
+/// Accepted financial/delivery claims, excluding process inputs. Shared by
+/// personal protection and collective funding, including accepted land tenders.
+pub(crate) fn accepted_claims(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    months: u32,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
     let mut result: BTreeMap<_, _> = world
         .resources
         .iter()
@@ -87,9 +102,6 @@ pub(crate) fn claims(
         for (r, q) in crate::commitments::funding_dues(world, state, agent)? {
             *result.entry(r).or_default() += q;
         }
-    }
-    for (resource, quantity) in process_claims(world, state, agent) {
-        *result.entry(resource).or_default() += quantity;
     }
     // Earned wages are accepted claims, including carried arrears. Protect the
     // employer's cash from discretionary sales/purchases before Close collection.

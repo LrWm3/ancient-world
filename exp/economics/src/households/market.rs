@@ -51,7 +51,9 @@ pub(crate) fn buys(world: &World, state: &State, agent: AgentId) -> bool {
             h.governance.charter.purchasing == Purchasing::Collective
                 && matches!(
                     h.governance.policy(state.month),
-                    Policy::NeedsFirst | Policy::NeedsThenIncome
+                    Policy::NeedsFirst
+                        | Policy::NeedsThenIncome
+                        | Policy::NeedsThenCommitments { .. }
                 )
         })
 }

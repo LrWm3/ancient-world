@@ -28,6 +28,7 @@ const LAND_DUES: i32 = 1;
 const STORAGE_CAPACITY: i32 = 32;
 const WOOD_TARGET: i32 = 100;
 const FORECAST_MONTHS: u32 = 4;
+const SUPPORT_RESERVE_MONTHS: u32 = 1;
 const LAND_TERM_MONTHS: u32 = 24;
 const SEED_INPUT: i32 = 1;
 const SEED_OUTPUT: i32 = 2;
@@ -229,6 +230,63 @@ pub fn scenario() -> Result<(World, State), String> {
         goods: Amount::new(WHEAT, DELIVERY_QUANTITY),
         prepayment: Amount::new(COIN, DELIVERY_QUANTITY),
     });
+    Ok((w, s))
+}
+
+/// Same opening economy, with explicitly permitted commitment preparation and
+/// independently signed member surplus offers. The baseline remains available.
+pub fn commitment_scenario() -> Result<(World, State), String> {
+    let (mut w, s) = scenario()?;
+    let policy = h::Policy::NeedsThenCommitments {
+        months: FORECAST_MONTHS,
+    };
+    let household = &mut w.households[0];
+    household
+        .governance
+        .constitution
+        .permitted_policies
+        .insert(policy);
+    household.governance.charter.accept_payment_support = true;
+    w.agency
+        .get_mut(&HOUSEHOLD)
+        .unwrap()
+        .config
+        .programs
+        .get_mut(&1)
+        .unwrap()
+        .commands = vec![Command::HouseholdPolicy(policy)];
+    let config = &mut w.agency.get_mut(&HOUSEHOLD).unwrap().config;
+    config.programs.get_mut(&1).unwrap().name =
+        "feed members and prepare accepted commitments".into();
+    config.objectives.push(Objective {
+        scope: Scope::Organization,
+        metric: Metric::FundingGap {
+            resource: WHEAT,
+            months: FORECAST_MONTHS,
+        },
+    });
+    for member in [SUPPLIER, GROWER] {
+        config.preferences.insert(member, config.objectives.clone());
+    }
+    for member in [SUPPLIER, GROWER] {
+        households::support::authorize(
+            &mut w,
+            &s,
+            HOUSEHOLD,
+            member,
+            households::support::Mandate {
+                member,
+                resource: WHEAT,
+                from: s.month,
+                through: RUN_MONTHS,
+                revoked_from: None,
+                reserve_months: SUPPORT_RESERVE_MONTHS,
+                private_reserve: NUTRITION_PER_MONTH,
+                household_target: DELIVERY_QUANTITY,
+                monthly_limit: DELIVERY_QUANTITY,
+            },
+        )?;
+    }
     Ok((w, s))
 }
 

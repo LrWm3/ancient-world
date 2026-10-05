@@ -90,6 +90,16 @@ pub(crate) fn quantity(
     let worthwhile = candidate.projected_needs < baseline.projected_needs
         || (candidate.projected_needs == baseline.projected_needs
             && match h.governance.policy(state.month) {
+                Policy::NeedsThenCommitments { .. } => {
+                    let comparison = funding::compare(
+                        candidate.projected_funding.as_ref().unwrap(),
+                        baseline.projected_funding.as_ref().unwrap(),
+                    );
+                    comparison.is_lt()
+                        || (comparison.is_eq()
+                            && candidate.projected_value - baseline.projected_value
+                                > wage * INPUT_BENEFIT)
+                }
                 Policy::NeedsThenIncome => income::improves(
                     h,
                     baseline.projected_income.as_ref().unwrap(),

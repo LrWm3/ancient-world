@@ -10,6 +10,13 @@ current native land bills, sharing their ordinary collection rules.
 [Pass 29](HOUSEHOLD-LAND-FUNDING.md) adds explicit accepted-alternative funding;
 these receipt quantities then use the accepted rate while the original bill stays native.
 
+The subsequent [combined agency experiment](INTEGRATED-AGENCY.md#optional-commitment-preparation)
+adds opt-in `NeedsThenCommitments { months }`. It uses the same signed mandate and
+private protections, but accepts claim-funding surplus once at **Acquire**, after
+member reservations and before ordinary collection. Existing policies described
+below retain their Productive timing. The new policy considers accepted dated
+land/forward obligations over its horizon; it does not forecast future loan payments.
+
 ## Authorization and policy
 
 Static `Charter.accept_payment_support` defaults to `false`. Under `NeedsFirst` or
@@ -24,7 +31,7 @@ Static `Charter.accept_payment_support` defaults to `false`. Under `NeedsFirst` 
 3. Keep the existing consumption/income comparison. If it accepts, its result is
    unchanged.
 4. Otherwise, inspect the household's own earned wages, current collectible loan
-   dues and current land bills in the offered resource. Subtract actual holdings and cap a second candidate
+   dues, current land bills and due forwards in the offered resource. Subtract actual holdings and cap a second candidate
    at that shortage, the feasible offer and available storage.
 5. Recheck this smaller candidate against collective and individual need projections.
    Accept only if collective needs do not worsen under their existing ordering and
@@ -38,13 +45,13 @@ direction and remain separate choices.
 The payment reader reuses `employment::claims`, `credit::current_dues` and
 `commitments::current_dues`, combining
 only identical denomination units. Future undelivered work, payroll outlooks, future
-loan installments, member debts, future land bills and forwards do not create this target.
+loan installments, member debts, future land bills and not-yet-due forwards do not create this target under those policies.
 Loan claims under an active estate or stay retain the existing reader's exclusions.
 This is not yet a universal obligation adapter.
 
 ## Execution and records
 
-Support runs at the existing before-Productive household boundary. The donation
+Under `NeedsFirst`/`NeedsThenIncome`, support runs at the existing before-Productive household boundary. The donation
 changes ownership once. It neither pays a creditor nor gives the donor a new claim,
 ownership stake, guarantee or governance power. Replay verifies consent, quantities
 and comparisons before publishing the transfer.
@@ -55,7 +62,7 @@ Due; there is no backdated collection or extra payment phase. Storage and later
 competing uses can still prevent payment. Support is not creditor-specific escrow
 and changes no creditor priority.
 
-`support::Receipt.payment_funding` records funding units due in the mandate resource, observed shortage and
+`support::Receipt.payment_funding` records its lookahead in months, funding units due in the mandate resource, observed shortage and
 candidate shortage after funding. `accepted` records the actual transfer; a rejected
 candidate may still have a projected improvement. The existing `household_support`
 observer exports this optional record. Under `NeedsThenIncome`, the income forecast

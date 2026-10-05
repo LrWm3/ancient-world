@@ -393,6 +393,28 @@ impl Simulation {
                 }
             }
         }
+        // Collective obligations add demand through the ordinary productive resolver.
+        // Preview and execution see the same offers, rights and finite resources.
+        for participant in self.sorted_participants() {
+            if defers(participant.agent) {
+                continue;
+            }
+            for definition in
+                crate::households::funding::candidates(&self.world, &self.state, participant.agent)?
+            {
+                if !requests
+                    .iter()
+                    .any(|r| r.agent == participant.agent && r.definition == definition)
+                {
+                    requests.push(Request {
+                        agent: participant.agent,
+                        definition,
+                        existing: None,
+                        need: None,
+                    });
+                }
+            }
+        }
         for order in &self.world.activities.orders {
             if !defers(order.agent)
                 && crate::activities::wants(&self.world, &self.state, order)

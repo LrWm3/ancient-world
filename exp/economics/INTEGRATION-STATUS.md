@@ -29,10 +29,11 @@ remain supplied; this is not general autonomous economic coordination.
 The [combined agency control](INTEGRATED-AGENCY.md) adds a 14-month CPU/reference
 run with simultaneous state/household decisions, individual work, a mint input
 market, a state loan, a household forward and annual land dues. It verifies shared
-budgets, elections, law interruption/recovery and separate statements. The forward
-is delivered late: current household allocation does not reliably prepare future
-collective obligations. This is an observed planning limit, not successful timely
-performance, and does not remove the composition exclusions below.
+budgets, elections, law interruption/recovery and separate statements. The baseline
+forward is late. An opt-in `NeedsThenCommitments` variant prepares direct production
+and uses individually signed surplus at Acquire, after member needs are reserved:
+both units deliver on time in month 4. Missing consent, seed and short horizons
+retain shortfalls. This does not remove the composition exclusions below.
 
 Persons retain their own needs, holdings, rights and debts. Households have static
 constitution/charter terms, governed contributed labor, resource/storage pooling,
