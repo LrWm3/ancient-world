@@ -181,6 +181,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub discovery: Option<crate::discovery::Config>,
     pub agency: BTreeMap<AgentId, crate::agency::Controller>,
     pub governance_observation: Option<crate::state_governance::PublicHistory>,
     /// Explicitly consented commodity prepayments, independent of equipment purchases.
@@ -302,6 +303,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub discovery_allocation: Vec<crate::allocation::Receipt>,
     pub forward_collections: Vec<crate::finance::CollectionReceipt>,
     pub employment: Option<crate::employment::Boundary>,
     pub minting: Option<crate::minting::Boundary>,
@@ -366,6 +368,7 @@ impl Batch {
 
     pub fn empty(state: &State) -> Self {
         Self {
+            discovery_allocation: vec![],
             forward_collections: vec![],
             employment: Default::default(),
             minting: None,

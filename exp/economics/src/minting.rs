@@ -273,7 +273,7 @@ pub fn validate(w: &World) -> Result<(), String> {
         || !w.issuance.is_empty()
         || !w.bids.is_empty()
         || !w.offers.is_empty()
-        || !w.access_offers.is_empty()
+        || (!w.access_offers.is_empty() && w.discovery.is_none())
         || w.transaction_policy.is_none()
         || w.decision_horizon.is_some()
     {
@@ -349,7 +349,8 @@ pub(crate) fn validate_batch(w: &World, s: &State, b: &Batch) -> Result<(), Stri
         }
     } else if b.phase != Phase::Acquire
         && !(b.phase == Phase::Due && crate::credit::enabled(w))
-        && (!matches!(b.phase, Phase::Due | Phase::ClearArrears) || w.agreements.is_empty())
+        && (!matches!(b.phase, Phase::Due | Phase::ClearArrears)
+            || crate::commitments::active(w, s).next().is_none())
         && b.transactions.iter().any(|t| t.process.is_none())
     {
         return Err("physical minting requires a process for non-market effects".into());

@@ -67,7 +67,7 @@ current blanket restrictions.
 | Area | Implemented and exercised | Main remaining boundary |
 | --- | --- | --- |
 | Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search, independent multi-person review, shared dated admission and active trade composition | General discovery across all drivers and sustainable autonomous cooperation |
-| State and law | First-state founding with optional operating mandate, citizenship, governors, objective-based policy/work selection, supplied-preference voting, finite mint funding and paid public work; existing law/finance execution | Supplied program menus and contract terms; autonomous founding/underwriting, multiple jurisdictions and broader governed legal terms |
+| State and law | First-state founding with optional operating mandate, citizenship, governors, objective-based policy/work selection, supplied-preference voting, finite mint funding and paid public work; existing law/finance execution | Bounded discovered programs/deals now have an opt-in control; general founding/underwriting, multiple jurisdictions and broader governed legal terms remain open |
 | Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Composition with market/finance drivers, robust collective forecasts, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
 | Contracts and finance | Shared loan book and claim executor; mortgages, direct/tool forwards, wages, ranked/proportional allocation, guarantees and dated recourse | Remaining typed acceptance/performance adapters, autonomous underwriting and joint multi-resource allocation |
@@ -92,6 +92,15 @@ The ignored 32-person annual test also passed explicitly, as did all six release
 families, strict all-target Clippy, formatting and artifact checks. These runs
 overlap; counts are not additive. Reproduce from the repository root with
 `python3 exp/economics/scripts/check_v1.py`.
+
+The opt-in [self-starting economy](ENDOGENOUS-DISCOVERY.md) now removes initial
+citizenships, household/land/finance agreements, counterparty quotes and operational
+program menus in a bounded three-person control. It discovers a household and
+lease, governance choices, mint funding and work; a surplus variant discovers
+prepaid deliveries. CPU/reference books agree through the annual payment, and a
+40-month continuation renews the lease. Recipes, laws, institutional templates,
+objectives, term rules and pricing assumptions remain inputs. This does not make
+all historical drivers autonomous.
 
 ## Purpose and existing scenarios
 

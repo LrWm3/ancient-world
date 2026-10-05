@@ -65,7 +65,7 @@ pub(crate) fn validate(w: &World, s: &State) -> Result<(), String> {
         || (!crate::acquisition::search_composition(w)
             && (w.competition.is_some()
                 || w.priority == Priority::ConsequenceAware
-                || !w.access_offers.is_empty()))
+                || (!w.access_offers.is_empty() && w.discovery.is_none())))
         || !w.offers.is_empty()
         || (!w.bids.is_empty() && w.market.is_none() && stock_sale.is_none())
     {

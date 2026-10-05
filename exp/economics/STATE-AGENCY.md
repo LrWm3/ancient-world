@@ -19,6 +19,13 @@ household commitment-priority policy with personally signed surplus funding pays
 on time without additional food shortages. This uses the same organizational
 controller and bounded constitutional program menu.
 
+`Controller::discovering` now derives program candidates from constitutional
+options and resource-producing recipes instead of a supplied menu. It retains
+and validates each decision's catalog and supports an initially idle mint. The
+[self-starting control](ENDOGENOUS-DISCOVERY.md) installs these controllers after
+citizenship and beneficial household formation; objectives and institutional
+rules remain inputs.
+
 ## Responsibilities and reusable parts
 
 | Part | Implemented behavior |

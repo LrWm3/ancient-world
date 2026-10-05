@@ -176,3 +176,5 @@ mod loan_accounting;
 mod receivable_accounting;
 
 pub mod composition;
+
+pub mod discovery;

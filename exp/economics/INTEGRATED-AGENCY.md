@@ -8,6 +8,12 @@ Both organizational controllers run at the same opening boundary. Market exchang
 production, pooling, loan servicing, forwards and annual land dues use ordinary
 settlement and separate double-entry books.
 
+The later [self-starting control](ENDOGENOUS-DISCOVERY.md) removes these initialized
+arrangements and menus while retaining the execution loop. The supplied scenario
+below remains a useful matched control. Commitment preparation now also anticipates
+uncovered member land/forward claims already supported by ordinary household
+reservation, after protecting private current consumption; it does not transfer debt.
+
 ## The connected scenario
 
 - The state starts with wheat, a plot and no coins or labor. One person lends it

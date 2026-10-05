@@ -609,7 +609,8 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         && (world.competition.is_some()
             || world.priority == Priority::ConsequenceAware
             || (world.market.is_none()
-                && (!world.offers.is_empty() || !world.access_offers.is_empty())))
+                && (!world.offers.is_empty()
+                    || (!world.access_offers.is_empty() && world.discovery.is_none()))))
     {
         return Err("general loans require a composed acquisition driver for this search/market configuration".into());
     }

@@ -24,9 +24,35 @@ pub(super) fn horizon(a: &Agreement, s: &State) -> Option<u32> {
     }
 }
 
-/// Accepted land/forward deliveries in the horizon, plus currently earned wages
-/// and loan dues. No assumed future loan amortization, wages, offers or sales.
-pub(super) use crate::need_orders::accepted_claims as claims;
+/// Own accepted claims plus the member land dues and forwards already covered by ordinary
+/// household support. Protect current private consumption before counting cover.
+/// This prepares collective stocks; it never assumes or transfers a member's debt.
+pub(super) fn claims(
+    w: &World,
+    s: &State,
+    agent: AgentId,
+    months: u32,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    let mut result = crate::need_orders::accepted_claims(w, s, agent, months)?;
+    let Some(h) = w.households.iter().find(|h| h.agent == agent) else {
+        return Ok(result);
+    };
+    for member in members(h, s) {
+        let mut available = crate::substitution::stocks(s, member);
+        crate::need_orders::consume_person(w, s, member, 1, &mut available, true);
+        for resource in w.resources.iter().filter(|r| r.kind == ResourceKind::Stock) {
+            let due: i128 =
+                crate::commitments::projected_claims(w, s, member, resource.id, u64::from(months))
+                    .values()
+                    .sum();
+            let gap = (due - available.get(&resource.id).copied().unwrap_or(0)).max(0);
+            if gap > 0 {
+                *result.entry(resource.id).or_default() += gap;
+            }
+        }
+    }
+    Ok(result)
+}
 
 pub(super) fn project(
     w: &World,

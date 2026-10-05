@@ -11,6 +11,7 @@ const MAX_PLANNING_HORIZON_MONTHS: u32 = 120;
 const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
+    crate::discovery::validate(world, state)?;
     crate::agency::validate(world)?;
     crate::agency::validate_history(world, state)?;
     crate::opportunities::validate(world)?;
@@ -358,6 +359,7 @@ pub(crate) fn commit_core(
     if batch.access_applicant.is_some() && batch.accept_access.is_none() {
         return Err("applicant without access acceptance".into());
     }
+    crate::discovery::validate_batch(world, state, batch)?;
     let mut staged = state.clone();
     if let Some(e) = &batch.employment {
         staged.employment = e.after.clone();

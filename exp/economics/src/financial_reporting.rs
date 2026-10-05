@@ -640,6 +640,19 @@ impl Audit {
         if *before != self.boundary {
             return Err("accounting checkpoint/boundary mismatch".into());
         }
+        // New agreements can use an explicit resource valuation without a
+        // preallocated contract ID. Freeze that carrying basis once admitted;
+        // later quote changes cannot revalue an existing obligation implicitly.
+        let mut dues = self.dues.clone();
+        if let Some(values) = &mut dues {
+            for a in crate::commitments::active(world, after) {
+                if a.payment.resource != self.book.denomination()
+                    && let Some(value) = self.exchange_values.get(&a.payment.resource)
+                {
+                    values.0.entry(a.id).or_insert(*value);
+                }
+            }
+        }
         let outer_before = before;
         let outer_after = after;
         let (prepared, core_settled, verified) = if world.households.is_empty() {
@@ -1239,7 +1252,7 @@ impl Audit {
             &dues_transfers,
             coin,
         )?;
-        let (inventory, dues_lines) = if let Some(dues) = &self.dues {
+        let (inventory, dues_lines) = if let Some(dues) = &dues {
             let performance = crate::dues_accounting::without_physical_guarantees(
                 world,
                 batch.credit.as_ref(),
@@ -1259,7 +1272,7 @@ impl Audit {
             (inventory, vec![])
         };
         for t in &batch.transactions {
-            if (self.dues.is_some() && dues_transactions.contains(t))
+            if (dues.is_some() && dues_transactions.contains(t))
                 || t.process.is_some()
                 || t.trade.is_some()
                 || t.delivery.is_some()
@@ -1322,7 +1335,7 @@ impl Audit {
             &self.asset_values,
             &self.inventory,
             self.processes.as_ref(),
-            self.dues.as_ref(),
+            dues.as_ref(),
             self.services.as_ref(),
             &self.exchange_values,
         )?;
@@ -1333,7 +1346,7 @@ impl Audit {
             &asset_values,
             &inventory,
             processes.as_ref(),
-            self.dues.as_ref(),
+            dues.as_ref(),
             services.as_ref(),
             &self.exchange_values,
         )?;
@@ -2121,6 +2134,7 @@ impl Audit {
         self.processes = processes;
         self.inventory = inventory;
         self.services = services;
+        self.dues = dues;
         self.book = candidate;
         self.boundary = outer_after.clone();
         Ok(())

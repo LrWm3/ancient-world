@@ -292,36 +292,35 @@ pub fn commitment_scenario() -> Result<(World, State), String> {
 
 /// Deliberately separate entity statements, with supplied opening carrying costs.
 pub fn audit(w: &World, s: &State) -> Result<financial_reporting::Audit, String> {
+    financial_reporting::Audit::with_opening(w, s, COIN, opening(w, s))
+}
+
+pub fn opening(w: &World, s: &State) -> financial_reporting::Opening {
     use crate::process_accounting::{Costs, Output};
-    financial_reporting::Audit::with_opening(
-        w,
-        s,
-        COIN,
-        financial_reporting::Opening {
-            assets: w.assets.iter().map(|a| (a.id, OPENING_PLOT_COST)).collect(),
-            inventory: s
-                .balances
-                .iter()
-                .filter(|((_, r), q)| *r != COIN && **q > 0)
-                .map(|(k, q)| (*k, i128::from(*q)))
-                .collect(),
-            processes: Some(Costs {
-                output_weights: [(
-                    GROW,
-                    [
-                        (Output::Stock(WHEAT), FOOD_OUTPUT as u32),
-                        (Output::Stock(SEED), SEED_OUTPUT as u32),
-                    ]
-                    .into(),
-                )]
+    financial_reporting::Opening {
+        assets: w.assets.iter().map(|a| (a.id, OPENING_PLOT_COST)).collect(),
+        inventory: s
+            .balances
+            .iter()
+            .filter(|((_, r), q)| *r != COIN && **q > 0)
+            .map(|(k, q)| (*k, i128::from(*q)))
+            .collect(),
+        processes: Some(Costs {
+            output_weights: [(
+                GROW,
+                [
+                    (Output::Stock(WHEAT), FOOD_OUTPUT as u32),
+                    (Output::Stock(SEED), SEED_OUTPUT as u32),
+                ]
                 .into(),
-                ..Default::default()
-            }),
-            dues: Some(crate::dues_accounting::Valuation(
-                w.agreements.iter().map(|a| (a.id, 1)).collect(),
-            )),
-            issuance: Some(crate::issuance_accounting::Policy::NonRedeemableEquity),
+            )]
+            .into(),
             ..Default::default()
-        },
-    )
+        }),
+        dues: Some(crate::dues_accounting::Valuation(
+            w.agreements.iter().map(|a| (a.id, 1)).collect(),
+        )),
+        issuance: Some(crate::issuance_accounting::Policy::NonRedeemableEquity),
+        ..Default::default()
+    }
 }

@@ -12,6 +12,9 @@ pub struct ForecastContext {
 impl ForecastContext {
     pub fn new(world: &World, state: &State) -> Self {
         let mut world = world.clone();
+        if let Some(c) = &mut world.discovery {
+            c.enabled = false;
+        }
         crate::state_governance::preserve_history(&mut world, state);
         // After Open, the current own endowment is observed independently of
         // unspent or purchased hours. Household shares still need that input.

@@ -35,6 +35,15 @@ and uses individually signed surplus at Acquire, after member needs are reserved
 both units deliver on time in month 4. Missing consent, seed and short horizons
 retain shortfalls. This does not remove the composition exclusions below.
 
+The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
+households, governance selections, leases, loans, forwards, quotes or dated work.
+Its Open discovery and Acquire joint admission reuse these execution boundaries.
+A 14-month CPU/reference run and a 40-month renewal control exercise the resulting
+agreements. A surplus control discovers and delivers forwards. Term/valuation rules,
+legal and constitutional templates, objectives and physical endowments remain
+supplied. This adapter excludes employment and competing composition planners;
+other driver combinations are not implied by this coverage.
+
 Persons retain their own needs, holdings, rights and debts. Households have static
 constitution/charter terms, governed contributed labor, resource/storage pooling,
 collective trading, external hiring, member support and explicit wind-down.
@@ -56,9 +65,10 @@ prove that every combination of those systems works together.
 
 | Combination | Implemented coverage | Boundary still present |
 | --- | --- | --- |
+| Endogenous startup + mint/person/household economy | Generated citizenship/land offers, bilateral household formation, discovered policy/work catalogs, finite funding loans and prepaid deliveries, joint land admission and annual renewal | Existing public agent, static rules/templates/objectives, fixed valuation limits, pair formation and scoped finance discovery; not all-driver composition |
 | State founding + household/person execution | Explicit founding signatures, atomic state/law/citizenship creation, immutable terms, later ordinary citizenship, governed household admission, six-month CPU/reference/checkpoint and accounting control | One bootstrap sovereign; consent supplied, no automatic capitalization, land transfer, secession or autonomous founding |
 | State governance + persons/households | Shared objective/program controller, supplied-preference autonomous voting, dated authority, need-driven admission reopening, preserved commitments, CPU/checkpoint and separate-book controls | One state; supplied objectives, prices and finite program menu; broader legal changes, strategic politics and all-driver composition remain open |
-| Direct lending + mortgages | One authoritative loan book, accrual, repayment, arrears and collateral terms | Direct advances use configured consent; general underwriting/discovery is absent |
+| Direct lending + mortgages | One authoritative loan book, accrual, repayment, arrears and collateral terms | Configured consent remains supported; discovered mint-funding loans have a bounded bilateral forecast adapter, general underwriting remains open |
 | Credit + negotiated/ZIP or town exchange | Shared opening cash, goods and storage; legal/venue checks; forged-batch rejection | Each market retains its own quote and matching policy; state posted bids do not learn ZIP prices |
 | Direct + tool-backed prepayments | Shared collection/admission resources and historical-cost reporting | Tool underwriting remains specialized; general negotiated forward formation is absent |
 | Person prerequisite search + finance | Bounded citizenship/land search, competitive access, dated farming and explicit loan/prepayment/guarantee/estate-purchase bundles | Finance terms are supplied; the search is not universal |

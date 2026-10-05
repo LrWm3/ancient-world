@@ -370,6 +370,7 @@ fn terminal_operators_cannot_replay_even_capacity_free_consumption() {
     assert!(sim.state.balance(PERSON, FUEL) > 0);
     let before = sim.state.clone();
     let batch = Batch {
+        discovery_allocation: vec![],
         forward_collections: Vec::new(),
         employment: Default::default(),
         minting: None,

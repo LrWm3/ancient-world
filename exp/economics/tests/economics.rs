@@ -330,6 +330,7 @@ fn gross_spending_and_overflow_fail_atomically_even_with_positive_net_effects() 
     let (world, mut state) = baseline();
     let before = state.clone();
     let mut batch = Batch {
+        discovery_allocation: vec![],
         forward_collections: Vec::new(),
         employment: Default::default(),
         minting: None,
