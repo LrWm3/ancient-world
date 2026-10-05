@@ -44,6 +44,13 @@ explicit agreement among persons, with initial law and citizenship, before the
 ordinary person–household loop begins. Founding preserves personal property and
 can include a signed static operating mandate.
 
+The [combined agency scenario](INTEGRATED-AGENCY.md) now runs the state, household,
+three persons, mint marketplace, direct lending, a food forward and annual land
+dues together for 14 months on CPU, with separate audited books. It also exposes
+a planning gap: member food needs are met after the first month, but the household's
+forward delivery is late. Final financial reconciliation does not imply timely
+contract performance.
+
 ## Current progress — 2026-10-05
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

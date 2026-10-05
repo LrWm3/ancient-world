@@ -26,6 +26,14 @@ reconciles separate statements. Market-interruption controls produce actual
 shortages and later recovery. Opportunities, consent and several planning limits
 remain supplied; this is not general autonomous economic coordination.
 
+The [combined agency control](INTEGRATED-AGENCY.md) adds a 14-month CPU/reference
+run with simultaneous state/household decisions, individual work, a mint input
+market, a state loan, a household forward and annual land dues. It verifies shared
+budgets, elections, law interruption/recovery and separate statements. The forward
+is delivered late: current household allocation does not reliably prepare future
+collective obligations. This is an observed planning limit, not successful timely
+performance, and does not remove the composition exclusions below.
+
 Persons retain their own needs, holdings, rights and debts. Households have static
 constitution/charter terms, governed contributed labor, resource/storage pooling,
 collective trading, external hiring, member support and explicit wind-down.

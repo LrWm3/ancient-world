@@ -3,6 +3,7 @@
 use crate::{activities::WorkOrder, model::*, simulation::Simulation};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod integration;
 pub mod objectives;
 pub mod scenario;
 use objectives::{Objective, measure};

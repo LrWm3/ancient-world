@@ -12,6 +12,11 @@ and household allocation policy. It creates no population, hours, inventory,
 money, ownership or financial reporting scope. The existing person planners
 remain responsible for individual acceptance and work.
 
+The [combined 14-month control](INTEGRATED-AGENCY.md) now exercises both controllers
+alongside person work, paid mint inputs, lending, a household forward and annual
+land dues. CPU/reference books agree, including a late forward that exposes the
+remaining collective commitment-planning gap.
+
 ## Responsibilities and reusable parts
 
 | Part | Implemented behavior |
