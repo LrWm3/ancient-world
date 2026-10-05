@@ -50,6 +50,13 @@ advance a phase or add another scheduler. Later governor instructions retain the
 existing future-month rule. There is no permission to found another state merely
 because a person can join this one.
 
+The optional `Template.agency` field supplies a [shared organizational operating
+mandate](STATE-AGENCY.md). Founders sign its objective order, review parameters,
+static preferences and finite program catalog along with the other terms.
+Acceptance validates the program against the new constitution/law and installs
+its controller atomically. Later mandate edits invalidate the accepted formation.
+This does not imply autonomous founding consent or capitalization.
+
 ## Property, citizenship and continuing governance
 
 The state starts without resources, assets, obligations or a participant labor
@@ -109,11 +116,15 @@ Still outside this slice: autonomous founding/recruitment, negotiation of terms,
 capital contributions, ownership issuance, land transfers, secession, multiple
 sovereigns, territorial jurisdiction, recognition by other states, citizenship
 exit, state dissolution and constitutional amendment. Older explicitly initialized
-state fixtures remain supported without invented founding receipts. The private
-forecast history limitation in the governance document also remains.
+state fixtures remain supported without invented founding receipts. The subsequent agency integration preserves observed citizenship and deaths in
+private economic forecasts; see its scoped controls and remaining limits.
 
 When an audit already exists, use `Audit::accept_state_founding` in place of
 the unobserved `formation::accept` call. It requires the exact audited opening
 state and runs the same atomic admission before retaining the new citizenship
 boundary. Its book and opening entries are unchanged: formation has no financial
 legs. This prevents an arbitrary checkpoint reset from concealing changed balances.
+
+The subsequent agency tests add founding with a signed operating mandate, automatic
+ballots alongside household production, and rejection of an unconstitutional
+program. The nine-test count above records the original founding slice.

@@ -328,3 +328,17 @@ It is captured before execution and emitted only after that opening commits;
 failed openings and private forecasts produce no record. Ordinary log date and
 record limits apply. The [state/household comparison](STATE-GOVERNANCE.md) checks
 CPU observed/reference unobserved equality with simultaneous financial auditing.
+
+## Shared organization decisions
+
+With settlement observation enabled, `organization_decision` records each
+configured organization's committed Open review. It includes the objective order,
+observed losses, alternatives with forecast losses or explicit failures, selected
+program and accepted commands, author, effective month, reason and generated
+ballots. A retained plan, waiting interval or vacant office is also observable.
+Agent filters select the receiving institution; ordinary month/log limits apply.
+Forecasts produce no live logs, and failed Open commits publish no decision.
+
+The controller retains these receipts in `World.agency` independently of logging.
+Actual economic effects remain in ordinary settlement records and financial books.
+See [state agency](STATE-AGENCY.md) for scope, observations and CPU/accounting tests.

@@ -32,8 +32,13 @@ collective trading, external hiring, member support and explicit wind-down.
 Membership does not imply ownership or financial consolidation. Person
 self-directed policy changes remain deferred. [State governance](STATE-GOVERNANCE.md)
 now supports citizen governors and dated legal-policy choices within static
-constitutional menus. Autonomous political choices/spending, children, recruitment
+constitutional menus. Open-ended political choices/spending, children, negotiated recruitment
 and automatic death estates remain extensions.
+
+The [state agency controls](STATE-AGENCY.md) add bounded goals, program comparison,
+authorized work, autonomous ballots from supplied preferences and outcome review,
+using the same loop for household policy. Public political history is retained
+when private forecasts omit peer work. Founding can install a signed mandate.
 
 ## Supported combinations
 
@@ -43,7 +48,7 @@ prove that every combination of those systems works together.
 | Combination | Implemented coverage | Boundary still present |
 | --- | --- | --- |
 | State founding + household/person execution | Explicit founding signatures, atomic state/law/citizenship creation, immutable terms, later ordinary citizenship, governed household admission, six-month CPU/reference/checkpoint and accounting control | One bootstrap sovereign; consent supplied, no automatic capitalization, land transfer, secession or autonomous founding |
-| State governance + persons/households | Shared election tally, dated governor authority, admission pause/reopening, preserved ongoing farms/dues/households, CPU/checkpoint and separate-book controls | Supplied ballots/policy choices, one state, fixed policy menu; autonomous objectives/spending, broader legal terms and public political history in every private forecast remain open |
+| State governance + persons/households | Shared objective/program controller, supplied-preference autonomous voting, dated authority, need-driven admission reopening, preserved commitments, CPU/checkpoint and separate-book controls | One state; supplied objectives, prices and finite program menu; broader legal changes, strategic politics and all-driver composition remain open |
 | Direct lending + mortgages | One authoritative loan book, accrual, repayment, arrears and collateral terms | Direct advances use configured consent; general underwriting/discovery is absent |
 | Credit + negotiated/ZIP or town exchange | Shared opening cash, goods and storage; legal/venue checks; forged-batch rejection | Each market retains its own quote and matching policy; state posted bids do not learn ZIP prices |
 | Direct + tool-backed prepayments | Shared collection/admission resources and historical-cost reporting | Tool underwriting remains specialized; general negotiated forward formation is absent |
@@ -59,7 +64,7 @@ prove that every combination of those systems works together.
 | Experimental plan continuation | Isolated crop/household scopes compare monthly search, retain/repair and horizon reviews; fresh dated work, observation-triggered reconsideration, CPU/reference/accounting and cloned checkpoint checks | All household participants must consent. Exact full-context deviation detection; retained market plans, optimized local repair and durable controller serialization remain absent; monthly active exchange is covered separately above |
 | Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |
-| Physical minting + finance | Finite coin/input/hour reservations compose with loans, prepayments, dues, employment, households and authorized recovery | Issuance follows a configured policy, not an autonomous state objective |
+| Physical minting + finance | Finite coin/input/hour reservations compose with loans, prepayments, dues, employment, households and authorized recovery; optional state controller chooses additional mint attempts toward a reserve | Quotes and mint recipes remain supplied; autonomous loan/forward underwriting and general fiscal optimization remain open |
 | Due claims + creditor allocation | Ranked or opt-in proportional loan/land allocation, accepted coin tender, whole conversion lots and single-resource indivisible claims | Forward collection retains Acquire timing; joint multi-resource minima and further tender routes remain open |
 | Guarantees + servicing/recovery | Native loan, wage, land and direct-delivery coverage; posted admission; selected coin alternatives; dated recourse | Autonomous acceptance and arbitrary tender/security combinations remain open |
 | Guarantee chains + liens | Finite rooted chains, explicit authorized-liquidation lien/proceeds inheritance and no same-boundary recourse cascade | Cycles, broken inheritance, pending-resale guarantees and substitute secured tenders remain rejected |

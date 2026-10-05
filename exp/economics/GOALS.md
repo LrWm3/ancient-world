@@ -130,11 +130,14 @@ citizenship to person governors, fixed/rotating/elected terms and dated legal-po
 choices. Its constitution fixes the allowed menu; its charter supplies static
 parameters. Admission changes compose with individual farms and household
 formation/governance without transferring ownership or rewriting existing dues.
-Ballots and policy instructions remain supplied. Autonomous state objectives,
-resource allocation and policy search are the next layer. The
+The [shared organizational controller](STATE-AGENCY.md) now compares supplied
+objectives and program menus, generates bounded policy/work decisions and citizen
+ballots from static preferences, and observes outcomes for subsequent review. It
+uses finite mint inputs and paid labor without creating state population. The
 [first-state founding adapter](STATE-FORMATION.md) now accepts explicit person
 signatures on a scenario-supplied constitution, charter and initial law, atomically
-creating the state and founding citizenships without pooling property. Autonomous
+creating the state and founding citizenships without pooling property. An optional
+operating mandate is signed with those founding terms. Autonomous
 founding, capitalization, multiple sovereigns and jurisdictional delegation remain
 longer-term work.
 

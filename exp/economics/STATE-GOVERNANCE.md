@@ -119,24 +119,23 @@ cargo +1.92.0 fmt --check
 
 ## Remaining work
 
-The next bounded step is a **state decision policy**: compare allowed options
-against observed citizen/household need coverage and finite state resources,
-submit the chosen instruction through this authority interface, then compare it
-with an unchanged-policy control. The admission-pause failure provides a useful
-case for testing whether a governor considers transition costs.
+The subsequent [shared organization controller](STATE-AGENCY.md) implements the
+state decision layer: observed welfare, stock/commitment and membership objectives,
+bounded program comparisons, authorized instructions, paid work and mint funding,
+supplied-preference voting, and outcome review. The same loop selects household
+policy. Existing supplied-ballot/instruction APIs remain available as controls.
+Public citizenship/death observations now survive the private forecasts that omit
+peer economic work; this does not give those forecasts control over peers.
 
 Still outside this slice:
 
-- Autonomous voter preferences, state objectives, policy search and spending;
-  minting and issuance continue using their configured policies.
+- Endogenous voter preferences, open-ended policy search, autonomous underwriting
+  and general fiscal allocation. Current program menus and market quotes are supplied.
 - Founding under another sovereign, citizenship exit, councils, emergency succession and
   constitutional or charter amendment.
 - Multiple jurisdictions, delegated lawmaking, general changes to recognition,
   household constitutional limits, tax terms and liquidation law.
 - Universal composition with every market/finance/private-forecast adapter.
-  Some individual projections trim peer lifecycle records; preserving public
-  political history through those projections needs a separate integration pass,
-  especially around deaths and later elections. The mixed controls here cover
-  competitive farming and the fixed individual work/household governance fixture.
+  The agency document records the expanded mixed controls and their limitations.
 - Automatic estates, children, person self-directed policy changes and broad
   political balance claims. The two-month terms are a small test setting.
