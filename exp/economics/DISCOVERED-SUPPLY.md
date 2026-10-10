@@ -65,6 +65,10 @@ The paired full-finance control preserves a limitation exposed by whole-lot buyi
 four-month forecasts approve one-wheat forwards in months five and eight, delivered
 in months seven and ten. The later food shortfalls lie outside both forecasts.
 Successful supply/settlement is not a guarantee of subsistence over the entire run.
+The [twenty-iteration follow-up](REVIEW-BATCH-20.md) adds an optional independent
+forward-assessment horizon: fourteen months rejects that harmful buffer sale
+without inflating market stocking targets. The original default short-horizon
+failure remains a supported control; longer forecasting is not a universal cure.
 The unchanged `tests/discovery.rs` baseline remains the integrated cultivation,
 annual payment, financing and forty-month renewal control.
 
@@ -108,12 +112,15 @@ food. Prices remain supplied limits, actual fills depend on competition, and
 future food availability is not guaranteed by possessing coins. Constitutions,
 laws, technologies, objectives and endowments remain inputs.
 
-The follow-up independent review prioritizes public food sales independent of a
-mint-funding gap. An idle or already-funded issuer should consider selling surplus
-to eligible, funded people with food needs, while protecting its own reserves and
-commitments. Present fixed-order sales primarily raise money for a future mint
-target. Test actual fulfillment, both parties' outcomes, unavailable demand and
-same-boundary cash restrictions before claiming a wage/food loop.
+Opt-in independent public surplus sales are now implemented; the issuer protects reserve
+and commitment claims before selling whole lots even without a mint-funding gap.
+The [review record](REVIEW-ITERATIONS.md) retains the original wage/food control,
+and [financed circulation](FINANCED-CIRCULATION.md) combines it with household
+farming, annual dues and lending. Its calibrated worker receives two jobs and later
+food, but still has five fourteen-month nutrition deficits. Broader household/person
+food asks and recurring income are the next useful composition targets. Successful
+repayment without ore is retained as a counterexample to treating finance as proof
+of completed productive work.
 
 Voluntary land requests remain another bounded gap: distinguish choosing a
 useful, fulfillable commitment from admission merely determining that an agent

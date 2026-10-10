@@ -16,8 +16,10 @@ Persons, an existing public agent, a venue, assets, endowments, needs, recipes a
 laws still define the world. Static constitution/charter templates define permissible
 leadership and allocation options, contribution fractions and formation requirements.
 Objectives, review horizons, lease/loan term rules, market listings and unit price
-limits express preferences and institutions. Agents choose counterparties, whether
-to sign, operating policies and dates; they do not invent technologies or legal powers.
+limits express preferences and institutions. Household and financial proposals
+compare counterparties' outcomes; free citizenship and feasible land admission
+currently use standing acceptance rules. Operating policies and dates are chosen
+within the supplied options. Agents do not invent technologies or legal powers.
 
 The control retains three persons, a public plot and wheat, finite private metal
 and coins, seed and monthly labor. Two persons need food and have five hours each;
@@ -56,7 +58,13 @@ At **Open**, one staged discovery pass:
 5. Tests bilateral financial proposals against independent borrower/buyer and
    lender/seller objectives. A selected loan must repay within its projection;
    a selected prepaid delivery must deliver. Actual ordinary admission and later
-   performance still enforce finite resources and can fail.
+   performance still enforce finite resources and can fail. Optional alternative
+   loan durations use primary-first, then ascending first-acceptable search, bounded
+   to 22 terms. `forward_horizon` can extend financial assessment independently of
+   market stocking targets; the default remains the historical short assessment.
+   Typed assessments and [external observers](TELEMETRY.md) separate no candidates,
+   forecast failure, nonadmission, projected fulfillment, mutual benefit and proposal
+   publication. Actual admission/settlement remain ordinary ledger events.
 
 Controllers discover candidate commands from constitutional options and backwards
 resource reachability through recipes. Each decision retains its catalog,
@@ -65,10 +73,15 @@ not become authority merely by being discovered. A selected instruction takes
 effect the following month. Minting can begin idle, with no prearranged first attempt.
 
 At **Acquire**, free citizenship uses a standing acceptance policy. Land admission
-collects feasible applicants before granting plots. The existing `StablePriority`
-allocator reserves joint prerequisites in a temporary budget: plot exclusivity,
+collects feasible applicants before granting plots. `Config.land_allocation` and
+`land_seed` select the existing allocator; stable priority remains the default.
+It reserves joint prerequisites in a temporary budget: plot exclusivity,
 seed and private plus constitutionally available household hours. Existing active
-work and outgoing market transfers reduce availability. Incoming transfers do not
+work, accepted bounded delivery/dues claims, currently collectible financial claims,
+and outgoing market transfers reduce availability. Current credit/forward changes
+are staged first, so fulfilled claims are not reserved twice and newly accepted
+promises are protected. This does not reserve every future loan installment.
+Incoming transfers do not
 count as already-finalized admission stock. Receipts distinguish feasible requests,
 grants and rejected joint reservations. These are admission bounds, not an escrow
 or a guarantee that future household policy will direct those hours to this job.
@@ -156,7 +169,10 @@ Private projections freeze future offer generation, formation and peer organizat
 policy decisions, while retaining published offers and ordinary acceptance/work.
 Bilateral benefit is therefore conditional on a finite forecast, not proof of
 long-run viability or consent under every shock. Stable admission can favor lower
-IDs. Initial preferences are derived uniformly for each office; political disagreement,
+IDs; lottery changes recipients without guaranteeing better welfare. Land admission
+still tests feasibility rather than voluntary benefit. A future comparison must
+project the exact preceding transaction batch, avoiding recomputed purchases or
+double spending shared hours. Initial preferences are derived uniformly for each office; political disagreement,
 automatic sovereign formation, multiple jurisdictions and self-modifying preferences
 remain separate work. There is no mortality rule in this control.
 
@@ -180,12 +196,18 @@ deficits remain: the public coin objective is satisfied, paid work stops and the
 worker cannot afford another lot despite remaining public surplus. This verifies
 adapter composition, not sustainable production or a general subsistence policy.
 
+The [financed circulation variant](FINANCED-CIRCULATION.md) retains household
+formation, land and finance and starts the issuer with zero coins. It records a
+repaid eight-month loan, repeated crops and annual dues alongside wages-to-food.
+Its remaining personal shortfalls and no-ore/no-lender controls bound that result.
+
 From `exp/economics`:
 
 ```sh
 cargo +1.92.0 run --release --locked --example discovered_economy
 cargo +1.92.0 run --release --locked --example discovered_economy -- --surplus
 cargo +1.92.0 run --release --locked --example discovered_economy -- --circulation
+cargo +1.92.0 run --release --locked --example discovered_economy -- --financed-circulation
 cargo +1.92.0 test --release --locked --test discovery --test agency_programs
 cargo +1.92.0 test --release --locked --test discovered_circulation --test public_sales
 ```

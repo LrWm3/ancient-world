@@ -242,3 +242,48 @@ execution against CPU reconstruction at every phase with independent accounting,
 actual traded quantities, cash/food conservation and paid obligations. These are
 finite calibration results, not proof of sustainable income or an allocation-policy
 improvement. Five-hour technology, worker capacity and market lots change together.
+
+## 20. Consolidate current scope and verify the composed crate
+
+Updated README and the discovery/supply guides to replace superseded backlog
+entries, distinguish opt-in policies from defaults, and link the finite integrated
+results. Historical verification totals remain dated records. Land admission is
+explicitly feasibility-based; household and financial proposals use outcome
+comparisons. Longer financial assessment does not change the default stocking
+horizon or promise long-run viability.
+
+The independent reviewer checked the final source/test/scenario evidence and the
+cross-document claims. Two investigated concerns did not become asserted bugs:
+duplicate mint-input resources already fail configuration validation, and a valid
+household-finance checkpoint probe admitted no harmful forward and produced no
+welfare difference. Broader household effects in financial scoring remain a
+question for a stronger integration fixture, not a demonstrated repaired defect.
+
+Final verification on 2026-10-10, source revision `b4d16d2`:
+
+- `cargo +1.92.0 test --locked --release -j 4`: **1,214 passed, zero failed,
+  one ignored**, with successful completion of all targets and doc tests.
+- The ignored
+  `specialist_households_reconcile_production_trading_and_annual_dues` test passed
+  separately with `--exact --ignored`.
+- Strict release all-target Clippy, crate formatting, repository artifact policy
+  and whitespace checks passed. These checks cover the isolated economics crate;
+  the root simulation was not changed or retested.
+
+Full-suite counts overlap the focused runs above and are not additive. Generated
+logs remain under ignored `output/`; this document records the reviewable results.
+
+### Remaining work after this batch
+
+- Extend eligible household/person food offers beyond public wheat sales and
+  person mint-input supply; demonstrate actual access for the independent worker.
+- Connect recurring income and future demand to planning. Two successful jobs and
+  a repaid loan do not sustain fourteen months of consumption.
+- Compare voluntary land commitments against declining using the exact preceding
+  transaction batch; preserve joint reservations and avoid recomputing purchases.
+- Extend underwriting beyond mint-input loans and fixed one-unit reserve forwards,
+  with explicit counterparty/member consequences and bounded search assumptions.
+
+Constitution/charter templates remain static. Individual self-directed policy
+changes remain deferred by request. These twenty iterations close this review
+batch, not the complete economic or institutional roadmap.

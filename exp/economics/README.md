@@ -52,7 +52,7 @@ funding delivers both wheat units in month 4, without additional food shortages.
 Controls retain the consequences of short horizons, missing seed or missing consent.
 This is bounded preparation, not guaranteed fulfillment of arbitrary contracts.
 
-## Current progress — 2026-10-05
+## Current progress — 2026-10-10
 
 Verified economics v1 remains at implementation revision `a1b99fa`.
 The subsequent planner and state-governance experiments have their own scoped results and verification.
@@ -87,11 +87,17 @@ bundles through normal allocation and dated execution. See
 [acceptance verification](V1-ACCEPTANCE.md). The
 [scenario manifest](V1-SCENARIOS.md) and release runner fix the tested scope.
 
-Latest full suite: **1,033 passed, zero failed, one ignored** at `a1b99fa`.
+Historical v1 full suite: **1,033 passed, zero failed, one ignored** at `a1b99fa`.
 The ignored 32-person annual test also passed explicitly, as did all six release
 families, strict all-target Clippy, formatting and artifact checks. These runs
 overlap; counts are not additive. Reproduce from the repository root with
 `python3 exp/economics/scripts/check_v1.py`.
+
+The 2026-10-10 [twenty-iteration review batch](REVIEW-BATCH-20.md) verified source
+revision `b4d16d2`: **1,214 passed, zero failed, one ignored** in the full release
+suite. The ignored 32-person annual accounting test passed separately. Strict
+all-target Clippy, formatting and repository artifact checks also passed. This
+follow-up suite result does not replace the historical v1 release-family record.
 
 The opt-in [self-starting economy](ENDOGENOUS-DISCOVERY.md) now removes initial
 citizenships, household/land/finance agreements, counterparty quotes and operational
@@ -112,9 +118,16 @@ sales independent of mint funding, with reserve and commitment protection, whole
 need orders and observer receipts. `discovered_economy --circulation` demonstrates
 discovered wages paying for later food, alongside stock and income constraints;
 it does not establish a sustainable economy.
-The [next twenty review iterations](REVIEW-BATCH-20.md) track subsequent bounded
-changes and their independent checks, beginning with separate forward-assessment
-and market-stocking horizons.
+The [twenty further review iterations](REVIEW-BATCH-20.md) add separate forward
+assessment horizons, bounded loan-duration search, financial performance observers,
+configurable land allocation, and protection of accepted commitments during admission.
+The [financed circulation control](FINANCED-CIRCULATION.md) combines discovered
+households, farming, annual dues, loans, mint work and later food purchases. A joint
+calibration of labor lots, the mint recipe and worker capacity changes who earns
+wages; the worker's fourteen-month deficit falls from
+eleven to five units, with household outcomes retained. Repayment and completed
+production still do not establish sustainable food access. General household/person
+food offers, recurring income and voluntary land benefit comparisons remain open.
 
 ## Purpose and existing scenarios
 
