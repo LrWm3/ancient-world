@@ -166,6 +166,11 @@ impl<W: Write> Observer<W> {
         let batches = sim.ledger.len();
         let reports = sim.reports.len();
         let supply_from = sim.world.discovery.as_ref().map_or(0, |c| c.supply.len());
+        let financial_from = sim
+            .world
+            .discovery
+            .as_ref()
+            .map_or(0, |c| c.financial.len());
         let month = sim.state.month;
         let phase = format!("{:?}", sim.state.phase);
         let state_authority = (self.config.settlement && sim.state.phase == Phase::Open)
@@ -203,6 +208,7 @@ impl<W: Write> Observer<W> {
                     batch,
                     &mut self.pending,
                     supply_from,
+                    financial_from,
                 ) {
                     self.log(record)?;
                 }

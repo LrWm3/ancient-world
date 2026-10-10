@@ -40,12 +40,43 @@ pub(super) fn batch(
     batch: &Batch,
     pending: &mut Vec<Pending>,
     supply_from: usize,
+    financial_from: usize,
 ) -> Vec<Value> {
     let mut records = vec![];
     if config.planning != PlanningDetail::Off
         && batch.phase == Phase::Open
         && let Some(c) = &world.discovery
     {
+        for assessment in c.financial.iter().skip(financial_from).filter(|a| {
+            a.month == batch.month
+                && (selected(config, a.requester)
+                    || a.attempts.iter().any(|p| selected(config, p.counterparty)))
+        }) {
+            let attempts: Vec<_> = assessment.attempts.iter().map(|a| {
+                use crate::discovery::finance::Outcome;
+                let outcome = match &a.outcome {
+                    Outcome::ProjectionFailed(error) => json!({"kind":"projection_failed", "error":error}),
+                    Outcome::PerformanceShortfall => json!({"kind":"performance_shortfall"}),
+                    Outcome::NoMutualGain => json!({"kind":"no_mutual_gain"}),
+                    Outcome::Published => json!({"kind":"published"}),
+                };
+                let mut row = json!({"counterparty":a.counterparty,"candidate_id":a.candidate_id,
+                    "quantity":a.quantity,"prepayment":a.prepayment,"outcome":outcome});
+                if config.planning == PlanningDetail::Alternatives {
+                    row["comparisons"] = json!(a.comparisons.iter().map(|(agent,(before,after))|
+                        json!({"agent":agent,"before":before.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                            "after":after.iter().map(ToString::to_string).collect::<Vec<_>>()})).collect::<Vec<_>>());
+                }
+                row
+            }).collect();
+            records.push(
+                json!({"kind":"financial_assessment","month":assessment.month,
+                "instrument":format!("{:?}",assessment.instrument),"requester":assessment.requester,
+                "resource":assessment.resource,"denomination":assessment.denomination,
+                "horizon":assessment.horizon,"candidate_count":assessment.candidate_count,
+                "attempts":attempts}),
+            );
+        }
         for d in c
             .supply
             .iter()

@@ -361,3 +361,21 @@ receipts. `physical_minting_orders.reason` still describes procurement, so it ca
 say minting is idle while public sales settle. Use these separate records to tell
 an unsubmitted request from a matching failure or completed payment. Existing
 agent/month filters and log limits apply to both new record kinds.
+
+### Financial discovery assessments
+
+`financial_assessment` is a planning observation emitted only for newly committed
+Open assessments. It contains instrument, requester, resource/denomination,
+horizon, candidate count and attempted counterparties. The agent filter matches
+the requester or an attempted counterparty. `Selected` includes outcomes;
+`Alternatives` additionally includes ordered before/after losses as decimal
+strings. An empty attempt list can explain absent supply without inventing a
+rejected contract.
+
+Outcomes distinguish `projection_failed`, `performance_shortfall`, `no_mutual_gain`
+and `published`. Published terms are proposals awaiting ordinary Acquire admission;
+they do not prove issuance, repayment or delivery. Candidate IDs can be reused after
+rejection, so correlate only published terms with actual contract records. Forward
+candidate counts are terminal-stock candidates; loan counts are funded people with
+Lend permission. Neither count guarantees final legal or economic eligibility.
+Continuation observers do not re-export historical assessments.

@@ -118,3 +118,12 @@ projection failure, and publication. At the publishing Open, the loan terms exis
 but the accepted loan book is still empty; Acquire remains the admission boundary.
 Eight finance tests pass and independent review found no blocker. An invalid-rate
 control exposed a missing discovery configuration bound, queued for correction.
+
+## 10. Observe financial discovery without decision hooks
+
+The external planning observer exports new financial assessments at committed
+Open. Requester/counterparty filtering, selected outcome detail and optional
+comparison detail use the existing observer configuration. A continuation emits
+only new assessments. Read-only controls compare complete world, state and ledger
+with an unobserved run; no forecast branch produces external logs. See TELEMETRY.md
+for the distinction between proposal publication and actual financial settlement.
