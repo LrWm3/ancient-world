@@ -41,11 +41,11 @@ fn financial_observation_is_read_only_new_only_and_party_filterable() {
     assert_eq!(assessments.len(), plain.world.discovery.as_ref().unwrap().financial.iter()
         .filter(|a| a.requester == ISSUER || a.attempts.iter().any(|p| p.counterparty == ISSUER)).count());
     assert!(assessments.iter().any(|a| {
-        a["attempts"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|p| p["outcome"]["kind"] == "published" && p["comparisons"].is_array())
+        a["attempts"].as_array().unwrap().iter().any(|p| {
+            p["outcome"]["kind"] == "published"
+                && p["comparisons"].is_array()
+                && p["performance"]["outstanding"] == 0
+        })
     }));
     for row in &assessments {
         let duration = row["duration"].as_u64().unwrap();

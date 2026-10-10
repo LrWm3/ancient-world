@@ -383,3 +383,10 @@ Continuation observers do not re-export historical assessments.
 Financial assessments distinguish contract `duration` (loan term or delivery delay)
 from projection `horizon`. Optional loan-term search emits one assessment per tried
 duration; rejected proposals may reuse an ID until one is published.
+
+Each financial attempt also exposes `performance`: absent when projection failed;
+`not_admitted` when no contract entered the forecast; otherwise the final projected
+loan status/debt or forward delivered/outstanding quantities. Debt uses the
+assessment denomination; deliveries use its resource units. These are forecast
+witnesses, not public settlement receipts. Repaid loans can still fail the mutual
+benefit comparison, and relief may reduce a forward claim without physical delivery.

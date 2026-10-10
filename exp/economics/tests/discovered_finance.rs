@@ -101,10 +101,19 @@ fn absent_needed_committed_or_forbidden_stock_is_not_a_forward_surplus() {
             assert_eq!(sim.state.exchange.forwards[&900].delivered, 1);
         }
         if case == "forbidden" {
-            use economics_compute_smoke::discovery::finance::Outcome;
-            assert!(sim.world.discovery.as_ref().unwrap().financial.iter()
-                .flat_map(|a| &a.attempts)
-                .any(|a| a.counterparty == WORKER && a.outcome == Outcome::PerformanceShortfall));
+            use economics_compute_smoke::discovery::finance::{Outcome, Performance};
+            assert!(
+                sim.world
+                    .discovery
+                    .as_ref()
+                    .unwrap()
+                    .financial
+                    .iter()
+                    .flat_map(|a| &a.attempts)
+                    .any(|a| a.counterparty == WORKER
+                        && a.outcome == Outcome::PerformanceShortfall
+                        && a.performance == Some(Performance::NotAdmitted))
+            );
         }
     }
 }
@@ -286,6 +295,15 @@ fn financial_assessments_distinguish_no_supply_from_published_delivery() {
                 (WHEAT, COIN, 1, Some(1))
             );
             assert_eq!(sim.state.exchange.forwards[&p.candidate_id].delivered, 1);
+            assert_eq!(
+                p.performance,
+                Some(
+                    economics_compute_smoke::discovery::finance::Performance::Forward {
+                        delivered: 1,
+                        outstanding: 0
+                    }
+                )
+            );
         }
     }
 }
@@ -343,7 +361,18 @@ fn loan_diagnostics_distinguish_funding_gain_and_publication_from_admission() {
                     assert_eq!(p.outcome, Outcome::Published);
                     assert_eq!(sim.world.lending.len(), 1);
                 }
-                "early installment" => assert_eq!(p.outcome, Outcome::NoMutualGain),
+                "early installment" => {
+                    assert_eq!(p.outcome, Outcome::NoMutualGain);
+                    assert_eq!(
+                        p.performance,
+                        Some(
+                            economics_compute_smoke::discovery::finance::Performance::Loan {
+                                status: economics_compute_smoke::credit::Status::Repaid,
+                                outstanding: 0,
+                            }
+                        )
+                    );
+                }
                 _ => unreachable!(),
             }
         }
@@ -537,4 +566,39 @@ fn bounded_loan_duration_search_preserves_primary_preference_and_finds_viable_te
             .insert(term);
         assert!(Simulation::new(w, s, Backend::Reference).is_err());
     }
+}
+
+#[test]
+fn projected_unpaid_loan_is_distinct_from_nonadmission() {
+    use economics_compute_smoke::discovery::finance::{Instrument, Outcome, Performance};
+    let (mut w, s) = mint_loan(1);
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .finance
+        .as_mut()
+        .unwrap()
+        .monthly_rate_bps = 10_000;
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    while sim.state.month < 2 {
+        sim.step().unwrap();
+    }
+    sim.step().unwrap();
+    let attempt = &sim
+        .world
+        .discovery
+        .as_ref()
+        .unwrap()
+        .financial
+        .iter()
+        .find(|a| a.month == 2 && a.instrument == Instrument::Loan)
+        .unwrap()
+        .attempts[0];
+    assert_eq!(attempt.outcome, Outcome::PerformanceShortfall);
+    assert!(
+        matches!(attempt.performance, Some(Performance::Loan {outstanding, ..}) if outstanding > 0),
+        "{attempt:?}"
+    );
+    assert!(sim.world.lending.is_empty());
+    assert!(sim.state.credit.loans.is_empty());
 }

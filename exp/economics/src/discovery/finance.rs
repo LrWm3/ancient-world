@@ -19,6 +19,22 @@ pub enum Outcome {
     Published,
 }
 
+/// Terminal forecast evidence, not an actual admission or settlement receipt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Performance {
+    NotAdmitted,
+    Loan {
+        status: crate::credit::Status,
+        /// Remaining principal plus interest in the assessment denomination.
+        outstanding: i32,
+    },
+    Forward {
+        /// Goods units; relief and substitution can also reduce outstanding claims.
+        delivered: i32,
+        outstanding: i32,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Attempt {
     pub counterparty: AgentId,
@@ -29,6 +45,7 @@ pub struct Attempt {
     /// Forward prepayment in denomination units; absent for loan proposals.
     pub prepayment: Option<i32>,
     pub comparisons: BTreeMap<AgentId, (Vec<i128>, Vec<i128>)>,
+    pub performance: Option<Performance>,
     pub outcome: Outcome,
 }
 
@@ -227,6 +244,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
                         quantity: principal,
                         prepayment: None,
                         comparisons: BTreeMap::new(),
+                        performance: None,
                         outcome: Outcome::ProjectionFailed(e.clone()),
                     });
                 record(
@@ -264,6 +282,13 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
             ),
         ]
         .into();
+        let performance = match projected.state.credit.loans.get(&id) {
+            Some(loan) => Performance::Loan {
+                status: loan.status,
+                outstanding: loan.debt()?,
+            },
+            None => Performance::NotAdmitted,
+        };
         let repaid = projected
             .state
             .credit
@@ -279,6 +304,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
                 quantity: principal,
                 prepayment: None,
                 comparisons: comparisons.clone(),
+                performance: Some(performance),
                 outcome: if !repaid {
                     Outcome::PerformanceShortfall
                 } else if !accepted {
@@ -407,6 +433,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                             quantity: FORWARD_LOT,
                             prepayment: Some(price),
                             comparisons: BTreeMap::new(),
+                            performance: None,
                             outcome: Outcome::ProjectionFailed(error),
                         });
                     continue;
@@ -441,6 +468,13 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                 ),
             ]
             .into();
+            let performance = match projected.state.exchange.forwards.get(&id) {
+                Some(contract) => Performance::Forward {
+                    delivered: contract.delivered,
+                    outstanding: contract.claim().outstanding(),
+                },
+                None => Performance::NotAdmitted,
+            };
             let delivered = projected
                 .state
                 .exchange
@@ -456,6 +490,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                     quantity: FORWARD_LOT,
                     prepayment: Some(price),
                     comparisons: comparisons.clone(),
+                    performance: Some(performance),
                     outcome: if !delivered {
                         Outcome::PerformanceShortfall
                     } else if !accepted {

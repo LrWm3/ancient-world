@@ -53,14 +53,19 @@ pub(super) fn batch(
                     || a.attempts.iter().any(|p| selected(config, p.counterparty)))
         }) {
             let attempts: Vec<_> = assessment.attempts.iter().map(|a| {
-                use crate::discovery::finance::Outcome;
+                use crate::discovery::finance::{Outcome, Performance};
                 let outcome = match &a.outcome {
                     Outcome::ProjectionFailed(error) => json!({"kind":"projection_failed", "error":error}),
                     Outcome::PerformanceShortfall => json!({"kind":"performance_shortfall"}),
                     Outcome::NoMutualGain => json!({"kind":"no_mutual_gain"}),
                     Outcome::Published => json!({"kind":"published"}),
                 };
-                let mut row = json!({"counterparty":a.counterparty,"candidate_id":a.candidate_id,
+                let performance = a.performance.as_ref().map(|p| match p {
+                    Performance::NotAdmitted => json!({"kind":"not_admitted"}),
+                    Performance::Loan {status, outstanding} => json!({"kind":"loan", "status":format!("{status:?}"), "outstanding":outstanding}),
+                    Performance::Forward {delivered, outstanding} => json!({"kind":"forward", "delivered":delivered, "outstanding":outstanding}),
+                });
+                let mut row = json!({"performance":performance,"counterparty":a.counterparty,"candidate_id":a.candidate_id,
                     "quantity":a.quantity,"prepayment":a.prepayment,"outcome":outcome});
                 if config.planning == PlanningDetail::Alternatives {
                     row["comparisons"] = json!(a.comparisons.iter().map(|(agent,(before,after))|

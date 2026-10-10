@@ -199,3 +199,16 @@ when allocating IDs. The combined control instead issues 101, completes minting
 and repayment, and leaves both the purchase and guarantee unexercised. Audited
 CPU/reference state and ledger agree; all eleven financial discovery tests pass.
 This does not change guarantee admission, priority or payment semantics.
+
+## 17. Explain projected contract performance
+
+Financial diagnostics now retain terminal forecast evidence as well as a decision:
+nonadmission, loan status/outstanding debt, or delivered/outstanding goods. Failed
+projections have no performance witness. The external observer exposes these in
+both selected and alternative detail without logging inside decision kernels.
+
+Fourteen finance/observer tests pass. Controls distinguish a legally inadmissible
+forward, a fulfilled delivery, an admitted high-interest loan with unpaid debt,
+and a fully repaid short loan that still produces no mutual gain. Forecast records
+remain distinct from actual admission and settlement; independent review found
+no blocker. No pricing, repayment or selection behavior changes in this iteration.
