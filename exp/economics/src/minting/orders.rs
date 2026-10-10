@@ -275,7 +275,10 @@ fn public_sales(
         .min(i128::from(MAX_LOTS)) as i32;
     {
         let mut demand = 0;
-        if p.private_sales.is_some() {
+        // Seller policies own their respective stock horizons. A buyer's cash
+        // can cross either source, so protect the longer enabled horizon.
+        let buyer_months = policy.claim_months.max(p.private_sales.unwrap_or(0));
+        if let Some(private_months) = p.private_sales {
             for q in p
                 .quotes
                 .iter()
@@ -292,9 +295,9 @@ fn public_sales(
                 let protection = if w.households.iter().any(|h| h.agent == q.agent)
                     || w.participants.iter().any(|p| p.agent == q.agent)
                 {
-                    crate::need_orders::protected_stock(w, s, q.agent, policy.claim_months)?
+                    crate::need_orders::protected_stock(w, s, q.agent, private_months)?
                 } else {
-                    crate::need_orders::claims(w, s, q.agent, policy.claim_months)?
+                    crate::need_orders::claims(w, s, q.agent, private_months)?
                 };
                 let floor = protection
                     .get(&market.goods.resource)
@@ -349,9 +352,9 @@ fn public_sales(
                 .unwrap_or(0);
             let commitments =
                 if p.private_sales.is_some() && w.households.iter().any(|h| h.agent == q.agent) {
-                    crate::need_orders::protected_stock(w, s, q.agent, policy.claim_months)?
+                    crate::need_orders::protected_stock(w, s, q.agent, buyer_months)?
                 } else {
-                    crate::need_orders::claims(w, s, q.agent, policy.claim_months)?
+                    crate::need_orders::claims(w, s, q.agent, buyer_months)?
                 };
             let protected_cash = commitments.get(&c.coin).copied().unwrap_or(0);
             // Private asks may differ from the public valuation. Reserve each

@@ -713,3 +713,115 @@ fn private_stock_observers_reconcile_both_sides_without_changing_execution() {
         );
     }
 }
+
+#[test]
+fn mixed_stock_policies_keep_independent_seller_horizons_and_joint_cash_protection() {
+    use economics_compute_smoke::{forward::direct::Terms, marketplace::Side};
+    for (public, private) in [
+        (Some(1), Some(2)),
+        (Some(2), Some(1)),
+        (None, Some(2)),
+        (Some(2), None),
+        (Some(1), Some(1)),
+    ] {
+        let (mut w, mut s) = fixture();
+        w.discovery = None;
+        s.balances.insert((ISSUER, WHEAT), 5);
+        s.balances.insert((SUPPLIER, WHEAT), 5);
+        s.balances.insert((WORKER, COIN), 6);
+        w.storage.weights.insert(METAL, 0);
+        for (id, seller, buyer, goods, prepayment) in [
+            (
+                900,
+                SUPPLIER,
+                ISSUER,
+                Amount::new(WHEAT, 1),
+                Amount::new(COIN, 1),
+            ),
+            (
+                901,
+                ISSUER,
+                SUPPLIER,
+                Amount::new(WHEAT, 1),
+                Amount::new(COIN, 1),
+            ),
+            (
+                902,
+                WORKER,
+                ISSUER,
+                Amount::new(COIN, 3),
+                Amount::new(METAL, 1),
+            ),
+        ] {
+            let t = Terms {
+                id,
+                seller,
+                buyer,
+                month: 1,
+                due: 2,
+                goods,
+                prepayment,
+            };
+            s.exchange.forwards.insert(id, t.contract());
+            w.prepaid_deliveries.push(t);
+        }
+        let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+        p.public_sale = public.map(|claim_months| orders::StockSales {
+            reserve: 0,
+            claim_months,
+        });
+        p.private_sales = private;
+        p.quotes = vec![orders::Quote {
+            agent: WORKER,
+            market: WHEAT,
+            side: Side::Buy,
+            limit: 3,
+            holding: 6,
+            max_lots: Some(2),
+        }];
+        if private.is_some() {
+            p.quotes.push(orders::Quote {
+                agent: SUPPLIER,
+                market: WHEAT,
+                side: Side::Sell,
+                limit: 3,
+                holding: 0,
+                max_lots: Some(1),
+            });
+        }
+        // Cash-delivery claim here is a physical reservation fixture, not
+        // an extension of the reporting-coin valuation adapter.
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.run_months(1).unwrap();
+        let plan = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.minting.as_ref())
+            .find_map(|b| b.plan.as_ref())
+            .unwrap();
+        let joint = public.unwrap_or(0).max(private.unwrap_or(0));
+        assert_eq!(
+            plan.purchases[0].protected_cash,
+            if joint == 2 { 3 } else { 0 }
+        );
+        assert_eq!(
+            plan.purchases[0].submitted_lots,
+            if joint == 2 { 1 } else { 2 }
+        );
+        let public_budget = plan.sales.iter().find(|b| b.agent == ISSUER);
+        assert_eq!(public_budget.is_some(), public.is_some());
+        if let Some(months) = public {
+            assert_eq!(
+                public_budget.unwrap().protected_stock,
+                i128::from(months == 2)
+            );
+        }
+        let private_budget = plan.sales.iter().find(|b| b.agent == SUPPLIER);
+        assert_eq!(private_budget.is_some(), private.is_some());
+        if let Some(months) = private {
+            let budget = private_budget.unwrap();
+            assert_eq!(budget.protected_stock, if months == 2 { 3 } else { 1 });
+            assert_eq!(budget.submitted_lots, i32::from(months == 1));
+        }
+    }
+}

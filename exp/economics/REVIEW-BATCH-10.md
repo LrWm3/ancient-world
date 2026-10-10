@@ -112,3 +112,13 @@ export unrelated person-to-person purchases. Observer replacement does not repla
 old settlement rows. Eleven private-sale tests and thirteen public-sale tests pass,
 including observed/unobserved CPU state, ledger, reports and accounting equality.
 The independent reviewer identified the issuer-filter mismatch before commit.
+
+## 8. Independent stock-policy horizons
+
+Fixed an independently reproduced interaction: enabling public sales with a short
+claim horizon previously shortened private sellers' reserves as well. Each seller
+now uses its own configured horizon. Buyer cash can cross either source, so its
+claim protection uses the longer enabled horizon. Five controls cover both
+asymmetric configurations, each policy alone and equal short horizons. Twelve
+private-sale tests and thirteen public-sale tests pass; the financial reservation
+fixture retains its explicit physical-only denomination limitation.
