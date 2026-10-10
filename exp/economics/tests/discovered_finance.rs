@@ -374,7 +374,7 @@ fn discovery_interest_rates_use_the_contract_execution_bounds() {
 #[test]
 fn discovered_loans_respect_unused_purchase_offer_identities() {
     use economics_compute_smoke::{borrowing, credit};
-    for offer_id in [1, 99] {
+    for (offer_id, recourse) in [(1, None), (99, None), (99, Some(100))] {
         let (mut w, s) = mint_loan(1);
         let asset = w.assets.iter().find(|a| a.owner == ISSUER).unwrap().id;
         w.credit = Some(credit::Config {
@@ -414,12 +414,35 @@ fn discovered_loans_respect_unused_purchase_offer_identities() {
             endowments: vec![],
             transfers: vec![],
         });
+        if let Some(recourse) = recourse {
+            use economics_compute_smoke::recovery::{
+                Guarantee, GuaranteeTender, GuaranteedClaim, RecourseSecurity,
+            };
+            w.recovery.guarantees.push(Guarantee {
+                id: 700,
+                claim: GuaranteedClaim::Loan(offer_id),
+                guarantor: SUPPLIER,
+                follows_assignment: false,
+                tender: GuaranteeTender::Native,
+                security: RecourseSecurity::Unsecured,
+                cap: 1,
+                from: 1,
+                through: 12,
+                delay_months: 0,
+                recourse,
+                priority: 0,
+            });
+        }
         let reference = run(w.clone(), s.clone(), Backend::Reference);
         let cpu = run(w, s, Backend::CubeCpu);
         assert_eq!(cpu.world, reference.world);
         assert_eq!(cpu.state, reference.state);
         assert_eq!(cpu.ledger, reference.ledger);
-        let loan = &cpu.state.credit.loans[&(offer_id + 1)];
+        let loan = &cpu.state.credit.loans[&(recourse.unwrap_or(offer_id) + 1)];
+        if let Some(recourse) = recourse {
+            assert!(!cpu.state.credit.loans.contains_key(&recourse));
+            assert!(cpu.state.credit.recovery.paid_guarantees.is_empty());
+        }
         assert_eq!(
             (loan.original_principal, loan.status),
             (6, credit::Status::Repaid)

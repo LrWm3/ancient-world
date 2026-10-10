@@ -189,3 +189,13 @@ finances actual inputs, completes minting and repays. Primary-eight preference i
 preserved even when four is offered. Audited CPU/reference runs agree. Diagnostics
 and observer records distinguish contract duration from forecast horizon and pin
 safe ID reuse for rejected proposals. Independent review found no blocker.
+
+## 16. Preserve reserved guarantee recourse identities
+
+The reviewer reproduced a valid guarantee reserving loan ID 100 for potential
+recourse. With a declined purchase offer 99, discovery chose 100 and its forecast
+failed validation. Loan discovery now includes configured recourse reservations
+when allocating IDs. The combined control instead issues 101, completes minting
+and repayment, and leaves both the purchase and guarantee unexercised. Audited
+CPU/reference state and ledger agree; all eleven financial discovery tests pass.
+This does not change guarantee admission, priority or payment semantics.
