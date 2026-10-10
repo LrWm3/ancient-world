@@ -228,8 +228,12 @@ pub(super) fn batch(
     {
         if let Some(boundary) = &batch.minting {
             if let Some(plan) = &boundary.plan {
-                for budget in &plan.purchases {
-                    if selected(config, budget.agent) || selected(config, c.issuer) {
+                let private = c
+                    .order_policy
+                    .as_ref()
+                    .is_some_and(|p| p.private_sales.is_some());
+                for budget in &plan.sales {
+                    if selected(config, budget.agent) {
                         let settled_lots = boundary
                             .receipts
                             .iter()
@@ -237,11 +241,40 @@ pub(super) fn batch(
                             .flat_map(|r| &r.deals)
                             .filter(|id| {
                                 boundary.deals.iter().any(|d| {
-                                    d.id == **id && d.buyer == budget.agent && d.seller == c.issuer
+                                    d.id == **id
+                                        && d.seller == budget.agent
+                                        && d.market == budget.market
                                 })
                             })
                             .count();
-                        records.push(json!({"kind":"public_purchase","month":batch.month,"agent":budget.agent,
+                        records.push(json!({"kind":"stock_sale_budget", "month":batch.month,
+                            "agent":budget.agent,"market":budget.market,
+                            "opening_available":budget.opening_available,"quote_floor":budget.quote_floor,
+                            "authorized_lots":budget.authorized_lots,"protected_stock":budget.protected_stock.to_string(),
+                            "eligible":budget.eligible,"feasible_lots":budget.feasible_lots,
+                            "submitted_lots":budget.submitted_lots,"matched_lots":budget.matched_lots,
+                            "settled_lots":settled_lots}));
+                    }
+                }
+                for budget in &plan.purchases {
+                    if selected(config, budget.agent) || (!private && selected(config, c.issuer)) {
+                        let settled_lots = boundary
+                            .receipts
+                            .iter()
+                            .filter(|r| r.accepted)
+                            .flat_map(|r| &r.deals)
+                            .filter(|id| {
+                                boundary.deals.iter().any(|d| {
+                                    d.id == **id
+                                        && d.buyer == budget.agent
+                                        && c.order_policy
+                                            .as_ref()
+                                            .is_some_and(|p| d.market == p.sale_market)
+                                        && (private || d.seller == c.issuer)
+                                })
+                            })
+                            .count();
+                        records.push(json!({"kind":if private { "stock_purchase" } else { "public_purchase" },"month":batch.month,"agent":budget.agent,
                             "issuer":c.issuer,"market":c.order_policy.as_ref().map(|p|p.sale_market),
                             "requested_lots":budget.requested_lots,"opening_cash":budget.opening_cash,
                             "protected_cash":budget.protected_cash.to_string(),"affordable_lots":budget.affordable_lots,

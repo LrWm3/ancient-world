@@ -640,3 +640,76 @@ fn revoked_sale_permission_keeps_the_unsubmitted_authorization_receipt() {
     assert_eq!(receipt.matched_lots, 0);
     assert!(sales(&sim).is_empty());
 }
+
+#[test]
+fn private_stock_observers_reconcile_both_sides_without_changing_execution() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    let (w, s) = fixture();
+    let (plain, book) = run(w.clone(), s.clone(), Backend::CubeCpu);
+    for selected in [SUPPLIER, WORKER, ISSUER] {
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut audit = scenario::audit(&w, &s).unwrap();
+        let config = Config {
+            settlement: true,
+            agents: [selected].into(),
+            ..Config::default()
+        };
+        let mut observer = Observer::new(vec![], "private", config.clone()).unwrap();
+        while sim.state.month == 1 {
+            observer.step_audited(&mut sim, &mut audit).unwrap();
+        }
+        assert_eq!(sim.world, plain.world);
+        assert_eq!(sim.state, plain.state);
+        assert_eq!(sim.ledger, plain.ledger);
+        assert_eq!(sim.reports, plain.reports);
+        assert_eq!(audit, book);
+        let bytes = observer.finish().unwrap();
+        let rows: Vec<serde_json::Value> = std::str::from_utf8(&bytes)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        let budgets: Vec<_> = rows
+            .iter()
+            .filter(|r| r["kind"] == "stock_sale_budget" || r["kind"] == "stock_purchase")
+            .collect();
+        if selected == ISSUER {
+            assert!(
+                budgets.is_empty(),
+                "issuer is not a counterparty to the private sale"
+            );
+            continue;
+        }
+        assert_eq!(budgets.len(), 1);
+        let row = budgets[0];
+        assert_eq!(row["agent"], selected);
+        assert_eq!(row["submitted_lots"], 1);
+        assert_eq!(row["matched_lots"], 1);
+        assert_eq!(row["settled_lots"], 1);
+        assert_eq!(
+            row["kind"],
+            if selected == SUPPLIER {
+                "stock_sale_budget"
+            } else {
+                "stock_purchase"
+            }
+        );
+        assert!(!rows.iter().any(|r| r["kind"] == "public_purchase"));
+        // A replacement observer exports only the next committed boundary.
+        let mut resumed = Observer::new(vec![], "resumed", config).unwrap();
+        while sim.state.month == 2 {
+            resumed.step_audited(&mut sim, &mut audit).unwrap();
+        }
+        let bytes = resumed.finish().unwrap();
+        let rows: Vec<serde_json::Value> = std::str::from_utf8(&bytes)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert!(
+            rows.iter()
+                .filter(|r| r["kind"] == "stock_sale_budget" || r["kind"] == "stock_purchase")
+                .all(|r| r["month"] == 2)
+        );
+    }
+}

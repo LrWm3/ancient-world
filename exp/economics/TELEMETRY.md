@@ -390,3 +390,19 @@ loan status/debt or forward delivered/outstanding quantities. Debt uses the
 assessment denomination; deliveries use its resource units. These are forecast
 witnesses, not public settlement receipts. Repaid loans can still fail the mutual
 benefit comparison, and relief may reduce a forward claim without physical delivery.
+
+### Private stock circulation
+
+With private stock sales enabled, `stock_purchase` replaces `public_purchase`:
+it is selected by the buyer filter, and matched and settled quantities include
+either public or private counterparties on
+the sale listing. The issuer field identifies the configured public actor, not
+necessarily the seller. Legacy public-only records keep their existing name.
+
+`stock_sale_budget` is emitted under settlement observation for a selected seller.
+It records opening available stock, quote floor, frozen authorized lots, effective
+protected stock (decimal string), eligibility, feasible/submitted/matched lots and
+accepted settled lots. A later claim or loss of permission can therefore explain
+why an Open authorization never becomes an order. Public supply may be capped by
+submitted demand. Neither record recomputes projections, and observers attached
+later export only newly committed boundaries.

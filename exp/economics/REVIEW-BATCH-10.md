@@ -101,3 +101,14 @@ Late financial admission records exactly why an authorized lot becomes unavailab
 Ten private-sale tests and thirteen public-sale tests pass. Independent review
 requested the post-Open revocation control, now included. Matched quantities are
 planning results; final accepted settlement remains a separate receipt.
+
+## 7. Observe private stock budgets and accepted settlement
+
+External settlement observers export seller budgets and private-mode purchase
+budgets, including actual accepted quantities from either public or peer sellers.
+Legacy public-only purchase records retain their name and filtering. Selecting a
+private buyer or seller exposes its own budget; selecting the issuer does not
+export unrelated person-to-person purchases. Observer replacement does not replay
+old settlement rows. Eleven private-sale tests and thirteen public-sale tests pass,
+including observed/unobserved CPU state, ledger, reports and accounting equality.
+The independent reviewer identified the issuer-filter mismatch before commit.
