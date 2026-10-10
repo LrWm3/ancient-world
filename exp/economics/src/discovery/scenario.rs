@@ -81,6 +81,8 @@ pub fn scenario() -> Result<(World, State), String> {
             duration: LAND_DURATION,
             annual_payment: Amount::new(WHEAT, ANNUAL_DUES),
         }),
+        land_allocation: crate::allocation::Policy::StablePriority,
+        land_seed: 0,
         household: Some(HouseholdRule {
             constitution,
             charter: household.governance.charter,

@@ -45,6 +45,8 @@ pub struct Config {
     pub enabled: bool,
     pub horizon: u32,
     pub land: Option<LandRule>,
+    pub land_allocation: crate::allocation::Policy,
+    pub land_seed: u64,
     pub household: Option<HouseholdRule>,
     /// Install governance of the existing public agent after voluntary citizenship.
     pub state: Option<StateRule>,

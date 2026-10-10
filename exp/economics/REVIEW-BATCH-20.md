@@ -147,3 +147,14 @@ and repay while the declined property purchase leaves ownership unchanged.
 CPU/reference state and ledger agree under financial audit. Ten finance tests and
 strict all-target Clippy pass; the latter also corrected the preceding test's
 `err().expect()` style. Independent review found no blocker.
+
+## 13. Configurable land allocation, with completion checks
+
+Discovered land admission now uses an explicit policy and seed. Stable priority
+remains the default. Identical opening requests under stable and seeded lottery
+policies compete for the same plots and shared household labor; only one joint
+reservation is feasible. Different seeds select both applicants, and the selected
+applicant actually completes farming. Seedless applicants cannot win. All current
+claim priorities are equal, so priority lottery has no extra distinction here.
+Fifteen discovery tests pass, including CPU/reference and reordered-participant
+state/ledger equality. This demonstrates bounded execution, not improved welfare.

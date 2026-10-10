@@ -406,3 +406,78 @@ fn unrepresentable_discovered_demand_rejects_open_atomically() {
     assert!(error.contains("food target overflow"), "{error}");
     assert_eq!((sim.world, sim.state, sim.ledger), before);
 }
+
+#[test]
+fn discovered_land_policy_changes_winners_without_changing_joint_capacity() {
+    use economics_compute_smoke::allocation::Policy;
+    let (mut w, mut s) = scenario::scenario().unwrap();
+    s.balances.insert((SUPPLIER, SEED), 4);
+    w.assets.push(Asset {
+        id: 778,
+        owner: ISSUER,
+        kind: 1,
+    });
+    let mut opening = Simulation::new(w, s, Backend::Reference).unwrap();
+    while opening.state.month < 2 || opening.state.phase != Phase::Acquire {
+        opening.step().unwrap();
+    }
+    let mut winners = std::collections::BTreeSet::new();
+    let mut requests = None;
+    for (policy, seed) in std::iter::once((Policy::StablePriority, 0))
+        .chain((0..8).map(|seed| (Policy::Lottery, seed)))
+    {
+        let mut world = opening.world.clone();
+        world.discovery.as_mut().unwrap().land_allocation = policy;
+        world.discovery.as_mut().unwrap().land_seed = seed;
+        let mut reference =
+            Simulation::new(world.clone(), opening.state.clone(), Backend::Reference).unwrap();
+        world.participants.reverse();
+        let mut cpu = Simulation::new(world, opening.state.clone(), Backend::CubeCpu).unwrap();
+        reference.step().unwrap();
+        cpu.step().unwrap();
+        assert_eq!(reference.state, cpu.state);
+        assert_eq!(reference.ledger, cpu.ledger);
+        let b = reference.ledger.last().unwrap();
+        let mut claims: Vec<_> = b
+            .discovery_allocation
+            .iter()
+            .map(|r| (r.claim.id, r.claim.requested, r.claim.minimum))
+            .collect();
+        claims.sort_unstable();
+        assert_eq!(claims.len(), 2);
+        if let Some(expected) = &requests {
+            assert_eq!(&claims, expected);
+        } else {
+            requests = Some(claims);
+        }
+        assert_eq!(b.additional_access.len(), 1);
+        let winner = b.additional_access[0].1;
+        winners.insert(winner);
+        if policy == Policy::StablePriority {
+            assert_eq!(b.additional_access[0].1, SUPPLIER.min(GROWER));
+        }
+        reference.run_months(1).unwrap();
+        cpu.run_months(1).unwrap();
+        assert_eq!(reference.state, cpu.state);
+        assert_eq!(reference.ledger, cpu.ledger);
+        assert!(
+            reference
+                .state
+                .processes
+                .values()
+                .any(|p| p.operator == winner
+                    && p.definition == GROW
+                    && p.status == Status::Completed),
+            "policy {policy:?} seed {seed} winner {winner}"
+        );
+    }
+    assert_eq!(winners, [SUPPLIER, GROWER].into());
+    // Priority cannot make a seedless applicant feasible.
+    let mut world = opening.world.clone();
+    world.discovery.as_mut().unwrap().land_allocation = Policy::Lottery;
+    let mut state = opening.state.clone();
+    state.balances.remove(&(SUPPLIER, SEED));
+    let mut sim = Simulation::new(world, state, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    assert_eq!(sim.ledger.last().unwrap().additional_access[0].1, GROWER);
+}

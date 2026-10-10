@@ -2,8 +2,6 @@
 use super::*;
 use crate::allocation::{self, Claim, Context};
 
-const LAND_ALLOCATION_POLICY: allocation::Policy = allocation::Policy::StablePriority;
-
 fn pool(w: &World, s: &State, transactions: &[Transaction]) -> BTreeMap<Account, i128> {
     let mut available: BTreeMap<_, _> = s
         .balances
@@ -172,11 +170,11 @@ pub(super) fn land(
         .collect();
     allocation::resolve(
         Context {
-            seed: 0,
+            seed: w.discovery.as_ref().unwrap().land_seed,
             pool: u64::from(w.transaction_policy.as_ref().unwrap().authority),
             round: u64::from(s.month),
         },
-        &LAND_ALLOCATION_POLICY,
+        &w.discovery.as_ref().unwrap().land_allocation,
         u32::try_from(w.access_offers.len()).map_err(|_| "too many land offers")?,
         &claims,
         |claim, _| {
