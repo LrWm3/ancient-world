@@ -43,3 +43,19 @@ not an unjustified permanent ban on circulation of those goods.
 The 25 discovery/supply controls remain unchanged and passing. Two new financial
 controls cover actual delivery and exclusions. Independent review found no blocker;
 strict Clippy, formatting and artifact checks passed.
+
+## 3. Finance whole procurement lots
+
+Loan sizing now uses the same ceiling-to-lots helper as actual mint procurement
+and need-generated purchases. Holding one of the two required metal units still
+requires buying a whole two-unit lot; the labor purchase is unchanged. Audited
+CPU/reference ten-month controls borrow 6, 6 and 4 coins for opening metal 0, 1
+and 2, complete minting and repay, retaining the expected spare metal.
+
+The control uses zero interest and an eight-month term. With a four-month term,
+the first principal installment is collected before next-month procurement and
+leaves too little working cash; that proposal is rejected. This is a documented
+liquidity constraint, not an interest-only effect or a change to repayment rules.
+Missing lender funds, metal and storage likewise prevent an unsupported loan.
+Four finance and 25 procurement/public-sales controls pass, plus strict Clippy,
+formatting and repository artifact checks.

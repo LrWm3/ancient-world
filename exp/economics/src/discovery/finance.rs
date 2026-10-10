@@ -74,7 +74,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
         };
         budget = budget
             .checked_add(
-                ((needed - held).max(0) / market.goods.quantity)
+                crate::minting::orders::required_lots(needed, held, market.goods.quantity)
                     .checked_mul(price)
                     .ok_or("funding overflow")?,
             )
