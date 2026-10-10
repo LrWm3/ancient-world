@@ -277,8 +277,9 @@ pub(crate) fn generate_with(
             continue;
         }
         let qty = (monthly(w, v, q.agent) - s.balance(q.agent, sale.goods.resource)).max(0);
-        let lots = ((i64::from(qty) + i64::from(sale.goods.quantity) - 1)
-            / i64::from(sale.goods.quantity)) as i32;
+        let lots = (((i64::from(qty) + i64::from(sale.goods.quantity) - 1)
+            / i64::from(sale.goods.quantity)) as i32)
+            .min(q.max_lots.unwrap_or(MAX_MONTHLY_LOTS));
         if lots > 0 {
             plan.orders.push(orders::Order {
                 agent: q.agent,
@@ -321,7 +322,8 @@ pub(crate) fn generate_with(
             - q.holding)
             .max(0)
             / market.goods.quantity)
-            .min(1);
+            .min(1)
+            .min(q.max_lots.unwrap_or(MAX_MONTHLY_LOTS));
         let price = i64::from(q.limit.max(choice.cash_gap));
         let tick = i64::from(market.price_tick);
         let limit = i32::try_from((price + tick - 1) / tick * tick)

@@ -614,6 +614,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
         input_limits: BTreeMap::from([(METAL, METAL_LOT), (HOURS, WAGE)]),
         quotes: vec![
             orders::Quote {
+                max_lots: None,
                 agent: SUPPLIER,
                 market: WHEAT,
                 side: Side::Buy,
@@ -621,6 +622,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
                 holding: WHEAT_LOT,
             },
             orders::Quote {
+                max_lots: None,
                 agent: WORKER,
                 market: WHEAT,
                 side: Side::Buy,
@@ -628,6 +630,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
                 holding: WHEAT_LOT,
             },
             orders::Quote {
+                max_lots: None,
                 agent: SUPPLIER,
                 market: METAL,
                 side: Side::Sell,
@@ -635,6 +638,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
                 holding: 0,
             },
             orders::Quote {
+                max_lots: None,
                 agent: WORKER,
                 market: HOURS,
                 side: Side::Sell,

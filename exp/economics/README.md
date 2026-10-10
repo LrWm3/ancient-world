@@ -102,6 +102,11 @@ prepaid deliveries. CPU/reference books agree through the annual payment, and a
 objectives, term rules and pricing assumptions remain inputs. This does not make
 all historical drivers autonomous.
 
+The [discovered supply follow-up](DISCOVERED-SUPPLY.md) lets people offer surplus
+labor and stocks after comparing their own and household needs and committed work.
+Controls distinguish retained inputs, actual paid work and unfilled offers;
+wage-funded food planning and long-run supplier viability remain open.
+
 ## Purpose and existing scenarios
 
 The goal is a consistent economy built from generic agents, explicit agreements

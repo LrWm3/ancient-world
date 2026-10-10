@@ -63,6 +63,7 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
         }
         if target > 0 {
             quotes.push(crate::minting::orders::Quote {
+                max_lots: None,
                 agent: person,
                 market: sale.id,
                 side: Side::Buy,
@@ -83,34 +84,18 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
             if !capacity && s.balance(person, market.goods.resource) < market.goods.quantity {
                 continue;
             }
-            // Own productive work and signed collective contributions precede
-            // discretionary capacity asks. The actual market reserves again.
-            let holding = if capacity {
-                let own = w
-                    .participants
-                    .iter()
-                    .find(|p| p.agent == person)
-                    .map_or(0, |p| p.capacity.quantity);
-                if w.participants
-                    .iter()
-                    .any(|p| p.agent == person && !p.needs.is_empty())
-                {
-                    own
-                } else {
-                    0
-                }
-            } else {
-                0
-            };
             quotes.push(crate::minting::orders::Quote {
+                max_lots: None,
                 agent: person,
                 market: id,
                 side: Side::Sell,
                 limit,
-                holding,
+                holding: 0,
             });
         }
     }
+    let decisions = super::supply::choose(w, s, c, &mut quotes)?;
+    w.discovery.as_mut().unwrap().supply.extend(decisions);
     w.minting
         .as_mut()
         .unwrap()

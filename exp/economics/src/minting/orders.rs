@@ -19,6 +19,8 @@ pub struct Policy {
 /// A buyer fills a stock target; a seller protects a reserve. Quotes are per lot.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Quote {
+    /// Optional whole-lot authorization ceiling, independent of the retained stock floor.
+    pub max_lots: Option<i32>,
     pub agent: AgentId,
     pub market: MarketId,
     pub side: Side,
@@ -139,6 +141,7 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
         if q.agent == c.issuer
             || !w.agents.iter().any(|a| a.id == q.agent)
             || q.holding < 0
+            || q.max_lots.is_some_and(|n| !(0..=MAX_LOTS).contains(&n))
             || !keys.insert((q.agent, q.market))
             || q.side == Side::Sell && q.market == p.sale_market
             || q.side == Side::Buy && q.market != p.sale_market
@@ -265,7 +268,7 @@ pub(super) fn generate_fixed(
                 - q.holding)
                 .max(0),
         };
-        let lots = (quantity / m.goods.quantity).min(MAX_LOTS);
+        let lots = (quantity / m.goods.quantity).min(q.max_lots.unwrap_or(MAX_LOTS));
         if lots > 0 {
             plan.orders.push(Order {
                 agent: q.agent,

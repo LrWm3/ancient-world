@@ -44,6 +44,9 @@ At **Open**, one staged discovery pass:
    the ordinary objective controller. This does not found a sovereign from nothing.
 3. Derives market counterparties and holding targets from venue eligibility,
    needs, stocks and capacity. No actor IDs or submission dates are supplied as quotes.
+   The [supply follow-up](DISCOVERED-SUPPLY.md) compares cumulative outgoing lots
+   with declining, protects private/member needs and active work, and caps actual
+   orders at the chosen quantity. An offer is not evidence of a fill.
 4. Evaluates eligible pairs for household formation. Each person compares the
    proposal with remaining independent using their own ordered death/need outcomes.
    Both must be no worse, and one must improve. Permitted initial household policies

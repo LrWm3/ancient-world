@@ -16,6 +16,7 @@ mod finance;
 mod institutions;
 mod market;
 pub mod scenario;
+pub mod supply;
 
 const MAX_PARTICIPANTS: usize = 8;
 const FORECAST_BUFFER_MONTHS: u32 = 2;
@@ -50,6 +51,8 @@ pub struct Config {
     pub finance: Option<FinanceRule>,
     pub through: u32,
     pub receipts: Vec<Receipt>,
+    /// Diagnostic opportunity-cost decisions; fills remain in the ordinary ledger.
+    pub supply: Vec<supply::Decision>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FinanceRule {

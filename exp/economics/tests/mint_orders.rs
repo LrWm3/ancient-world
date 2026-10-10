@@ -289,6 +289,7 @@ fn chooses_cheapest_available_counterparty_and_respects_seller_reserve() {
             .unwrap()
             .quotes
             .push(minting::orders::Quote {
+                max_lots: None,
                 agent: WORKER,
                 market: METAL,
                 side: Side::Sell,
@@ -365,5 +366,75 @@ fn generated_orders_obey_laws_and_same_month_revenue_is_not_funding() {
         if case != "capacity" {
             assert!(boundary(&s, 1).transactions.is_empty(), "{case}");
         }
+    }
+}
+
+#[test]
+fn authorized_lot_ceiling_survives_more_inventory_and_rejects_oversized_values() {
+    let mut s = sim("normal", Backend::Reference);
+    let q = s
+        .world
+        .minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .quotes
+        .iter_mut()
+        .find(|q| q.agent == SUPPLIER && q.side == Side::Sell)
+        .unwrap();
+    q.max_lots = Some(1);
+    s.state.balances.insert((SUPPLIER, METAL), 10);
+    s.run_months(2).unwrap();
+    let orders = &boundary(&s, 2).plan.as_ref().unwrap().orders;
+    assert_eq!(
+        orders
+            .iter()
+            .find(|o| o.agent == SUPPLIER && o.side == Side::Sell)
+            .unwrap()
+            .lots,
+        1
+    );
+    for invalid in [-1, 65] {
+        let mut w = s.world.clone();
+        w.minting
+            .as_mut()
+            .unwrap()
+            .order_policy
+            .as_mut()
+            .unwrap()
+            .quotes[0]
+            .max_lots = Some(invalid);
+        assert!(Simulation::new(w, s.state.clone(), Backend::Reference).is_err());
+    }
+}
+
+#[test]
+fn provisioning_respects_buyer_and_seller_authorization_ceilings() {
+    let (mut w, state) = minting::provision_scenario("adequate").unwrap();
+    for q in &mut w
+        .minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .quotes
+    {
+        q.max_lots = Some(0);
+    }
+    let mut s = Simulation::new(w, state, Backend::Reference).unwrap();
+    s.run_months(3).unwrap();
+    for b in s.ledger.iter().filter_map(|b| b.minting.as_ref()) {
+        assert!(
+            b.plan
+                .as_ref()
+                .unwrap()
+                .orders
+                .iter()
+                .all(|o| o.agent == ISSUER)
+        );
+        assert!(b.deals.is_empty());
     }
 }

@@ -44,6 +44,12 @@ legal and constitutional templates, objectives and physical endowments remain
 supplied. This adapter excludes employment and competing composition planners;
 other driver combinations are not implied by this coverage.
 
+[Discovered supply](DISCOVERED-SUPPLY.md) now evaluates cumulative outgoing
+portfolios against private/member needs and active work, with explicit order
+ceilings. Paid-worker and contention controls separate willingness from actual
+payment. This conservative forecast does not spend hypothetical wage proceeds or
+prove that recurring food demand can be met through markets.
+
 Persons retain their own needs, holdings, rights and debts. Households have static
 constitution/charter terms, governed contributed labor, resource/storage pooling,
 collective trading, external hiring, member support and explicit wind-down.
