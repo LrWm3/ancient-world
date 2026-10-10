@@ -59,3 +59,11 @@ liquidity constraint, not an interest-only effect or a change to repayment rules
 Missing lender funds, metal and storage likewise prevent an unsupported loan.
 Four finance and 25 procurement/public-sales controls pass, plus strict Clippy,
 formatting and repository artifact checks.
+
+## 4. Reject mixed-currency mint underwriting
+
+Mint procurement prices and loan principal must share a denomination. Discovery
+now rejects a differing financial denomination when mint procurement is enabled;
+it does not invent a conversion rate. Forward-only configurations retain their
+stock denomination support. The grain-as-coins negative control and all five
+financial discovery tests pass. Independent review found no blocker.

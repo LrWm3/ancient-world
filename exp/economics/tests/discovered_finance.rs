@@ -192,3 +192,20 @@ fn rounded_input_funding_requires_real_lender_money_and_supply() {
         );
     }
 }
+
+#[test]
+fn mint_underwriting_cannot_treat_grain_as_procurement_coins() {
+    let (mut w, s) = mint_loan(1);
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .finance
+        .as_mut()
+        .unwrap()
+        .denomination = WHEAT;
+    let err = match Simulation::new(w, s, Backend::Reference) {
+        Ok(_) => panic!("mixed-unit underwriting was admitted"),
+        Err(err) => err,
+    };
+    assert!(err.contains("procurement currency"), "{err}");
+}
