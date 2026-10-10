@@ -65,3 +65,14 @@ cash protection for an unfunded member claim. The coin-delivery/metal-prepayment
 claim fixture checks physical simulation only: that denomination swap is outside
 the reporting-coin-advance/noncoin-delivery valuation adapter. Normal food trades
 retain full audited CPU/reference comparisons; this is not broader FX support.
+
+## 4. Composed private circulation under matched scarcity
+
+Added an eight-case [private circulation comparison](PRIVATE-CIRCULATION.md):
+public stocks 16/8 × food lots 3/1 × private policy off/on. Household venue admission
+is explicit and identical across variants. Under scarce public supply, household
+sales reach the worker; worker deficits fall 11→3 with three-unit lots and 11→1 with
+one-unit lots. Large public stocks produce no private fills, which prevents
+attributing every improvement to new sellers. Every case retains endogenous
+formation, actual loan repayment, annual dues and separate CPU/reference books.
+Finite income and timing remain unresolved; this is a calibrated integration test.
