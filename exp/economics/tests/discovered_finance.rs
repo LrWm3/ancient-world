@@ -602,3 +602,71 @@ fn projected_unpaid_loan_is_distinct_from_nonadmission() {
     assert!(sim.world.lending.is_empty());
     assert!(sim.state.credit.loans.is_empty());
 }
+
+#[test]
+fn duration_search_preserves_scarcity_and_resumes_at_every_boundary() {
+    use economics_compute_smoke::discovery::finance::Outcome;
+    for case in ["funded", "cash", "metal", "storage", "law"] {
+        let (mut w, mut s) = mint_loan(1);
+        let rule = w.discovery.as_mut().unwrap().finance.as_mut().unwrap();
+        rule.loan_months = 4;
+        rule.alternative_loan_months = [8].into();
+        match case {
+            "cash" => {
+                s.balances.insert((SUPPLIER, COIN), 5);
+            }
+            "metal" => {
+                s.balances.insert((SUPPLIER, METAL), 0);
+            }
+            "storage" => {
+                w.storage.capacities.insert(ISSUER, 1);
+            }
+            "law" => {
+                w.transaction_policy
+                    .as_mut()
+                    .unwrap()
+                    .permissions
+                    .remove(&(PERSON_TYPE, Action::Lend));
+            }
+            _ => {}
+        }
+        let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+        let mut reference_audit = scenario::audit(&w, &s).unwrap();
+        let mut cpu = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut cpu_audit = scenario::audit(&w, &s).unwrap();
+        while reference.state.month <= 10 {
+            reference_audit.step(&mut reference).unwrap();
+            cpu_audit.step(&mut cpu).unwrap();
+            let mut resumed =
+                Simulation::new(cpu.world.clone(), cpu.state.clone(), Backend::CubeCpu).unwrap();
+            resumed.ledger = cpu.ledger;
+            resumed.reports = cpu.reports;
+            cpu = resumed;
+        }
+        assert_eq!(cpu.world, reference.world, "{case}");
+        assert_eq!(cpu.state, reference.state, "{case}");
+        assert_eq!(cpu.ledger, reference.ledger, "{case}");
+        assert_eq!(cpu.reports, reference.reports, "{case}");
+        assert_eq!(cpu_audit, reference_audit, "{case}");
+        let published = cpu
+            .world
+            .discovery
+            .as_ref()
+            .unwrap()
+            .financial
+            .iter()
+            .flat_map(|a| &a.attempts)
+            .filter(|a| a.outcome == Outcome::Published)
+            .count();
+        assert_eq!(published, usize::from(case == "funded"), "{case}");
+        assert_eq!(cpu.state.credit.loans.len(), published, "{case}");
+        assert_eq!(
+            cpu.state
+                .processes
+                .values()
+                .any(|p| p.definition == MINT && p.status == Status::Completed),
+            case == "funded",
+            "{case}"
+        );
+    }
+}

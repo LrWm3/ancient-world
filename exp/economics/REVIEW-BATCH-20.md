@@ -212,3 +212,16 @@ forward, a fulfilled delivery, an admitted high-interest loan with unpaid debt,
 and a fully repaid short loan that still produces no mutual gain. Forecast records
 remain distinct from actual admission and settlement; independent review found
 no blocker. No pricing, repayment or selection behavior changes in this iteration.
+
+## 18. Resume duration search under real scarcity
+
+The optional duration search now has a joint scarcity/continuation campaign.
+Identical primary-four/alternative-eight rules run with adequate funding, one tick
+less than required lender cash, absent ore, insufficient issuer storage, and law
+denying lending. Only the funded control publishes a loan and completes minting.
+Longer terms cannot manufacture input stocks, storage, money or permission.
+
+Every CPU phase is reconstructed from its retained world/state, ledger and reports;
+an uninterrupted reference run agrees on all of those and independently maintained
+financial books through month ten. All thirteen financial discovery tests pass.
+This is additional integration evidence, with no new execution or policy default.
