@@ -117,8 +117,12 @@ and commitment claims before selling whole lots even without a mint-funding gap.
 The [review record](REVIEW-ITERATIONS.md) retains the original wage/food control,
 and [financed circulation](FINANCED-CIRCULATION.md) combines it with household
 farming, annual dues and lending. Its calibrated worker receives two jobs and later
-food, but still has five fourteen-month nutrition deficits. Broader household/person
-food asks and recurring income are the next useful composition targets. Successful
+food, but still has five fourteen-month nutrition deficits. The opt-in
+[private circulation follow-up](PRIVATE-CIRCULATION.md) now adds person/household
+asks and collective purchases on that food listing, with live claim protection and
+external budget receipts. Household venue admission remains explicit. Sustained
+worker income in this discovered control and broader market discovery remain open.
+Successful
 repayment without ore is retained as a counterexample to treating finance as proof
 of completed productive work.
 

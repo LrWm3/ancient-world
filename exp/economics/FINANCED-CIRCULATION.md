@@ -59,5 +59,8 @@ Five worker deficits remain. Paid mint demand is finite, and ending coins do not
 buy a whole food lot. The household also finishes with food that this narrow
 adapter does not offer to the independent worker: its quotes cover person supply
 of mint inputs and public sales of wheat, not general household/person food asks.
-Those are useful next integration targets. Neither greater crop output nor
-successful aggregate accounting alone establishes access to food for every person.
+The opt-in [private circulation follow-up](PRIVATE-CIRCULATION.md) now covers
+person/household food asks and collective bids on that listing, with matched
+public-stock and lot-size controls. This original fixture retains its public-only
+settings. Neither greater crop output nor successful aggregate accounting alone
+establishes access to food for every person.

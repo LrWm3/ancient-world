@@ -200,6 +200,12 @@ The [financed circulation variant](FINANCED-CIRCULATION.md) retains household
 formation, land and finance and starts the issuer with zero coins. It records a
 repaid eight-month loan, repeated crops and annual dues alongside wages-to-food.
 Its remaining personal shortfalls and no-ore/no-lender controls bound that result.
+The opt-in [private circulation comparison](PRIVATE-CIRCULATION.md) adds discovered
+person/household food asks and charter-directed collective buying. It uses the
+existing stock listing, explicit household venue admission and fixed valuation
+limits. Public/private reserves remain distinct, and settlement observers
+distinguish authorized, submitted, matched and settled quantities, including live
+reserve constraints. This is not general autonomous market discovery.
 
 From `exp/economics`:
 

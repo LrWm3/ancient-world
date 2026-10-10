@@ -138,3 +138,43 @@ paid obligations, stock/cash reconciliation, CPU/reference financial books and
 reconstruction at every phase. Independent review checked renewal and failure
 attribution. This demonstrates the recurring-income gap; it does not resolve it
 or claim long-run viability. See [the comparison](PRIVATE-CIRCULATION.md).
+
+## 10. Documentation and regression boundary
+
+Updated the README and discovery/supply/circulation documents to distinguish the
+historical public-only controls from the new private food path. Independent review
+checked claims against the matched and long-run results. The observer description
+now distinguishes quantities without promising explanations for every unmatched
+order: price, storage and other matching failures still require deeper inspection.
+
+The delivered scope is opt-in food trading on one configured listing, static
+valuation limits, explicit household venue admission and existing legal/charter
+rules. Defaults and the scheduler remain unchanged. Recurring useful paid work
+for this control's independent worker, broader market discovery, voluntary land benefit comparisons and unconstrained
+financial/organizational autonomy remain open. Constitutions and charter templates
+remain inputs; individual self-directed policy changes remain deferred by request.
+
+Reproduction from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --release -j 8
+cargo +1.92.0 test --locked --release --test household_accounting -- --ignored
+cargo +1.92.0 clippy --locked --all-targets -j 8 -- -D warnings
+cargo +1.92.0 fmt --all --check
+```
+
+The repository artifact check runs from the repository root. All generated test
+logs and probe binaries stay under ignored `output/`; only source and Markdown
+summaries are committed.
+
+Final verification of the code delivered through `bfc3a6f`:
+
+- Full release suite: **1,228 passed, zero failed, one ignored**.
+- The ignored 32-person annual accounting test passed separately.
+- The final forty-month assertions also passed in the focused Cargo test after
+  their standalone diagnostic run; that test overlaps the full-suite count.
+- Strict all-target Clippy, formatting, diff and repository artifact checks passed.
+
+The ten iterations include independent review, implementation or evidence-driven
+consolidation, and separate source-only commits. These results extend the previous
+batch; they do not replace the historical v1 release-family acceptance record.

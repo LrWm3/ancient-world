@@ -99,6 +99,12 @@ suite. The ignored 32-person annual accounting test passed separately. Strict
 all-target Clippy, formatting and repository artifact checks also passed. This
 follow-up suite result does not replace the historical v1 release-family record.
 
+The subsequent [ten-iteration follow-up](REVIEW-BATCH-10.md), through code revision
+`bfc3a6f`, passes **1,228 tests, zero failed, one ignored**. The ignored annual
+accounting test passed separately, as did strict Clippy, formatting and artifact
+checks. Its forty-month private-food comparison exposes a remaining worker-income
+constraint despite successful lease renewal, dues and loan repayment.
+
 The opt-in [self-starting economy](ENDOGENOUS-DISCOVERY.md) now removes initial
 citizenships, household/land/finance agreements, counterparty quotes and operational
 program menus in a bounded three-person control. It discovers a household and
@@ -126,8 +132,14 @@ households, farming, annual dues, loans, mint work and later food purchases. A j
 calibration of labor lots, the mint recipe and worker capacity changes who earns
 wages; the worker's fourteen-month deficit falls from
 eleven to five units, with household outcomes retained. Repayment and completed
-production still do not establish sustainable food access. General household/person
-food offers, recurring income and voluntary land benefit comparisons remain open.
+production still do not establish sustainable food access.
+The [ten-iteration private circulation follow-up](REVIEW-BATCH-10.md) adds opt-in
+person/household food asks, collective need bids, live commitment protection and
+seller/buyer observer receipts. The [matched comparison](PRIVATE-CIRCULATION.md)
+measures actual peer sales under scarce public stocks. This remains one configured
+food listing with explicit household admission and supplied price limits; sustained
+worker income in this control, broader market discovery and voluntary land benefit
+comparisons remain open.
 
 ## Purpose and existing scenarios
 
