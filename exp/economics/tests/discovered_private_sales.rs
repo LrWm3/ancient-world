@@ -124,6 +124,7 @@ fn private_bid_limits_preserve_accepted_coin_claims_at_unequal_prices() {
         w.discovery = None;
         w.storage.weights.insert(METAL, 0);
         s.balances.insert((WORKER, COIN), 6);
+        s.balances.insert((SUPPLIER, WHEAT), 5);
         let terms = Terms {
             id: 900,
             seller: WORKER,
@@ -509,5 +510,81 @@ fn collective_purchase_money_protects_unfunded_member_coin_claims() {
         assert_eq!(b.protected_cash, if claim { 3 } else { 0 });
         assert_eq!(b.submitted_lots, i32::from(!claim));
         assert_eq!(sales(&sim).len(), usize::from(!claim));
+    }
+}
+
+#[test]
+fn financial_admission_after_open_rechecks_person_sale_reserves() {
+    use economics_compute_smoke::forward::direct::Terms;
+    for case in ["accepted", "declined", "outside horizon"] {
+        let (mut w, mut s) = fixture();
+        w.discovery.as_mut().unwrap().horizon = 2;
+        s.balances.insert((SUPPLIER, WHEAT), 5);
+        let mut results = vec![];
+        for backend in [Backend::Reference, Backend::CubeCpu] {
+            let mut audit = scenario::audit(&w, &s).unwrap();
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            audit.step(&mut sim).unwrap();
+            let choice = sim
+                .world
+                .discovery
+                .as_ref()
+                .unwrap()
+                .supply
+                .iter()
+                .find(|d| d.agent == SUPPLIER && d.resource == WHEAT)
+                .unwrap();
+            assert_eq!((choice.protected, choice.selected_lots), (2, 1));
+            // Publication follows discovery, as financial discovery does; actual
+            // contract admission still uses the normal Acquire adapter.
+            sim.world.prepaid_deliveries.push(Terms {
+                id: 900,
+                seller: SUPPLIER,
+                buyer: ISSUER,
+                month: 1,
+                due: if case == "outside horizon" { 3 } else { 2 },
+                goods: Amount::new(WHEAT, 1),
+                prepayment: Amount::new(COIN, 1),
+            });
+            if case == "declined" {
+                sim.world
+                    .transaction_policy
+                    .as_mut()
+                    .unwrap()
+                    .agreement_forms = Some(Default::default());
+            }
+            while sim.state.month <= 2 {
+                audit.step(&mut sim).unwrap();
+                if matches!(backend, Backend::CubeCpu) {
+                    let mut next =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    next.ledger = sim.ledger;
+                    next.reports = sim.reports;
+                    sim = next;
+                }
+            }
+            assert_eq!(
+                sales(&sim).iter().filter(|d| d.month == 1).count(),
+                usize::from(case != "accepted")
+            );
+            assert_eq!(
+                sim.state.exchange.forwards.contains_key(&900),
+                case != "declined"
+            );
+            assert!(
+                sim.reports
+                    .iter()
+                    .filter(|r| r.agent == SUPPLIER)
+                    .all(|r| r.deficit(NUTRITION) == 0)
+            );
+            results.push((sim, audit));
+        }
+        let (a, ab) = &results[0];
+        let (b, bb) = &results[1];
+        assert_eq!(a.world, b.world);
+        assert_eq!(a.state, b.state);
+        assert_eq!(a.ledger, b.ledger);
+        assert_eq!(a.reports, b.reports);
+        assert_eq!(ab, bb);
     }
 }

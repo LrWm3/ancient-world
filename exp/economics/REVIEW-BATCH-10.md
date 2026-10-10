@@ -76,3 +76,15 @@ one-unit lots. Large public stocks produce no private fills, which prevents
 attributing every improvement to new sellers. Every case retains endogenous
 formation, actual loan repayment, annual dues and separate CPU/reference books.
 Finite income and timing remain unresolved; this is a calibrated integration test.
+
+## 5. Recheck personal claims after financial admission
+
+Private sellers now recheck live needs and accepted obligations at clearing, as
+households already do. A forward accepted after Open can reduce an earlier sale
+authorization; a declined offer or delivery outside the protection horizon cannot.
+The original quote floor and lot ceiling still bind. This fixes a reproduced
+next-month food shortage without moving financial or market scheduling.
+
+Nine private-sale tests and four circulation tests pass, including audited
+CPU/reference continuation across the accepted/declined/outside-horizon controls.
+An older unequal-price fixture now supplies genuine surplus over its horizon.

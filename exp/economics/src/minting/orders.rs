@@ -274,15 +274,20 @@ fn public_sales(
                     .get(&(q.agent, market.goods.resource))
                     .copied()
                     .unwrap_or(0);
-                let floor = if w.households.iter().any(|h| h.agent == q.agent) {
+                // Financial admissions precede this market in the same Acquire
+                // boundary. Recheck current claims even for an earlier quote.
+                let protection = if w.households.iter().any(|h| h.agent == q.agent)
+                    || w.participants.iter().any(|p| p.agent == q.agent)
+                {
                     crate::need_orders::protected_stock(w, s, q.agent, policy.claim_months)?
-                        .get(&market.goods.resource)
-                        .copied()
-                        .unwrap_or(0)
-                        .max(i128::from(q.holding))
                 } else {
-                    i128::from(q.holding)
+                    crate::need_orders::claims(w, s, q.agent, policy.claim_months)?
                 };
+                let floor = protection
+                    .get(&market.goods.resource)
+                    .copied()
+                    .unwrap_or(0)
+                    .max(i128::from(q.holding));
                 let lots = ((i128::from(held) - floor).max(0) / i128::from(market.goods.quantity))
                     .min(i128::from(q.max_lots.unwrap_or(MAX_LOTS)))
                     as i32;
