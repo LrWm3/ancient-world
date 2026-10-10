@@ -122,3 +122,19 @@ claim protection uses the longer enabled horizon. Five controls cover both
 asymmetric configurations, each policy alone and equal short horizons. Twelve
 private-sale tests and thirteen public-sale tests pass; the financial reservation
 fixture retains its explicit physical-only denomination limitation.
+
+## 9. Forty-month circulation and the remaining income constraint
+
+Extended the scarce-public-stock/unit-lot comparison through forty months without
+new endowments or authored jobs. Both variants repay the loan, renew the accepted
+lease in month 26 and pay dues in months 14 and 38. Private access reduces worker
+deficits from 36 to 25, but paid work stops in month 6. The private variant spends
+all twelve earned coins on food by month 13; later receipts show feasible household
+supply and an unaffordable worker bid. The public-only variant retains eleven coins
+but records funded unfilled bids when no public surplus is available.
+
+The integration test passes with exact outcomes, nonempty accepted contracts and
+paid obligations, stock/cash reconciliation, CPU/reference financial books and
+reconstruction at every phase. Independent review checked renewal and failure
+attribution. This demonstrates the recurring-income gap; it does not resolve it
+or claim long-run viability. See [the comparison](PRIVATE-CIRCULATION.md).

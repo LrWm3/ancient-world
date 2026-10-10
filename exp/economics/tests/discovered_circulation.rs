@@ -9,9 +9,18 @@ use economics_compute_smoke::{
 };
 
 fn run(w: World, s: State, backend: Backend, resume: bool) -> (Simulation, Audit) {
+    run_until(w, s, backend, resume, scenario::RUN_MONTHS)
+}
+fn run_until(
+    w: World,
+    s: State,
+    backend: Backend,
+    resume: bool,
+    months: u32,
+) -> (Simulation, Audit) {
     let mut audit = scenario::audit(&w, &s).unwrap();
     let mut sim = Simulation::new(w, s, backend).unwrap();
-    while sim.state.month <= scenario::RUN_MONTHS {
+    while sim.state.month <= months {
         audit.step(&mut sim).unwrap();
         if resume {
             let mut next = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
@@ -514,5 +523,149 @@ fn private_food_access_and_lot_size_are_separate_circulation_controls() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn private_circulation_continues_through_lease_renewal_with_finite_income() {
+    use economics_compute_smoke::agency::integration::GROW;
+    for private in [false, true] {
+        let (mut w, mut s) = scenario::financed_circulation().unwrap();
+        s.balances.insert((ISSUER, WHEAT), 8);
+        w.discovery.as_mut().unwrap().private_sales = private;
+        let venue = w
+            .marketplaces
+            .iter_mut()
+            .find(|v| v.agent == VENUE)
+            .unwrap();
+        venue
+            .allowed_types
+            .insert(economics_compute_smoke::opportunities::HOUSEHOLD_TYPE);
+        venue
+            .markets
+            .iter_mut()
+            .find(|m| m.id == WHEAT)
+            .unwrap()
+            .goods
+            .quantity = 1;
+        w.minting
+            .as_mut()
+            .unwrap()
+            .order_policy
+            .as_mut()
+            .unwrap()
+            .sale_limit = 1;
+        let (reference, book) = run_until(w.clone(), s.clone(), Backend::Reference, false, 40);
+        let (cpu, cpu_book) = run_until(w, s, Backend::CubeCpu, true, 40);
+        assert_eq!(cpu.world, reference.world);
+        assert_eq!(cpu.state, reference.state);
+        assert_eq!(cpu.ledger, reference.ledger);
+        assert_eq!(cpu.reports, reference.reports);
+        assert_eq!(cpu_book, book);
+        let trades = accepted(&cpu);
+        let home = cpu.world.households[0].agent;
+        let food: Vec<_> = trades
+            .iter()
+            .filter(|d| d.market == WHEAT && d.buyer == WORKER)
+            .collect();
+        let wages: Vec<_> = trades
+            .iter()
+            .filter(|d| d.market == HOURS && d.seller == WORKER)
+            .collect();
+        let earned: i32 = wages.iter().map(|d| d.price).sum();
+        let spent: i32 = food.iter().map(|d| d.price).sum();
+        let crops = cpu
+            .state
+            .processes
+            .values()
+            .filter(|p| p.definition == GROW && p.status == Status::Completed)
+            .count();
+        let mints = cpu
+            .state
+            .processes
+            .values()
+            .filter(|p| p.definition == MINT && p.status == Status::Completed)
+            .count();
+        println!(
+            "long private={private}: deficits={:?} food={} last_food={:?} earned={earned} spent={spent} last_wage={:?} cash={} home_food={} crops={crops} mints={mints} loans={:?} agreements={:?} dues={:?}",
+            [SUPPLIER, GROWER, WORKER].map(|a| deficit(&cpu, a)),
+            food.len(),
+            food.last().map(|d| d.month),
+            wages.last().map(|d| d.month),
+            cpu.state.balance(WORKER, COIN),
+            cpu.state.balance(home, WHEAT),
+            cpu.state.credit.loans,
+            cpu.state.accepted_agreements,
+            cpu.state.obligations
+        );
+        let expected = if private {
+            (12, 13, 25, 19, 28)
+        } else {
+            (1, 38, 36, 20, 25)
+        };
+        assert_eq!(
+            (
+                food.len(),
+                food.last().unwrap().month,
+                deficit(&cpu, WORKER),
+                cpu.state.balance(home, WHEAT),
+                crops
+            ),
+            expected
+        );
+        assert_eq!([SUPPLIER, GROWER].map(|a| deficit(&cpu, a)), [1, 1]);
+        assert_eq!(earned, 12);
+        assert_eq!(wages.last().unwrap().month, 6);
+        assert_eq!(mints, 3);
+        let consumed: i32 = cpu
+            .reports
+            .iter()
+            .filter(|r| r.agent == WORKER)
+            .map(|r| r.fulfilled(NUTRITION))
+            .sum();
+        assert_eq!(
+            3 + food.len() as i32,
+            consumed + cpu.state.balance(WORKER, WHEAT)
+        );
+        assert_eq!(cpu.state.accepted_agreements.len(), 2);
+        assert_eq!(cpu.state.accepted_agreements[&2].activated, 26);
+        assert_eq!(cpu.state.obligations.len(), 2);
+        assert_eq!(cpu.state.obligations[&(2, 38)].paid, 1);
+        assert_eq!(cpu.state.credit.loans.len(), 1);
+        // Receipts identify a failure at the actual market boundary, rather
+        // than inferring its cause from final cash or collective inventory.
+        assert!(
+            cpu.ledger
+                .iter()
+                .filter(|b| b.month > 14)
+                .filter_map(|b| b.minting.as_ref())
+                .filter_map(|b| b.plan.as_ref())
+                .any(
+                    |p| p.purchases.iter().filter(|q| q.agent == WORKER).any(|q| {
+                        if private {
+                            q.requested_lots > 0
+                                && q.affordable_lots == 0
+                                && q.submitted_lots == 0
+                                && p.sales
+                                    .iter()
+                                    .any(|a| a.agent == home && a.eligible && a.feasible_lots > 0)
+                        } else {
+                            q.submitted_lots > 0
+                                && q.matched_lots == 0
+                                && p.sales.iter().all(|a| a.feasible_lots == 0)
+                        }
+                    })
+                )
+        );
+        assert_eq!(cpu.world.households.len(), 1);
+        assert_eq!(cpu.state.balance(WORKER, COIN), earned - spent);
+        assert!(
+            cpu.state
+                .credit
+                .loans
+                .values()
+                .all(|l| l.status == economics_compute_smoke::credit::Status::Repaid)
+        );
+        assert!(cpu.state.obligations.values().all(|o| o.outstanding() == 0));
     }
 }
