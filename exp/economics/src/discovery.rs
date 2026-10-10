@@ -62,6 +62,8 @@ pub struct FinanceRule {
     pub loan_months: u32,
     pub monthly_rate_bps: u32,
     pub delivery_months: u32,
+    /// Optional longer assessment of both signatories; does not alter stock targets.
+    pub forward_horizon: Option<u32>,
     /// Explicit valuation assumptions in denomination ticks per stock unit.
     pub unit_values: BTreeMap<ResourceId, i32>,
 }
@@ -129,6 +131,8 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
             !stock(r.denomination)
                 || !(1..=MAX_HORIZON - FORECAST_BUFFER_MONTHS).contains(&r.loan_months)
                 || !(1..=MAX_HORIZON - FORECAST_BUFFER_MONTHS).contains(&r.delivery_months)
+                || r.forward_horizon
+                    .is_some_and(|h| !(1..=MAX_HORIZON).contains(&h))
                 || r.unit_values
                     .iter()
                     .any(|(id, value)| !stock(*id) || *value <= 0)

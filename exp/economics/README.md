@@ -112,6 +112,9 @@ sales independent of mint funding, with reserve and commitment protection, whole
 need orders and observer receipts. `discovered_economy --circulation` demonstrates
 discovered wages paying for later food, alongside stock and income constraints;
 it does not establish a sustainable economy.
+The [next twenty review iterations](REVIEW-BATCH-20.md) track subsequent bounded
+changes and their independent checks, beginning with separate forward-assessment
+and market-stocking horizons.
 
 ## Purpose and existing scenarios
 

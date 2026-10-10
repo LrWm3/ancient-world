@@ -360,3 +360,122 @@ fn eligible_worker_offer_is_not_a_guaranteed_fill() {
     assert!(!sales.is_empty());
     assert!(sales.iter().all(|d| d.seller == SUPPLIER));
 }
+
+#[test]
+fn longer_forward_assessment_protects_food_without_changing_market_horizon() {
+    let (mut w, s) = worker(14, 2);
+    for p in &mut w.participants {
+        if p.agent != WORKER {
+            p.capacity.quantity = 1;
+        }
+    }
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .finance
+        .as_mut()
+        .unwrap()
+        .forward_horizon = Some(14);
+    let mut sim = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut cpu = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    let mut cpu_audit = scenario::audit(&cpu.world, &cpu.state).unwrap();
+    let mut audit = scenario::audit(&sim.world, &sim.state).unwrap();
+    while sim.state.month <= 14 {
+        audit.step(&mut sim).unwrap();
+        cpu_audit.step(&mut cpu).unwrap();
+        let mut resumed =
+            Simulation::new(cpu.world.clone(), cpu.state.clone(), Backend::CubeCpu).unwrap();
+        resumed.ledger = cpu.ledger;
+        resumed.reports = cpu.reports;
+        cpu = resumed;
+    }
+    assert_eq!(sim.world, cpu.world);
+    assert_eq!(sim.state, cpu.state);
+    assert_eq!(sim.ledger, cpu.ledger);
+    assert_eq!(audit, cpu_audit);
+    assert_eq!(sim.world.discovery.as_ref().unwrap().horizon, 4);
+    assert!(
+        sim.state
+            .exchange
+            .forwards
+            .values()
+            .all(|f| f.debtor != WORKER)
+    );
+    assert!(
+        sim.reports
+            .iter()
+            .filter(|r| r.agent == WORKER)
+            .all(|r| r.deficit(NUTRITION) == 0)
+    );
+    assert!(
+        sim.world
+            .discovery
+            .as_ref()
+            .unwrap()
+            .receipts
+            .iter()
+            .any(|r| !r.accepted && r.description.contains("14 months, 0 projected suppliers"))
+    );
+    assert!(
+        sim.state
+            .processes
+            .values()
+            .any(|p| p.definition == MINT && p.status == Status::Completed)
+    );
+}
+
+#[test]
+fn forward_assessment_horizon_is_bounded() {
+    for horizon in [0, 25, u32::MAX] {
+        let (mut w, s) = scenario::scenario().unwrap();
+        w.discovery
+            .as_mut()
+            .unwrap()
+            .finance
+            .as_mut()
+            .unwrap()
+            .forward_horizon = Some(horizon);
+        assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    }
+}
+
+#[test]
+fn longer_forward_assessment_still_allows_unneeded_stock_sales() {
+    use economics_compute_smoke::agency::objectives::{Metric, Objective, Scope};
+    let (mut w, mut s) = scenario::scenario().unwrap();
+    for p in &mut w.participants {
+        p.needs.clear();
+    }
+    let c = w.discovery.as_mut().unwrap();
+    c.land = None;
+    c.household = None;
+    c.state.as_mut().unwrap().objectives = vec![Objective {
+        scope: Scope::Organization,
+        metric: Metric::Reserve {
+            resource: WHEAT,
+            target: 1,
+        },
+    }];
+    s.balances.insert((ISSUER, WHEAT), 0);
+    s.balances.insert((ISSUER, COIN), 1);
+    s.balances.insert((WORKER, WHEAT), 2);
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .finance
+        .as_mut()
+        .unwrap()
+        .forward_horizon = Some(8);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut audit = scenario::audit(&sim.world, &sim.state).unwrap();
+    while sim.state.month <= 8 {
+        audit.step(&mut sim).unwrap();
+    }
+    assert!(
+        sim.state
+            .exchange
+            .forwards
+            .values()
+            .any(|f| f.delivered == f.goods.quantity)
+    );
+}

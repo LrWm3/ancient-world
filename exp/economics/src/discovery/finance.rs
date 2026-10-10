@@ -243,7 +243,10 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
         {
             continue;
         }
-        let horizon = c.horizon.max(rule.delivery_months + FORECAST_BUFFER_MONTHS);
+        let horizon = c
+            .horizon
+            .max(rule.delivery_months + FORECAST_BUFFER_MONTHS)
+            .max(rule.forward_horizon.unwrap_or(0));
         let baseline = forecast(w, s, horizon)?;
         let mut sellers: Vec<_> = w
             .agents
@@ -252,6 +255,21 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             .filter(|a| *a != buyer && baseline.state.balance(*a, resource) > FORWARD_LOT)
             .collect();
         sellers.sort_unstable();
+        let through = s
+            .month
+            .checked_add(horizon - 1)
+            .ok_or("assessment date overflow")?;
+        record(
+            w,
+            s,
+            format!(
+                "forward assessment buyer {buyer}: {}..={through}, {horizon} months, {} projected suppliers",
+                s.month,
+                sellers.len()
+            ),
+            BTreeMap::new(),
+            false,
+        );
         for seller in sellers {
             let id = next_id(
                 w.prepaid_deliveries
@@ -316,7 +334,10 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             record(
                 w,
                 s,
-                format!("forward proposal {id}: {seller}->{buyer}"),
+                format!(
+                    "forward proposal {id}: {seller}->{buyer}; assessment {horizon} months from {}",
+                    s.month
+                ),
                 comparisons,
                 accepted,
             );

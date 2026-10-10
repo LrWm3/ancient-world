@@ -95,6 +95,7 @@ pub fn scenario() -> Result<(World, State), String> {
             loan_months: LOAN_MONTHS,
             monthly_rate_bps: MONTHLY_INTEREST_BPS,
             delivery_months: DELIVERY_MONTHS,
+            forward_horizon: None,
             unit_values: [(WHEAT, WHEAT_COIN_VALUE)].into(),
         }),
         through: 0,
