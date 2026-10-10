@@ -34,6 +34,13 @@ fn pool(w: &World, s: &State, transactions: &[Transaction]) -> BTreeMap<Account,
         let held = available.entry(effect.account).or_default();
         *held = (*held + i128::from(effect.delta)).max(0);
     }
+    // Unpaid stage inputs cannot also fund a new optional commitment.
+    for agent in &w.agents {
+        for (resource, quantity) in crate::need_orders::process_claims(w, s, agent.id) {
+            let held = available.entry((agent.id, resource)).or_default();
+            *held = (*held - quantity).max(0);
+        }
+    }
     // Existing production has first claim on future monthly service capacity.
     for process in s.processes.values().filter(|p| p.status == Status::Active) {
         let mut peak = BTreeMap::<ResourceId, i128>::new();

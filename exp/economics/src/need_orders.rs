@@ -117,7 +117,11 @@ pub(crate) fn accepted_claims(
 }
 
 /// Unpaid inputs of accepted active processes, shared by protection and demand.
-fn process_claims(world: &World, state: &State, agent: AgentId) -> BTreeMap<ResourceId, i128> {
+pub(crate) fn process_claims(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+) -> BTreeMap<ResourceId, i128> {
     let mut result = BTreeMap::new();
     for p in state
         .processes

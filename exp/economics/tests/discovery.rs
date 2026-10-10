@@ -325,3 +325,68 @@ fn two_feasible_applicants_cannot_double_book_household_labor() {
     );
     assert_eq!(replay, opening);
 }
+
+#[test]
+fn land_admission_preserves_unpaid_process_inputs_but_not_consumed_inputs() {
+    for elapsed in [0, 1] {
+        let (mut w, s) = scenario::scenario().unwrap();
+        let definition = ProcessDefinition {
+            id: 901,
+            name: "prior seed commitment".into(),
+            execution: Execution::Productive,
+            enabled: true,
+            asset_kind: None,
+            stages: vec![Stage {
+                name: "waiting".into(),
+                months: 2,
+                entry_inputs: vec![Amount::new(SEED, 4)],
+                monthly_services: vec![],
+            }],
+            outputs: vec![Amount::new(METAL, 1)],
+        };
+        w.definitions.push(definition);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((PERSON_TYPE, Action::Process(901)));
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        while sim.state.month < 2 || sim.state.phase != Phase::Acquire {
+            sim.step().unwrap();
+        }
+        sim.state.processes.insert(
+            901,
+            ProcessInstance {
+                id: 901,
+                definition: 901,
+                operator: GROWER,
+                beneficiary: GROWER,
+                goal: None,
+                asset: None,
+                right: None,
+                start: 2 - elapsed,
+                reserved_through: 3 - elapsed,
+                stage: 0,
+                elapsed,
+                status: Status::Active,
+            },
+        );
+        let mut cpu =
+            Simulation::new(sim.world.clone(), sim.state.clone(), Backend::CubeCpu).unwrap();
+        sim.step().unwrap();
+        cpu.step().unwrap();
+        assert_eq!(sim.state, cpu.state);
+        assert_eq!(sim.ledger.last(), cpu.ledger.last());
+        assert_eq!(
+            sim.state.accepted_agreements.len(),
+            usize::from(elapsed > 0)
+        );
+        // Existing work still executes after the admission decision.
+        sim.run_months(2).unwrap();
+        assert_eq!(
+            sim.state.processes[&901].status,
+            Status::Completed,
+            "elapsed={elapsed}"
+        );
+    }
+}

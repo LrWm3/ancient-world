@@ -67,3 +67,12 @@ now rejects a differing financial denomination when mint procurement is enabled;
 it does not invent a conversion rate. Forward-only configurations retain their
 stock denomination support. The grain-as-coins negative control and all five
 financial discovery tests pass. Independent review found no blocker.
+
+## 5. Protect active process inputs during land admission
+
+Land admission now shares the unpaid-process-input claim reader with need orders.
+Seed committed to a current or future unpaid stage cannot also justify an optional
+new lease. Consumed entry inputs are not reserved twice. Existing monthly service
+reservation and conservative handling of same-boundary incoming purchases remain.
+A two-case integration control compares CPU/reference admission at Acquire, then
+checks existing work completes on Reference. Independent review found no blocker.
