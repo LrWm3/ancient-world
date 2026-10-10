@@ -41,6 +41,8 @@ pub struct Assessment {
     pub resource: ResourceId,
     pub denomination: ResourceId,
     pub horizon: u32,
+    /// Loan term or forward delivery delay, distinct from the assessment horizon.
+    pub duration: u32,
     /// Baseline stock candidates for forwards; funded, Lend-permitted people for loans.
     /// This is not a promise of final contract eligibility.
     /// Attempts stop after publication and can be fewer than this count.
@@ -66,7 +68,16 @@ pub(super) fn discover(w: &mut World, s: &State, c: &Config) -> Result<(), Strin
     let Some(rule) = &c.finance else {
         return Ok(());
     };
-    loans(w, s, c, rule)?;
+    for term in std::iter::once(rule.loan_months).chain(
+        rule.alternative_loan_months
+            .iter()
+            .copied()
+            .filter(|term| *term != rule.loan_months),
+    ) {
+        let mut candidate_rule = rule.clone();
+        candidate_rule.loan_months = term;
+        loans(w, s, c, &candidate_rule)?;
+    }
     forwards(w, s, c, rule)
 }
 
@@ -148,6 +159,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
         resource: rule.denomination,
         denomination: rule.denomination,
         horizon,
+        duration: rule.loan_months,
         candidate_count: lenders.len(),
         attempts: vec![],
     });
@@ -343,6 +355,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             resource,
             denomination: rule.denomination,
             horizon,
+            duration: rule.delivery_months,
             candidate_count: sellers.len(),
             attempts: vec![],
         });

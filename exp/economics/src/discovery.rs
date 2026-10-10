@@ -9,7 +9,7 @@ use crate::{
     opportunities::{self, Action},
     simulation::Simulation,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod admission;
 pub mod finance;
@@ -64,6 +64,9 @@ pub struct Config {
 pub struct FinanceRule {
     pub denomination: ResourceId,
     pub loan_months: u32,
+    /// Primary term first, then these unique terms ascending; empty preserves fixed terms.
+    /// Valid durations bound the search to at most 22 terms.
+    pub alternative_loan_months: BTreeSet<u32>,
     pub monthly_rate_bps: u32,
     pub delivery_months: u32,
     /// Optional longer assessment of both signatories; does not alter stock targets.
@@ -134,6 +137,9 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
         || c.finance.as_ref().is_some_and(|r| {
             !stock(r.denomination)
                 || !(1..=MAX_HORIZON - FORECAST_BUFFER_MONTHS).contains(&r.loan_months)
+                || r.alternative_loan_months
+                    .iter()
+                    .any(|term| !(1..=MAX_HORIZON - FORECAST_BUFFER_MONTHS).contains(term))
                 || !(1..=MAX_HORIZON - FORECAST_BUFFER_MONTHS).contains(&r.delivery_months)
                 || r.forward_horizon
                     .is_some_and(|h| !(1..=MAX_HORIZON).contains(&h))

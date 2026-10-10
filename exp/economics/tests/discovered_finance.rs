@@ -434,3 +434,84 @@ fn discovered_loans_respect_unused_purchase_offer_identities() {
         );
     }
 }
+
+#[test]
+fn bounded_loan_duration_search_preserves_primary_preference_and_finds_viable_terms() {
+    use economics_compute_smoke::{
+        credit,
+        discovery::finance::{Instrument, Outcome},
+    };
+    for (primary, alternatives, expected) in [
+        (4, vec![], None),
+        (4, vec![4, 8], Some(8)),
+        (8, vec![4, 8], Some(8)),
+    ] {
+        let (mut w, s) = mint_loan(1);
+        let rule = w.discovery.as_mut().unwrap().finance.as_mut().unwrap();
+        rule.loan_months = primary;
+        rule.alternative_loan_months = alternatives.into_iter().collect();
+        let reference = run(w.clone(), s.clone(), Backend::Reference);
+        let cpu = run(w, s, Backend::CubeCpu);
+        assert_eq!(cpu.world, reference.world);
+        assert_eq!(cpu.state, reference.state);
+        assert_eq!(cpu.ledger, reference.ledger);
+        let assessments: Vec<_> = cpu
+            .world
+            .discovery
+            .as_ref()
+            .unwrap()
+            .financial
+            .iter()
+            .filter(|a| a.month == 2 && a.instrument == Instrument::Loan)
+            .collect();
+        assert_eq!(assessments[0].duration, primary);
+        assert_eq!(
+            assessments.len(),
+            if primary == 4 && expected.is_some() {
+                2
+            } else {
+                1
+            }
+        );
+        if let Some(term) = expected {
+            assert_eq!(cpu.world.lending.len(), 1);
+            assert_eq!(cpu.world.lending[0].terms.term_months, term);
+            assert_eq!(
+                cpu.state.credit.loans[&cpu.world.lending[0].id].status,
+                credit::Status::Repaid
+            );
+            let published = assessments.last().unwrap();
+            if primary == 4 {
+                assert_eq!(assessments[0].attempts[0].outcome, Outcome::NoMutualGain);
+                assert_eq!(
+                    assessments[0].attempts[0].candidate_id,
+                    published.attempts[0].candidate_id
+                );
+            }
+            assert_eq!(published.duration, term);
+            assert_eq!(published.horizon, term + 2);
+            assert_eq!(published.attempts[0].outcome, Outcome::Published);
+            assert!(
+                cpu.state
+                    .processes
+                    .values()
+                    .any(|p| p.definition == MINT && p.status == Status::Completed)
+            );
+        } else {
+            assert!(cpu.world.lending.is_empty());
+            assert_eq!(assessments[0].attempts[0].outcome, Outcome::NoMutualGain);
+        }
+    }
+    for term in [0, 23, u32::MAX] {
+        let (mut w, s) = mint_loan(1);
+        w.discovery
+            .as_mut()
+            .unwrap()
+            .finance
+            .as_mut()
+            .unwrap()
+            .alternative_loan_months
+            .insert(term);
+        assert!(Simulation::new(w, s, Backend::Reference).is_err());
+    }
+}

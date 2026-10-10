@@ -173,3 +173,19 @@ delivery, delivery at this boundary, a new forward, and the exact horizon cutoff
 Granted farming completes and protected deliveries settle. Historical contracts
 in these continuation fixtures are opening claims, not observed prepayments.
 Independent review found no production blocker.
+
+## 15. Bounded search over loan durations
+
+Financial discovery can now try explicit alternative loan durations. It tries the
+primary term first, then unique alternatives in ascending order, and stops at the
+first published loan. Empty alternatives preserve the original fixed-term policy;
+valid durations cap search at 22 terms and assessment at 24 months. Each candidate
+uses the existing repayment, legal admission and bilateral comparison machinery.
+This is first-acceptable search, not negotiated or globally optimal credit terms.
+
+The zero-treasury control rejects a four-month loan: its first installment leaves
+too little money for whole-lot mint procurement. An optional eight-month term
+finances actual inputs, completes minting and repays. Primary-eight preference is
+preserved even when four is offered. Audited CPU/reference runs agree. Diagnostics
+and observer records distinguish contract duration from forecast horizon and pin
+safe ID reuse for rejected proposals. Independent review found no blocker.

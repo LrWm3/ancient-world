@@ -47,6 +47,10 @@ fn financial_observation_is_read_only_new_only_and_party_filterable() {
             .iter()
             .any(|p| p["outcome"]["kind"] == "published" && p["comparisons"].is_array())
     }));
+    for row in &assessments {
+        let duration = row["duration"].as_u64().unwrap();
+        assert!(duration > 0 && row["horizon"].as_u64().unwrap() >= duration + 2);
+    }
     // Attaching to a continuation exports no previously observed assessment.
     let financial_from = observed.world.discovery.as_ref().unwrap().financial.len();
     let mut resumed = Observer::new(vec![], "resume", config).unwrap();

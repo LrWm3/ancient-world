@@ -73,7 +73,7 @@ pub(super) fn batch(
                 json!({"kind":"financial_assessment","month":assessment.month,
                 "instrument":format!("{:?}",assessment.instrument),"requester":assessment.requester,
                 "resource":assessment.resource,"denomination":assessment.denomination,
-                "horizon":assessment.horizon,"candidate_count":assessment.candidate_count,
+                "horizon":assessment.horizon,"duration":assessment.duration,"candidate_count":assessment.candidate_count,
                 "attempts":attempts}),
             );
         }

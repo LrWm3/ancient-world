@@ -379,3 +379,7 @@ rejection, so correlate only published terms with actual contract records. Forwa
 candidate counts are terminal-stock candidates; loan counts are funded people with
 Lend permission. Neither count guarantees final legal or economic eligibility.
 Continuation observers do not re-export historical assessments.
+
+Financial assessments distinguish contract `duration` (loan term or delivery delay)
+from projection `horizon`. Optional loan-term search emits one assessment per tried
+duration; rejected proposals may reuse an ID until one is published.

@@ -93,6 +93,7 @@ pub fn scenario() -> Result<(World, State), String> {
             objectives,
         }),
         finance: Some(FinanceRule {
+            alternative_loan_months: Default::default(),
             denomination: COIN,
             loan_months: LOAN_MONTHS,
             monthly_rate_bps: MONTHLY_INTEREST_BPS,
