@@ -15,6 +15,13 @@ pub struct Policy {
     pub input_limits: BTreeMap<MarketId, i32>,
     pub quotes: Vec<Quote>,
     pub provisioning: Option<super::provisioning::Policy>,
+    /// Sell surplus independently of mint funding; ordinary clearing still decides fills.
+    pub public_sale: Option<StockSales>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StockSales {
+    pub reserve: i32,
+    pub claim_months: u32,
 }
 /// A buyer fills a stock target; a seller protects a reserve. Quotes are per lot.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -41,11 +48,18 @@ pub struct Plan {
     pub required_funding: i32,
     pub orders: Vec<Order>,
     pub deals: Vec<Deal>,
+    /// Procurement status; public stock sales may settle even when minting is idle.
     pub reason: String,
     pub provision: Vec<super::provisioning::Decision>,
 }
 
 pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
+    if p.public_sale.as_ref().is_some_and(|v| {
+        v.reserve < 0 || !(1..=crate::need_orders::MAX_RESERVE_MONTHS).contains(&v.claim_months)
+    }) || p.public_sale.is_some() && p.provisioning.is_some()
+    {
+        return Err("invalid public stock sales policy".into());
+    }
     let venue = marketplace::venue(w, c.venue).ok_or("missing order venue")?;
     let market = |id| {
         venue
@@ -170,7 +184,85 @@ pub(crate) fn generate_with(
     if let Some(policy) = &p.provisioning {
         return super::provisioning::generate_with(w, s, c, p, policy, opening);
     }
-    generate_fixed(w, s, c, p, opening)
+    let mut plan = generate_fixed(w, s, c, p, opening)?;
+    if let Some(policy) = &p.public_sale {
+        public_sales(w, s, c, p, policy, opening, &mut plan)?;
+    } else {
+        clear(w, s, c, &mut plan, opening)?;
+    }
+    Ok(plan)
+}
+
+fn public_sales(
+    w: &World,
+    s: &State,
+    c: &Config,
+    p: &Policy,
+    policy: &StockSales,
+    opening: &Resources,
+    plan: &mut Plan,
+) -> Result<(), String> {
+    // Replace the legacy funding ask and its buyers, never stack authorizations.
+    plan.orders.retain(|o| o.market != p.sale_market);
+    let venue = marketplace::venue(w, c.venue).ok_or("missing sale venue")?;
+    let market = venue
+        .markets
+        .iter()
+        .find(|m| m.id == p.sale_market)
+        .unwrap();
+    let claims = crate::need_orders::claims(w, s, c.issuer, policy.claim_months)?;
+    let held = opening
+        .available
+        .get(&(c.issuer, market.goods.resource))
+        .copied()
+        .unwrap_or(0);
+    let protected =
+        i128::from(policy.reserve) + claims.get(&market.goods.resource).copied().unwrap_or(0);
+    let supply = ((i128::from(held) - protected).max(0) / i128::from(market.goods.quantity))
+        .min(i128::from(MAX_LOTS)) as i32;
+    if super::eligible(w, s, c.venue, c.issuer) {
+        let mut demand = 0;
+        for q in p
+            .quotes
+            .iter()
+            .filter(|q| q.side == Side::Buy && q.market == p.sale_market)
+        {
+            if !super::eligible(w, s, c.venue, q.agent) || q.limit < p.sale_limit {
+                continue;
+            }
+            let needed = (q.holding - s.balance(q.agent, market.goods.resource)).max(0)
+                / market.goods.quantity;
+            let cash = opening
+                .available
+                .get(&(q.agent, c.coin))
+                .copied()
+                .unwrap_or(0);
+            let lots = needed
+                .min(q.max_lots.unwrap_or(MAX_LOTS))
+                .min(cash / p.sale_limit);
+            if lots > 0 {
+                demand += lots;
+                plan.orders.push(Order {
+                    agent: q.agent,
+                    market: p.sale_market,
+                    side: Side::Buy,
+                    limit: q.limit,
+                    lots,
+                });
+            }
+        }
+        let lots = supply.min(demand);
+        if lots > 0 {
+            plan.orders.push(Order {
+                agent: c.issuer,
+                market: p.sale_market,
+                side: Side::Sell,
+                limit: p.sale_limit,
+                lots,
+            });
+        }
+    }
+    clear(w, s, c, plan, opening)
 }
 pub(super) fn generate_fixed(
     w: &World,
@@ -316,7 +408,6 @@ pub(super) fn generate_fixed(
         plan.orders.extend(bids);
         plan.reason = "matching complete input package".into();
     }
-    clear(w, s, c, &mut plan, opening)?;
     Ok(plan)
 }
 

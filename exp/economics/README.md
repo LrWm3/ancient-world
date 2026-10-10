@@ -106,6 +106,8 @@ The [discovered supply follow-up](DISCOVERED-SUPPLY.md) lets people offer surplu
 labor and stocks after comparing their own and household needs and committed work.
 Controls distinguish retained inputs, actual paid work and unfilled offers;
 wage-funded food planning and long-run supplier viability remain open.
+The [independent review iterations](REVIEW-ITERATIONS.md) add opt-in public surplus
+sales independent of mint funding, with reserve and commitment protection.
 
 ## Purpose and existing scenarios
 

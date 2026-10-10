@@ -28,6 +28,7 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
                     .definitions
                     .iter()
                     .filter(|d| d.enabled && d.execution == Execution::Consumption)
+                    .filter(|d| opportunities::permits(w, s, person, Action::Process(d.id)))
                     .filter(|d| {
                         d.outputs.iter().any(|a| a.resource == need.resource)
                             && d.stages.iter().any(|s| {
@@ -95,13 +96,34 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
         }
     }
     let decisions = super::supply::choose(w, s, c, &mut quotes)?;
+    let public_sale = w
+        .agency
+        .get(&mint.issuer)
+        .filter(|_| c.public_sales)
+        .map(|controller| {
+            use agency::objectives::{Metric, Scope};
+            let reserve = controller
+                .config
+                .objectives
+                .iter()
+                .filter_map(|o| match o.metric {
+                    Metric::Reserve { resource, target }
+                        if o.scope == Scope::Organization && resource == sale.goods.resource =>
+                    {
+                        Some(target)
+                    }
+                    _ => None,
+                })
+                .max()
+                .unwrap_or(0);
+            crate::minting::orders::StockSales {
+                reserve,
+                claim_months: c.horizon,
+            }
+        });
     w.discovery.as_mut().unwrap().supply.extend(decisions);
-    w.minting
-        .as_mut()
-        .unwrap()
-        .order_policy
-        .as_mut()
-        .unwrap()
-        .quotes = quotes;
+    let policy = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+    policy.quotes = quotes;
+    policy.public_sale = public_sale;
     Ok(())
 }

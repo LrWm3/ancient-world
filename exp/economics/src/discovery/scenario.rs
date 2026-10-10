@@ -95,6 +95,7 @@ pub fn scenario() -> Result<(World, State), String> {
         through: 0,
         receipts: vec![],
         supply: vec![],
+        public_sales: false,
     });
     Ok((w, s))
 }

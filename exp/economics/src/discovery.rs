@@ -53,6 +53,8 @@ pub struct Config {
     pub receipts: Vec<Receipt>,
     /// Diagnostic opportunity-cost decisions; fills remain in the ordinary ledger.
     pub supply: Vec<supply::Decision>,
+    /// Derive reserve-protected public sales independently of mint funding.
+    pub public_sales: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FinanceRule {
