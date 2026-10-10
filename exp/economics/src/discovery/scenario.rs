@@ -19,6 +19,10 @@ const CIRCULATION_GRANARY: i32 = 16;
 const WORKER_FOOD_BUFFER: i32 = 3;
 const COMPETING_LABOR_HOURS: i32 = 1;
 const WORKER_MONTHLY_NUTRITION: i32 = 1;
+const FINANCED_OPENING_TREASURY: i32 = 0;
+const FINANCED_INTEREST_BPS: u32 = 0;
+const FINANCED_ALTERNATIVE_TERM: u32 = 8;
+const FINANCED_LABOR_LOT: i32 = 5;
 
 pub fn scenario() -> Result<(World, State), String> {
     // Reuse physical catalog/endowments of the integration control, then remove
@@ -176,5 +180,56 @@ pub fn surplus() -> Result<(World, State), String> {
                 },
             },
         );
+    Ok((w, s))
+}
+
+/// Keep farming households and credit in the finite wages-to-food control.
+/// Five-hour mint work cannot use a household member's four uncommitted hours;
+/// the independent worker can supply a whole lot. Technology and lot sizes are
+/// scenario assumptions, not a change to the marketplace's allocation policy.
+pub fn financed_circulation() -> Result<(World, State), String> {
+    let (mut w, mut s) = scenario()?;
+    let c = w.discovery.as_mut().unwrap();
+    c.public_sales = true;
+    let finance = c.finance.as_mut().unwrap();
+    finance.monthly_rate_bps = FINANCED_INTEREST_BPS;
+    finance
+        .alternative_loan_months
+        .insert(FINANCED_ALTERNATIVE_TERM);
+    s.balances.insert((ISSUER, COIN), FINANCED_OPENING_TREASURY);
+    s.balances.insert((ISSUER, WHEAT), CIRCULATION_GRANARY);
+    s.balances.insert((WORKER, COIN), 0);
+    s.balances.insert((WORKER, WHEAT), WORKER_FOOD_BUFFER);
+    let worker = w
+        .participants
+        .iter_mut()
+        .find(|p| p.agent == WORKER)
+        .unwrap();
+    worker.capacity.quantity = FINANCED_LABOR_LOT;
+    worker.needs = vec![Requirement {
+        resource: NUTRITION,
+        quantity: WORKER_MONTHLY_NUTRITION,
+        priority: 0,
+    }];
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == MINT)
+        .unwrap()
+        .stages[0]
+        .monthly_services
+        .iter_mut()
+        .find(|a| a.resource == HOURS)
+        .unwrap()
+        .quantity = FINANCED_LABOR_LOT;
+    w.marketplaces
+        .iter_mut()
+        .find(|v| v.agent == VENUE)
+        .unwrap()
+        .markets
+        .iter_mut()
+        .find(|m| m.goods.resource == HOURS)
+        .unwrap()
+        .goods
+        .quantity = FINANCED_LABOR_LOT;
     Ok((w, s))
 }

@@ -225,3 +225,20 @@ Every CPU phase is reconstructed from its retained world/state, ledger and repor
 an uninterrupted reference run agrees on all of those and independently maintained
 financial books through month ten. All thirteen financial discovery tests pass.
 This is additional integration evidence, with no new execution or policy default.
+
+## 19. Finance, household farming and personal food in one control
+
+Added the reusable [financed circulation scenario](FINANCED-CIRCULATION.md) and a
+CPU example flag. Fourteen-month controls retain endogenous household/land/state
+formation while comparing whole labor lots, missing ore and missing lender money.
+The calibrated worker earns eight coins and purchases six wheat after actual wages;
+its food deficit falls from eleven to five units, while both household members
+retain their one-unit startup deficits. Ten crops and paid annual dues coexist
+with the repaid eight-month loan. No ore still permits repayment but no minting;
+no lender money prevents finance and minting without preventing household farming.
+
+All three circulation tests pass. Added controls compare uninterrupted reference
+execution against CPU reconstruction at every phase with independent accounting,
+actual traded quantities, cash/food conservation and paid obligations. These are
+finite calibration results, not proof of sustainable income or an allocation-policy
+improvement. Five-hour technology, worker capacity and market lots change together.

@@ -1,7 +1,9 @@
 use economics_compute_smoke::{compute::Backend, discovery::scenario, simulation::Simulation};
 
 fn main() -> Result<(), String> {
-    let (w, s) = if std::env::args().any(|a| a == "--circulation") {
+    let (w, s) = if std::env::args().any(|a| a == "--financed-circulation") {
+        scenario::financed_circulation()?
+    } else if std::env::args().any(|a| a == "--circulation") {
         scenario::circulation()?
     } else if std::env::args().any(|a| a == "--surplus") {
         scenario::surplus()?
