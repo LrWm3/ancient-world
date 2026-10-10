@@ -162,12 +162,32 @@ remain separate work. There is no mortality rule in this control.
 
 ## Reproduce
 
+The `--circulation` variant connects discovered paid mint labor to later public
+food purchases. It starts the worker with zero coins and three wheat, and the state
+with six coins and sixteen wheat. Public surplus sales protect four wheat. The
+supplier retains its six opening coins and finite metal, so its earlier food bids
+compete with the worker's later income. Other persons have one labor hour each,
+below the two-hour mint lot. Land, household and finance discovery are disabled
+for this control; their original nutrition needs remain visible.
+
+Over fourteen months, the worker earns four coins in month three, buys three wheat
+for three coins in month four and consumes six wheat including its opening buffer.
+CPU/reference state, receipts, reports and books agree, including reconstruction
+at every phase between earning and buying. No loan, grant or supplied agreement
+finances the worker. The [review record](REVIEW-ITERATIONS.md#5-discovered-wages-to-food-circulation)
+reports all participants and the paired stock/reserve controls. Eight worker food
+deficits remain: the public coin objective is satisfied, paid work stops and the
+worker cannot afford another lot despite remaining public surplus. This verifies
+adapter composition, not sustainable production or a general subsistence policy.
+
 From `exp/economics`:
 
 ```sh
 cargo +1.92.0 run --release --locked --example discovered_economy
 cargo +1.92.0 run --release --locked --example discovered_economy -- --surplus
+cargo +1.92.0 run --release --locked --example discovered_economy -- --circulation
 cargo +1.92.0 test --release --locked --test discovery --test agency_programs
+cargo +1.92.0 test --release --locked --test discovered_circulation --test public_sales
 ```
 
 The example runs on CubeCL CPU and prints proposal comparisons, accepted programs,

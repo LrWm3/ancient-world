@@ -14,6 +14,11 @@ const WHEAT_COIN_VALUE: i32 = 1;
 const SURPLUS_STATE_COIN: i32 = 20;
 const SURPLUS_CROP_OUTPUT: i32 = 6;
 const SURPLUS_WHEAT_RESERVE: i32 = 8;
+const CIRCULATION_TREASURY: i32 = 6;
+const CIRCULATION_GRANARY: i32 = 16;
+const WORKER_FOOD_BUFFER: i32 = 3;
+const COMPETING_LABOR_HOURS: i32 = 1;
+const WORKER_MONTHLY_NUTRITION: i32 = 1;
 
 pub fn scenario() -> Result<(World, State), String> {
     // Reuse physical catalog/endowments of the integration control, then remove
@@ -106,6 +111,34 @@ pub fn audit(w: &World, s: &State) -> Result<crate::financial_reporting::Audit, 
         .exchange_values
         .insert(WHEAT, i128::from(WHEAT_COIN_VALUE));
     crate::financial_reporting::Audit::with_opening(w, s, COIN, opening)
+}
+
+/// Finite wages-to-food control. Other workers cannot fill a two-hour mint lot;
+/// agriculture, household formation and borrowing are outside this fixture.
+pub fn circulation() -> Result<(World, State), String> {
+    let (mut w, mut s) = scenario()?;
+    let c = w.discovery.as_mut().unwrap();
+    c.public_sales = true;
+    c.finance = None;
+    c.household = None;
+    c.land = None;
+    s.balances.insert((ISSUER, COIN), CIRCULATION_TREASURY);
+    s.balances.insert((ISSUER, WHEAT), CIRCULATION_GRANARY);
+    s.balances.insert((WORKER, COIN), 0);
+    s.balances.insert((WORKER, WHEAT), WORKER_FOOD_BUFFER);
+    for p in &mut w.participants {
+        if p.agent != ISSUER && p.agent != WORKER {
+            p.capacity.quantity = COMPETING_LABOR_HOURS;
+        }
+        if p.agent == WORKER {
+            p.needs = vec![Requirement {
+                resource: NUTRITION,
+                quantity: WORKER_MONTHLY_NUTRITION,
+                priority: 0,
+            }];
+        }
+    }
+    Ok((w, s))
 }
 
 /// A materially richer buyer and harvest make a future delivery useful to both sides.

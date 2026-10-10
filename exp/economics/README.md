@@ -105,9 +105,13 @@ all historical drivers autonomous.
 The [discovered supply follow-up](DISCOVERED-SUPPLY.md) lets people offer surplus
 labor and stocks after comparing their own and household needs and committed work.
 Controls distinguish retained inputs, actual paid work and unfilled offers;
-wage-funded food planning and long-run supplier viability remain open.
+wage-funded food now has a finite integration control, while anticipatory food
+planning and long-run supplier viability remain open.
 The [independent review iterations](REVIEW-ITERATIONS.md) add opt-in public surplus
-sales independent of mint funding, with reserve and commitment protection.
+sales independent of mint funding, with reserve and commitment protection, whole-lot
+need orders and observer receipts. `discovered_economy --circulation` demonstrates
+discovered wages paying for later food, alongside stock and income constraints;
+it does not establish a sustainable economy.
 
 ## Purpose and existing scenarios
 

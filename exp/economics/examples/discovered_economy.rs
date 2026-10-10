@@ -1,7 +1,9 @@
 use economics_compute_smoke::{compute::Backend, discovery::scenario, simulation::Simulation};
 
 fn main() -> Result<(), String> {
-    let (w, s) = if std::env::args().any(|a| a == "--surplus") {
+    let (w, s) = if std::env::args().any(|a| a == "--circulation") {
+        scenario::circulation()?
+    } else if std::env::args().any(|a| a == "--surplus") {
         scenario::surplus()?
     } else {
         scenario::scenario()?
@@ -43,6 +45,29 @@ fn main() -> Result<(), String> {
         );
     }
     println!("balances: {:?}", sim.state.balances);
+    for p in &sim.world.participants {
+        let deficit: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == p.agent)
+            .flat_map(|r| r.needs.values())
+            .map(|n| n.deficit)
+            .sum();
+        println!("agent {} total deficit={deficit}", p.agent);
+    }
+    for b in sim.ledger.iter().filter_map(|b| b.minting.as_ref()) {
+        for d in &b.deals {
+            if b.receipts
+                .iter()
+                .any(|r| r.accepted && r.deals.contains(&d.id))
+            {
+                println!(
+                    "settled month={} market={} seller={} buyer={} coins={}",
+                    b.month, d.market, d.seller, d.buyer, d.price
+                );
+            }
+        }
+    }
     println!(
         "obligations: {:?} forwards: {:?}",
         sim.state.obligations, sim.state.exchange.forwards

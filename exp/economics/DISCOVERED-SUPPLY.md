@@ -52,13 +52,19 @@ of a candidate forecast rejects only that candidate.
 | Known opening shock reduces four nominal hours to one | One hour available; no whole lot offered |
 | Active non-need production requires the available hours | Labor retained to avoid process failure |
 | Passive person owns stock but has no activity participant record | Stock supply is evaluated without requiring a consumption model |
-| Worker begins with fourteen food and recurring nutrition need; competing people each have one hour | Worker sells labor for coins and minting completes over fourteen months; CPU/reference, phase reconstruction and books agree |
+| Worker begins with fourteen food and recurring nutrition need; competing people each have one hour; forward valuations omitted | Worker sells labor for coins, food remains covered and minting completes over fourteen months; CPU/reference, phase reconstruction and books agree |
+| Same opening worker with forward valuations enabled | Two wheat are sold and delivered; worker develops food deficits in months thirteen and fourteen despite holding coins |
 | Same fed worker, ordinary competing endowments | Worker offers labor but the lower-ID supplier fills the trades |
 | Worker begins with only one food | Positive supply offers coexist with later food deficits |
 
 The paid-worker control deliberately prevents competitors filling a two-hour lot.
 It also disables their viable household cultivation; their observed food deficits
 are asserted. It proves worker supply and payment, not general economic viability.
+Its forward valuations are now explicitly empty while loan discovery remains enabled.
+The paired full-finance control preserves a limitation exposed by whole-lot buying:
+four-month forecasts approve one-wheat forwards in months five and eight, delivered
+in months seven and ten. The later food shortfalls lie outside both forecasts.
+Successful supply/settlement is not a guarantee of subsistence over the entire run.
 The unchanged `tests/discovery.rs` baseline remains the integrated cultivation,
 annual payment, financing and forty-month renewal control.
 

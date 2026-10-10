@@ -628,3 +628,48 @@ fn observer_filters_limits_and_failed_open_do_not_publish_hypotheses() {
         );
     }
 }
+
+#[test]
+fn purchase_observer_filters_are_exercised_at_an_actual_sale_boundary() {
+    use economics_compute_smoke::telemetry::{Config, Observer, PlanningDetail};
+    for case in ["month", "limit", "issuer", "off"] {
+        let (w, s) = discovered();
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        let mut observer = Observer::new(
+            vec![],
+            case,
+            Config {
+                planning: PlanningDetail::Off,
+                settlement: true,
+                metrics: false,
+                first_month: if case == "month" { 3 } else { 0 },
+                log_limit: if case == "limit" { 0 } else { 1000 },
+                agents: if case == "issuer" {
+                    [ISSUER].into()
+                } else {
+                    [WORKER].into()
+                },
+                ..Config::default()
+            },
+        )
+        .unwrap();
+        observer.run_months(&mut sim, 2).unwrap();
+        assert!(food_sales(&sim) > 0, "{case}");
+        let data = rows(observer.finish().unwrap());
+        assert!(!data.iter().any(|r| r["kind"] == "discovered_supply"));
+        let purchases: Vec<_> = data
+            .iter()
+            .filter(|r| r["kind"] == "public_purchase")
+            .collect();
+        if case == "month" || case == "limit" {
+            assert!(purchases.is_empty(), "{case}");
+        } else {
+            assert!(
+                purchases
+                    .iter()
+                    .any(|r| r["agent"] == WORKER && r["settled_lots"].as_u64().unwrap() > 0),
+                "{case}"
+            );
+        }
+    }
+}

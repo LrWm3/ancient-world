@@ -142,6 +142,18 @@ fn passive_person_can_offer_stock_without_a_consumption_model() {
 #[test]
 fn covered_recurring_worker_need_allows_paid_mint_work_with_cpu_books() {
     let (mut w, s) = worker(14, 2);
+    // Isolate paid supply from the separate short-horizon forward seller, which
+    // can voluntarily sell this food buffer before the full run has elapsed.
+    // Loan discovery stays enabled; no supplied forward valuation authorizes a
+    // proposed wheat delivery in this paired control.
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .finance
+        .as_mut()
+        .unwrap()
+        .unit_values
+        .clear();
     // Competing people cannot fill a two-hour labor lot in this control.
     // This isolates paid worker supply, not household agricultural viability.
     for p in &mut w.participants {
@@ -209,6 +221,54 @@ fn covered_recurring_worker_need_allows_paid_mint_work_with_cpu_books() {
             .processes
             .values()
             .any(|p| p.definition == MINT && p.status == Status::Completed)
+    );
+}
+
+#[test]
+fn short_horizon_forward_sales_can_deplete_a_longer_food_buffer() {
+    let (mut w, s) = worker(14, 2);
+    for p in &mut w.participants {
+        if p.agent != WORKER {
+            p.capacity.quantity = 1;
+        }
+    }
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    let mut audit = scenario::audit(&sim.world, &sim.state).unwrap();
+    while sim.state.month <= 14 {
+        audit.step(&mut sim).unwrap();
+    }
+    let sales: Vec<_> = sim
+        .state
+        .exchange
+        .forwards
+        .values()
+        .filter(|f| f.debtor == WORKER && f.goods.resource == WHEAT)
+        .collect();
+    assert_eq!(sales.len(), 2);
+    assert!(sales.iter().all(|f| f.delivered == f.goods.quantity));
+    assert_eq!(sales.iter().map(|f| f.delivered).sum::<i32>(), 2);
+    let worker: Vec<_> = sim.reports.iter().filter(|r| r.agent == WORKER).collect();
+    assert_eq!(
+        worker.iter().map(|r| r.fulfilled(NUTRITION)).sum::<i32>(),
+        12
+    );
+    assert_eq!(
+        worker
+            .iter()
+            .filter(|r| r.deficit(NUTRITION) > 0)
+            .map(|r| r.month)
+            .collect::<Vec<_>>(),
+        vec![13, 14]
+    );
+    assert!(sim.state.balance(WORKER, COIN) >= 3);
+    assert_eq!(sim.state.balance(WORKER, WHEAT), 0);
+    // The projections cover fulfillment but not all later subsistence: successful
+    // delivery and money in hand do not promise future food supply.
+    assert!(
+        sim.world
+            .prepaid_deliveries
+            .iter()
+            .all(|f| f.month + sim.world.discovery.as_ref().unwrap().horizon < 13)
     );
 }
 
