@@ -41,7 +41,8 @@ pub struct Assessment {
     pub resource: ResourceId,
     pub denomination: ResourceId,
     pub horizon: u32,
-    /// Baseline stock candidates for forwards; not a promise of legal eligibility.
+    /// Baseline stock candidates for forwards; funded, Lend-permitted people for loans.
+    /// This is not a promise of final contract eligibility.
     /// Attempts stop after publication and can be fewer than this count.
     pub candidate_count: usize,
     pub attempts: Vec<Attempt>,
@@ -131,13 +132,26 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
     let horizon = c.horizon.max(rule.loan_months + FORECAST_BUFFER_MONTHS);
     let baseline = forecast(w, s, horizon)?;
     let borrower_objectives = objectives(w, debtor, rule.denomination);
-    for lender in people(w, s) {
-        if lender == debtor
-            || s.balance(lender, rule.denomination) < principal
-            || !opportunities::permits(w, s, lender, Action::Lend)
-        {
-            continue;
-        }
+    let lenders: Vec<_> = people(w, s)
+        .into_iter()
+        .filter(|lender| {
+            *lender != debtor
+                && s.balance(*lender, rule.denomination) >= principal
+                && opportunities::permits(w, s, *lender, Action::Lend)
+        })
+        .collect();
+    let assessment = w.discovery.as_ref().unwrap().financial.len();
+    w.discovery.as_mut().unwrap().financial.push(Assessment {
+        month: s.month,
+        instrument: Instrument::Loan,
+        requester: debtor,
+        resource: rule.denomination,
+        denomination: rule.denomination,
+        horizon,
+        candidate_count: lenders.len(),
+        attempts: vec![],
+    });
+    for lender in lenders {
         let id = next_id(
             w.lending
                 .iter()
@@ -191,6 +205,16 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
         let projected = match forecast(&candidate, s, horizon) {
             Ok(v) => v,
             Err(e) => {
+                w.discovery.as_mut().unwrap().financial[assessment]
+                    .attempts
+                    .push(Attempt {
+                        counterparty: lender,
+                        candidate_id: id,
+                        quantity: principal,
+                        prepayment: None,
+                        comparisons: BTreeMap::new(),
+                        outcome: Outcome::ProjectionFailed(e.clone()),
+                    });
                 record(
                     w,
                     s,
@@ -233,6 +257,22 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
             .get(&id)
             .is_some_and(|l| l.status == crate::credit::Status::Repaid);
         let accepted = repaid && mutually_beneficial(&comparisons);
+        w.discovery.as_mut().unwrap().financial[assessment]
+            .attempts
+            .push(Attempt {
+                counterparty: lender,
+                candidate_id: id,
+                quantity: principal,
+                prepayment: None,
+                comparisons: comparisons.clone(),
+                outcome: if !repaid {
+                    Outcome::PerformanceShortfall
+                } else if !accepted {
+                    Outcome::NoMutualGain
+                } else {
+                    Outcome::Published
+                },
+            });
         record(
             w,
             s,

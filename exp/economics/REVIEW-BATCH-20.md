@@ -108,3 +108,13 @@ No-supply, successful-delivery and legally forbidden-trade controls distinguish
 empty assessments, published proposals and performance shortfalls. Seven finance
 tests and strict all-target Clippy pass. Actual admission and delivery remain in
 the ordinary ledger and forward book.
+
+## 9. Loan assessment and publication boundaries
+
+Loans use the same diagnostic assessment model. Candidate counts cover funded,
+Lend-permitted people, while actual admission still checks the full agreement.
+Controls distinguish no funded lenders, repayment without productive benefit,
+projection failure, and publication. At the publishing Open, the loan terms exist
+but the accepted loan book is still empty; Acquire remains the admission boundary.
+Eight finance tests pass and independent review found no blocker. An invalid-rate
+control exposed a missing discovery configuration bound, queued for correction.

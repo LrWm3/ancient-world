@@ -289,3 +289,73 @@ fn financial_assessments_distinguish_no_supply_from_published_delivery() {
         }
     }
 }
+
+#[test]
+fn loan_diagnostics_distinguish_funding_gain_and_publication_from_admission() {
+    use economics_compute_smoke::discovery::finance::{Instrument, Outcome};
+    for case in ["funded", "no funds", "early installment", "invalid rate"] {
+        let (mut w, mut s) = mint_loan(1);
+        if case == "no funds" {
+            s.balances.insert((SUPPLIER, COIN), 0);
+        }
+        if case == "early installment" {
+            w.discovery
+                .as_mut()
+                .unwrap()
+                .finance
+                .as_mut()
+                .unwrap()
+                .loan_months = 4;
+        }
+        if case == "invalid rate" {
+            w.discovery
+                .as_mut()
+                .unwrap()
+                .finance
+                .as_mut()
+                .unwrap()
+                .monthly_rate_bps = 10_001;
+        }
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        while sim.state.month < 2 {
+            sim.step().unwrap();
+        }
+        sim.step().unwrap(); // Publishing Open is before loan admission at Acquire.
+        let assessments: Vec<_> = sim
+            .world
+            .discovery
+            .as_ref()
+            .unwrap()
+            .financial
+            .iter()
+            .filter(|a| a.instrument == Instrument::Loan && a.month == 2)
+            .collect();
+        assert_eq!(assessments.len(), 1, "{case}");
+        let a = assessments[0];
+        assert_eq!(
+            (a.requester, a.resource, a.denomination),
+            (ISSUER, COIN, COIN)
+        );
+        assert!(sim.state.credit.loans.is_empty());
+        if case == "no funds" {
+            assert_eq!(a.candidate_count, 0);
+            assert!(a.attempts.is_empty());
+        } else {
+            assert_eq!(a.attempts.len(), 1);
+            let p = &a.attempts[0];
+            assert_eq!(
+                (p.counterparty, p.quantity, p.prepayment),
+                (SUPPLIER, 6, None)
+            );
+            match case {
+                "funded" => {
+                    assert_eq!(p.outcome, Outcome::Published);
+                    assert_eq!(sim.world.lending.len(), 1);
+                }
+                "early installment" => assert_eq!(p.outcome, Outcome::NoMutualGain),
+                "invalid rate" => assert!(matches!(p.outcome, Outcome::ProjectionFailed(_))),
+                _ => unreachable!(),
+            }
+        }
+    }
+}
