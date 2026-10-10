@@ -69,15 +69,14 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
             }
         }
         let sell = c.private_sales && {
-            let floors = if w.participants.iter().any(|p| p.agent == person) {
-                crate::need_orders::protected_stock(w, s, person, c.horizon)?
-            } else {
-                crate::need_orders::claims(w, s, person, c.horizon)?
-            };
+            let floors = super::supply::protected(w, s, person, c.horizon)?;
             let floor = floors.get(&sale.goods.resource).copied().unwrap_or(0);
             i128::from(s.balance(person, sale.goods.resource)) - floor
                 >= i128::from(sale.goods.quantity)
         };
+        if c.private_sales && !crate::households::market::buys(w, s, person) {
+            target = 0;
+        }
         if target > 0 || sell {
             quotes.push(crate::minting::orders::Quote {
                 max_lots: None,
@@ -109,6 +108,31 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
                 limit,
                 holding: 0,
             });
+        }
+    }
+    if c.private_sales {
+        for home in &w.households {
+            if !crate::households::market::active(w, s, home.agent)
+                || !crate::marketplace::eligible(w, s, mint.venue, home.agent)
+            {
+                continue;
+            }
+            let floor = super::supply::protected(w, s, home.agent, c.horizon)?
+                .get(&sale.goods.resource)
+                .copied()
+                .unwrap_or(0);
+            if i128::from(s.balance(home.agent, sale.goods.resource)) - floor
+                >= i128::from(sale.goods.quantity)
+            {
+                quotes.push(crate::minting::orders::Quote {
+                    max_lots: None,
+                    agent: home.agent,
+                    market: sale.id,
+                    side: Side::Sell,
+                    limit: policy.sale_limit,
+                    holding: 0,
+                });
+            }
         }
     }
     let decisions = super::supply::choose(w, s, c, &mut quotes)?;

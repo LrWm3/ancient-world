@@ -274,8 +274,18 @@ fn public_sales(
                     .get(&(q.agent, market.goods.resource))
                     .copied()
                     .unwrap_or(0);
-                let lots = ((held - q.holding).max(0) / market.goods.quantity)
-                    .min(q.max_lots.unwrap_or(MAX_LOTS));
+                let floor = if w.households.iter().any(|h| h.agent == q.agent) {
+                    crate::need_orders::protected_stock(w, s, q.agent, policy.claim_months)?
+                        .get(&market.goods.resource)
+                        .copied()
+                        .unwrap_or(0)
+                        .max(i128::from(q.holding))
+                } else {
+                    i128::from(q.holding)
+                };
+                let lots = ((i128::from(held) - floor).max(0) / i128::from(market.goods.quantity))
+                    .min(i128::from(q.max_lots.unwrap_or(MAX_LOTS)))
+                    as i32;
                 if lots > 0 {
                     plan.orders.push(Order {
                         agent: q.agent,

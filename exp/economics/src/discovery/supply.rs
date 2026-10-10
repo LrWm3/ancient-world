@@ -27,8 +27,14 @@ pub struct Decision {
 
 fn objectives(w: &World, s: &State, agent: AgentId) -> Vec<agency::objectives::Objective> {
     // A supplier cannot treat harm to other members as free collective labor.
-    let members: Vec<_> = crate::households::parent(w, s, agent)
-        .and_then(|id| w.households.iter().find(|h| h.agent == id))
+    let members: Vec<_> = w
+        .households
+        .iter()
+        .find(|h| h.agent == agent)
+        .or_else(|| {
+            crate::households::parent(w, s, agent)
+                .and_then(|id| w.households.iter().find(|h| h.agent == id))
+        })
         .map(|h| crate::households::members(h, s).collect())
         .unwrap_or_else(|| vec![agent]);
     let mut goals: Vec<_> = members.iter().flat_map(|a| needs(w, *a)).collect();
@@ -37,6 +43,22 @@ fn objectives(w: &World, s: &State, agent: AgentId) -> Vec<agency::objectives::O
         metric: agency::objectives::Metric::FailedProcesses,
     });
     goals
+}
+
+/// Shared reserve calculation for people, passive owners and households.
+pub(super) fn protected(
+    w: &World,
+    s: &State,
+    agent: AgentId,
+    horizon: u32,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    if w.participants.iter().any(|p| p.agent == agent)
+        || w.households.iter().any(|h| h.agent == agent)
+    {
+        crate::need_orders::protected_stock(w, s, agent, horizon)
+    } else {
+        crate::need_orders::claims(w, s, agent, horizon)
+    }
 }
 
 fn project(
@@ -100,7 +122,12 @@ pub(super) fn choose(
         return Err("supplier discovery requires Acquire after Open".into());
     }
     let mut decisions = vec![];
-    for agent in people(w, s) {
+    let sellers: BTreeSet<_> = quotes
+        .iter()
+        .filter(|q| q.side == Side::Sell)
+        .map(|q| q.agent)
+        .collect();
+    for agent in sellers {
         if !quotes
             .iter()
             .any(|q| q.agent == agent && q.side == Side::Sell)
@@ -109,12 +136,7 @@ pub(super) fn choose(
         }
         let goals = objectives(&opening.world, &opening.state, agent);
         let baseline = project(&opening, agent, &BTreeMap::new(), c.horizon, &goals)?;
-        let floors = if opening.world.participants.iter().any(|p| p.agent == agent) {
-            crate::need_orders::protected_stock(&opening.world, &opening.state, agent, c.horizon)?
-        } else {
-            // Passive stock owners have accepted claims but no consumption model.
-            crate::need_orders::claims(&opening.world, &opening.state, agent, c.horizon)?
-        };
+        let floors = protected(&opening.world, &opening.state, agent, c.horizon)?;
         let mut portfolio = BTreeMap::new();
         for quote in quotes
             .iter_mut()
@@ -177,7 +199,13 @@ pub(super) fn choose(
                     break;
                 }
             }
-            quote.holding = available - decision.selected_lots * market.goods.quantity;
+            // Household consumption may be distributed before the market boundary.
+            // Freeze quantity authorization, then recheck its live reserve at clearing.
+            quote.holding = if w.households.iter().any(|h| h.agent == agent) {
+                0
+            } else {
+                available - decision.selected_lots * market.goods.quantity
+            };
             quote.max_lots = Some(decision.selected_lots);
             decisions.push(decision);
         }

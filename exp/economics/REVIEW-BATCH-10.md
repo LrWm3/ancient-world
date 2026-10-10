@@ -25,3 +25,23 @@ thirteen public-sale tests and three circulation tests pass. Independent review
 identified the unequal-price budget and passive-owner cases before commit; both
 have regression coverage. Failed mint packages retain actual private food sales
 in the audited CPU/reference control.
+
+## 2. Household-owned surplus and dated protection
+
+Eligible active households can post food asks under the same opt-in policy. Their
+supply comparison includes every current member's needs and failed processes.
+A shared reserve reader handles participants, passive owners and households.
+
+The integration control exposed an actual boundary issue: household distribution
+moves protected food to members before market clearing. Keeping the original
+collective stock floor would reserve the same food twice. Discovered household
+quotes now freeze the authorized lot ceiling and recheck the collective/member
+reserve at the market boundary; explicit user quote floors remain binding.
+Matched with/without-claim controls use identical stocks and horizons and include
+claims owed by both household and member. Scheduling and household distribution
+order are unchanged.
+
+The opt-in path also honors existing collective purchasing charters: members do
+not bid against their household for food. Five private-sale and thirteen supplier
+forecast tests pass, including identical-horizon household/member claim controls
+and audited CPU continuation. Collective buying is the next bounded adapter.

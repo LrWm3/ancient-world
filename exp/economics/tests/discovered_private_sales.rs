@@ -236,3 +236,118 @@ fn failed_mint_input_package_preserves_independent_private_food_sale() {
     assert!(market.deals.iter().all(|d| d.market == WHEAT));
     assert!(!cpu.state.processes.values().any(|p| p.definition == MINT));
 }
+
+const HOME: AgentId = 800;
+fn household_fixture() -> (World, State) {
+    use economics_compute_smoke::{
+        household_governance as h, households,
+        opportunities::{HOUSEHOLD_TYPE, PERSON_TYPE},
+    };
+    let (mut w, mut s) = fixture();
+    let law = w.transaction_policy.as_mut().unwrap();
+    law.permissions
+        .insert((PERSON_TYPE, Action::FoundHousehold));
+    law.permissions.insert((HOUSEHOLD_TYPE, Action::StockTrade));
+    w.marketplaces
+        .iter_mut()
+        .find(|v| v.agent == VENUE)
+        .unwrap()
+        .allowed_types
+        .insert(HOUSEHOLD_TYPE);
+    let mut governance = h::Governance::contributed(SUPPLIER);
+    governance.charter.initial_policy = h::Policy::NeedsFirst;
+    households::form(
+        &mut w,
+        &s,
+        households::Agreement {
+            id: 1,
+            agent: HOME,
+            adults: vec![SUPPLIER, GROWER],
+            formed: 1,
+            governance,
+            dwelling_process: None,
+            admission: None,
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+        },
+    )
+    .unwrap();
+    s.balances.insert((SUPPLIER, WHEAT), 0);
+    s.balances.insert((GROWER, WHEAT), 0);
+    s.balances.insert((HOME, WHEAT), 5);
+    (w, s)
+}
+
+#[test]
+fn collective_surplus_sales_preserve_member_food_and_household_claims() {
+    use economics_compute_smoke::{forward::direct::Terms, opportunities::HOUSEHOLD_TYPE};
+    for case in [
+        "normal",
+        "no surplus",
+        "claim",
+        "member claim",
+        "no permission",
+    ] {
+        let (mut w, mut s) = household_fixture();
+        w.discovery.as_mut().unwrap().horizon = 2;
+        s.balances.insert((HOME, WHEAT), 7);
+        match case {
+            "no surplus" => {
+                s.balances.insert((HOME, WHEAT), 2);
+            }
+            "no permission" => {
+                w.transaction_policy
+                    .as_mut()
+                    .unwrap()
+                    .permissions
+                    .remove(&(HOUSEHOLD_TYPE, Action::StockTrade));
+            }
+            "claim" | "member claim" => {
+                let terms = Terms {
+                    id: 900,
+                    seller: if case == "claim" { HOME } else { SUPPLIER },
+                    buyer: ISSUER,
+                    month: 1,
+                    due: 2,
+                    goods: Amount::new(WHEAT, 1),
+                    prepayment: Amount::new(COIN, 1),
+                };
+                s.exchange.forwards.insert(terms.id, terms.contract());
+                w.prepaid_deliveries.push(terms);
+                w.discovery.as_mut().unwrap().horizon = 2;
+            }
+            _ => {}
+        }
+        let (reference, book) = run(w.clone(), s.clone(), Backend::Reference);
+        let (cpu, cpu_book) = run(w, s, Backend::CubeCpu);
+        assert_eq!(cpu.world, reference.world);
+        assert_eq!(cpu.state, reference.state);
+        assert_eq!(cpu.ledger, reference.ledger);
+        assert_eq!(cpu_book, book);
+        let trades = sales(&cpu);
+        assert_eq!(trades.len(), usize::from(case == "normal"), "{case}");
+        if case == "normal" {
+            assert_eq!((trades[0].seller, trades[0].buyer), (HOME, WORKER));
+            assert_eq!(cpu.state.balance(HOME, COIN), 3);
+            let d = cpu
+                .world
+                .discovery
+                .as_ref()
+                .unwrap()
+                .supply
+                .iter()
+                .find(|d| d.agent == HOME && d.resource == WHEAT)
+                .unwrap();
+            assert_eq!((d.protected, d.selected_lots), (4, 1));
+        }
+        assert!(
+            cpu.reports
+                .iter()
+                .filter(|r| [SUPPLIER, GROWER].contains(&r.agent))
+                .all(|r| r.deficit(NUTRITION) == 0),
+            "{case}"
+        );
+    }
+}
