@@ -158,3 +158,18 @@ applicant actually completes farming. Seedless applicants cannot win. All curren
 claim priorities are equal, so priority lottery has no extra distinction here.
 Fifteen discovery tests pass, including CPU/reference and reordered-participant
 state/ledger equality. This demonstrates bounded execution, not improved welfare.
+
+## 14. Protect financial claims during land admission
+
+Land admission now protects accepted claims within its configured horizon as well
+as unpaid process inputs. Its preview stages current credit and forward changes
+before subtracting claims, so a delivery is not reserved twice and a newly signed
+forward is protected immediately. Incoming purchases remain unavailable to this
+conservative opening-stock admission check. This covers bounded deliveries/dues
+and currently collectible loan/wage amounts, not every future loan installment.
+
+Sixteen discovery tests pass. The new CPU/reference controls cover future seed
+delivery, delivery at this boundary, a new forward, and the exact horizon cutoff.
+Granted farming completes and protected deliveries settle. Historical contracts
+in these continuation fixtures are opening claims, not observed prepayments.
+Independent review found no production blocker.

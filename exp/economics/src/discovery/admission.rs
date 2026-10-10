@@ -2,7 +2,11 @@
 use super::*;
 use crate::allocation::{self, Claim, Context};
 
-fn pool(w: &World, s: &State, transactions: &[Transaction]) -> BTreeMap<Account, i128> {
+fn pool(
+    w: &World,
+    s: &State,
+    transactions: &[Transaction],
+) -> Result<BTreeMap<Account, i128>, String> {
     let mut available: BTreeMap<_, _> = s
         .balances
         .iter()
@@ -32,9 +36,12 @@ fn pool(w: &World, s: &State, transactions: &[Transaction]) -> BTreeMap<Account,
         let held = available.entry(effect.account).or_default();
         *held = (*held + i128::from(effect.delta)).max(0);
     }
-    // Unpaid stage inputs cannot also fund a new optional commitment.
+    // Accepted delivery/payment claims and unpaid process inputs take priority.
+    // The caller stages this boundary's liability changes before measuring claims.
     for agent in &w.agents {
-        for (resource, quantity) in crate::need_orders::process_claims(w, s, agent.id) {
+        for (resource, quantity) in
+            crate::need_orders::claims(w, s, agent.id, w.discovery.as_ref().unwrap().horizon)?
+        {
             let held = available.entry((agent.id, resource)).or_default();
             *held = (*held - quantity).max(0);
         }
@@ -62,7 +69,7 @@ fn pool(w: &World, s: &State, transactions: &[Transaction]) -> BTreeMap<Account,
             }
         }
     }
-    available
+    Ok(available)
 }
 
 fn reserve(
@@ -127,7 +134,7 @@ pub(super) fn land(
     accepted: &mut Vec<(u32, AgentId)>,
     transactions: &[Transaction],
 ) -> Result<Vec<allocation::Receipt>, String> {
-    let mut available = pool(w, s, transactions);
+    let mut available = pool(w, s, transactions)?;
     let mut candidates = BTreeMap::<AgentId, Vec<(u32, DefinitionId)>>::new();
     for person in people(w, s) {
         if crate::commitments::active(w, s).any(|x| {

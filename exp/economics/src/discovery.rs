@@ -309,6 +309,12 @@ pub(crate) fn acquire(w: &World, s: &State, b: &mut Batch) -> Result<(), String>
         return Ok(());
     }
     let mut preview = s.clone();
+    if let Some(credit) = &b.credit {
+        crate::credit::record(&mut preview, credit);
+    }
+    for transaction in b.transactions.iter().filter(|t| t.forward.is_some()) {
+        crate::exchange::record(&mut preview, transaction);
+    }
     for person in people(w, s) {
         for (offer, member) in crate::membership::candidates(w, &preview, person) {
             let a = crate::membership::acceptance(w, &preview, offer, member)?;
@@ -332,6 +338,7 @@ pub(crate) fn validate_batch(w: &World, s: &State, b: &Batch) -> Result<(), Stri
     }
     let mut expected = Batch::empty(s);
     expected.transactions = b.transactions.clone();
+    expected.credit = b.credit.clone();
     acquire(w, s, &mut expected)?;
     if b.additional_memberships != expected.additional_memberships
         || b.additional_access != expected.additional_access

@@ -481,3 +481,71 @@ fn discovered_land_policy_changes_winners_without_changing_joint_capacity() {
     sim.step().unwrap();
     assert_eq!(sim.ledger.last().unwrap().additional_access[0].1, GROWER);
 }
+
+#[test]
+fn land_admission_protects_delivery_claims_after_current_boundary_changes() {
+    use economics_compute_smoke::forward::direct::Terms;
+    let (w, s) = scenario::scenario().unwrap();
+    let mut opening = Simulation::new(w, s, Backend::Reference).unwrap();
+    while opening.state.month < 2 || opening.state.phase != Phase::Acquire {
+        opening.step().unwrap();
+    }
+    // issue, due, opening seed, expected delivered now, expected land acceptance
+    for (issue, due, seed, delivered, admitted) in [
+        (1, 3, 4, 0, false),
+        (1, 2, 5, 4, true),
+        (2, 3, 4, 0, false),
+        (1, 6, 4, 0, true),
+    ] {
+        let mut w = opening.world.clone();
+        w.discovery.as_mut().unwrap().horizon = 4;
+        let terms = Terms {
+            id: 900,
+            seller: GROWER,
+            buyer: ISSUER,
+            month: issue,
+            due,
+            goods: Amount::new(SEED, 4),
+            prepayment: Amount::new(COIN, 1),
+        };
+        let mut s = opening.state.clone();
+        s.balances.insert((GROWER, SEED), seed);
+        s.balances.insert((ISSUER, COIN), 10);
+        if issue < s.month {
+            s.exchange.forwards.insert(terms.id, terms.contract());
+        }
+        w.prepaid_deliveries.push(terms);
+        let mut reference = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+        let mut cpu = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        reference.step().unwrap();
+        cpu.step().unwrap();
+        assert_eq!(reference.state, cpu.state);
+        assert_eq!(reference.ledger, cpu.ledger);
+        assert_eq!(reference.state.exchange.forwards[&900].delivered, delivered);
+        assert_eq!(
+            reference.ledger.last().unwrap().additional_access.len(),
+            usize::from(admitted),
+            "issue={issue} due={due}"
+        );
+        reference.run_months(1).unwrap();
+        cpu.run_months(1).unwrap();
+        assert_eq!(reference.state, cpu.state);
+        assert_eq!(reference.ledger, cpu.ledger);
+        if admitted {
+            assert!(
+                reference
+                    .state
+                    .processes
+                    .values()
+                    .any(|p| p.operator == GROWER
+                        && p.definition == GROW
+                        && p.status == Status::Completed)
+            );
+        } else {
+            while reference.state.month < 3 || reference.state.phase != Phase::Productive {
+                reference.step().unwrap();
+            }
+            assert_eq!(reference.state.exchange.forwards[&900].delivered, 4);
+        }
+    }
+}
