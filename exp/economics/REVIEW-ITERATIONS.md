@@ -41,3 +41,29 @@ an arbitrary seller objective tradeoff.
 Validation: 49 tests across five targets passed; strict all-target Clippy,
 formatting and repository artifact checks passed. Independent final review found
 no blocker. Next: protect buyer commitments in the public-purchase budget.
+
+## 2. Commitment-aware public purchases
+
+Independent review identified asymmetric protection: public sales retained seller
+claims but treated the buyer's entire opening coin balance as discretionary.
+The same opt-in adapter now protects accepted claims and unpaid entry inputs in
+its claim horizon before sizing affordable purchases. This is an explicit,
+conservative commitment-first purchase policy; it is not a universal rule that
+debt should always precede food. Unaccrued future loan interest is not covered by
+`claims()`, which uses current loan dues.
+
+`Plan.purchases` records requested lots, shared opening cash, protected cash,
+affordable/submitted lots and matched lots. Actual boundary deals and settlement
+remain separate evidence of payment. The matched control holds food, prices and
+needs constant: three coins buy one food lot without a claim; a three-coin future
+delivery prevents that purchase; six opening coins permit both. The accepted
+claim actually settles in month four. Keeping only enough money for the claim
+therefore produces three food deficits in months two through four, which the test
+asserts rather than treating conservation as good economic balance.
+
+A fourth case with nine coins also pays the claim and buys food at that same
+Acquire boundary using remaining opening cash. Its receipt shows zero remaining
+protected claim, guarding against subtracting a collected debt twice. Validation:
+29 tests across public sales, orders and provisioning passed; the expanded
+seven-test public-sale target passed again. Strict all-target Clippy, formatting
+and artifact checks passed; independent review found no blocker.

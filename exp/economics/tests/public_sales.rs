@@ -314,3 +314,78 @@ fn competing_buyers_share_one_surplus_and_new_wages_are_not_opening_cash() {
         }
     }
 }
+
+#[test]
+fn public_purchase_protects_accepted_coin_delivery_and_records_the_tradeoff() {
+    use economics_compute_smoke::forward::direct::Terms;
+    for (claim, cash, expected_sales) in [(false, 3, 1), (true, 3, 0), (true, 6, 1), (true, 9, 2)] {
+        let (mut w, mut s) = discovered();
+        s.balances.insert((WORKER, COIN), cash);
+        if claim {
+            // A finite accepted coin-denominated delivery; its old advance is
+            // part of the opening fixture, not new buying power at Acquire.
+            w.storage.weights.insert(METAL, 0);
+            let terms = Terms {
+                id: 900,
+                seller: WORKER,
+                buyer: ISSUER,
+                month: 1,
+                due: 4,
+                goods: Amount::new(COIN, 3),
+                prepayment: Amount::new(METAL, 1),
+            };
+            s.exchange.forwards.insert(900, terms.contract());
+            w.prepaid_deliveries.push(terms);
+        }
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.run_months(4).unwrap();
+        assert_eq!(
+            food_sales(&sim),
+            expected_sales,
+            "claim={claim} cash={cash}"
+        );
+        let budgets: Vec<_> = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.minting.as_ref())
+            .filter(|b| b.month == 2)
+            .flat_map(|b| &b.plan.as_ref().unwrap().purchases)
+            .filter(|b| b.agent == WORKER)
+            .collect();
+        assert_eq!(budgets.len(), 1);
+        let budget = budgets[0];
+        assert_eq!(budget.requested_lots, 1);
+        assert_eq!(budget.opening_cash, cash);
+        assert_eq!(budget.protected_cash, if claim { 3 } else { 0 });
+        assert_eq!(budget.submitted_lots, i32::from(expected_sales > 0));
+        assert_eq!(budget.matched_lots, i32::from(expected_sales > 0));
+        let deficit: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == WORKER && r.month > 1)
+            .map(|r| r.deficit(NUTRITION))
+            .sum();
+        assert_eq!(deficit, if expected_sales == 0 { 3 } else { 0 });
+        if claim {
+            assert_eq!(sim.state.exchange.forwards[&900].delivered, 3);
+            if cash == 9 {
+                let due = sim
+                    .ledger
+                    .iter()
+                    .filter_map(|b| b.minting.as_ref())
+                    .find(|b| b.month == 4)
+                    .unwrap()
+                    .plan
+                    .as_ref()
+                    .unwrap()
+                    .purchases
+                    .iter()
+                    .find(|p| p.agent == WORKER)
+                    .unwrap();
+                assert_eq!(due.opening_cash, 3);
+                assert_eq!(due.protected_cash, 0);
+                assert_eq!(due.matched_lots, 1);
+            }
+        }
+    }
+}

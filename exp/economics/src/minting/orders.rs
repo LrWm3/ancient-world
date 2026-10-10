@@ -43,6 +43,16 @@ pub struct Order {
     pub lots: i32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PurchaseBudget {
+    pub agent: AgentId,
+    pub requested_lots: i32,
+    pub opening_cash: i32,
+    pub protected_cash: i128,
+    pub affordable_lots: i32,
+    pub submitted_lots: i32,
+    pub matched_lots: i32,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
     pub target_month: Option<u32>,
     pub required_funding: i32,
@@ -51,6 +61,7 @@ pub struct Plan {
     /// Procurement status; public stock sales may settle even when minting is idle.
     pub reason: String,
     pub provision: Vec<super::provisioning::Decision>,
+    pub purchases: Vec<PurchaseBudget>,
 }
 
 pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
@@ -237,9 +248,23 @@ fn public_sales(
                 .get(&(q.agent, c.coin))
                 .copied()
                 .unwrap_or(0);
+            let commitments = crate::need_orders::claims(w, s, q.agent, policy.claim_months)?;
+            let protected_cash = commitments.get(&c.coin).copied().unwrap_or(0);
+            let affordable_lots = ((i128::from(cash) - protected_cash).max(0)
+                / i128::from(p.sale_limit))
+            .min(i128::from(MAX_LOTS)) as i32;
             let lots = needed
                 .min(q.max_lots.unwrap_or(MAX_LOTS))
-                .min(cash / p.sale_limit);
+                .min(affordable_lots);
+            plan.purchases.push(PurchaseBudget {
+                agent: q.agent,
+                requested_lots: needed,
+                opening_cash: cash,
+                protected_cash,
+                affordable_lots,
+                submitted_lots: lots,
+                matched_lots: 0,
+            });
             if lots > 0 {
                 demand += lots;
                 plan.orders.push(Order {
@@ -262,7 +287,15 @@ fn public_sales(
             });
         }
     }
-    clear(w, s, c, plan, opening)
+    clear(w, s, c, plan, opening)?;
+    for budget in &mut plan.purchases {
+        budget.matched_lots = plan
+            .deals
+            .iter()
+            .filter(|d| d.buyer == budget.agent && d.market == p.sale_market)
+            .count() as i32;
+    }
+    Ok(())
 }
 pub(super) fn generate_fixed(
     w: &World,
@@ -286,6 +319,7 @@ pub(super) fn generate_fixed(
     let mut plan = Plan {
         target_month: target,
         provision: vec![],
+        purchases: vec![],
         required_funding: 0,
         orders: vec![],
         deals: vec![],
