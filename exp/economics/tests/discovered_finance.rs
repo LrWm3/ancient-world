@@ -365,8 +365,72 @@ fn discovery_interest_rates_use_the_contract_execution_bounds() {
         if rate <= 10_000 {
             assert!(result.is_ok());
         } else {
-            let error = result.err().expect("invalid rate was accepted");
+            let error = result.expect_err("invalid rate was accepted");
             assert!(error.contains("discovery monthly interest rate"), "{error}");
         }
+    }
+}
+
+#[test]
+fn discovered_loans_respect_unused_purchase_offer_identities() {
+    use economics_compute_smoke::{borrowing, credit};
+    for offer_id in [1, 99] {
+        let (mut w, s) = mint_loan(1);
+        let asset = w.assets.iter().find(|a| a.owner == ISSUER).unwrap().id;
+        w.credit = Some(credit::Config {
+            stock_sales: None,
+            purchase_policy: borrowing::Policy::Decline,
+            resale_buyer: None,
+            attached_rights: Default::default(),
+            offers: vec![credit::Offer {
+                id: offer_id,
+                sale: credit::Sale {
+                    asset,
+                    seller: ISSUER,
+                    price: Amount::new(COIN, 10),
+                },
+                loan: credit::LoanOffer {
+                    creditor: ISSUER,
+                    denomination: COIN,
+                    max_principal: 9,
+                    monthly_rate_bps: 0,
+                    term_months: 8,
+                    grace_months: 1,
+                },
+                minimum_downpayment: 1,
+                collateral: credit::Collateral {
+                    asset,
+                    priority: 1,
+                    settlement: credit::CollateralSettlement::FixedValue { value: 10 },
+                    pledged: true,
+                },
+            }],
+            application: credit::Application {
+                offer: offer_id,
+                buyer: WORKER,
+                month: 1,
+                downpayment: 1,
+            },
+            endowments: vec![],
+            transfers: vec![],
+        });
+        let reference = run(w.clone(), s.clone(), Backend::Reference);
+        let cpu = run(w, s, Backend::CubeCpu);
+        assert_eq!(cpu.world, reference.world);
+        assert_eq!(cpu.state, reference.state);
+        assert_eq!(cpu.ledger, reference.ledger);
+        let loan = &cpu.state.credit.loans[&(offer_id + 1)];
+        assert_eq!(
+            (loan.original_principal, loan.status),
+            (6, credit::Status::Repaid)
+        );
+        assert!(!cpu.state.credit.loans.contains_key(&offer_id));
+        assert_eq!(credit::owner(&cpu.world, &cpu.state, asset), Some(ISSUER));
+        assert!(
+            cpu.state
+                .processes
+                .values()
+                .any(|p| p.definition == MINT && p.status == Status::Completed)
+        );
     }
 }

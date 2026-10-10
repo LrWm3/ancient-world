@@ -156,7 +156,8 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
             w.lending
                 .iter()
                 .map(|l| l.id)
-                .chain(s.credit.loans.keys().copied()),
+                .chain(s.credit.loans.keys().copied())
+                .chain(w.credit.iter().flat_map(|c| c.offers.iter().map(|o| o.id))),
         )?;
         let advance = crate::credit::Advance {
             id,

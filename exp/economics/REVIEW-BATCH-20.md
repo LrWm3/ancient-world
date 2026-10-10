@@ -136,3 +136,14 @@ repeatedly proposed and rejected in private rollouts. The temporary invalid-rate
 projection fixture was replaced by endpoint/extreme configuration controls.
 Candidate-specific projection failures remain observable. Nine financial controls
 pass; independent review found no blocker.
+
+## 12. Compose discovered loans with configured purchase offers
+
+Loan identity allocation now includes unused financed-purchase offer IDs, matching
+the credit adapter's shared identity rules. Previously offer ID 1 blocked a useful
+mint loan with a duplicate-ID projection error; changing only the offer ID to 99
+made it succeed. Controls now discover IDs 2 and 100 respectively, complete minting
+and repay while the declined property purchase leaves ownership unchanged.
+CPU/reference state and ledger agree under financial audit. Ten finance tests and
+strict all-target Clippy pass; the latter also corrected the preceding test's
+`err().expect()` style. Independent review found no blocker.
