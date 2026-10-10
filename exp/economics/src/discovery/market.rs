@@ -1,6 +1,12 @@
 use super::*;
 use crate::marketplace::Side;
 
+fn stocking_target(need: i32, output: i32, input: i32, months: u32) -> Result<i32, String> {
+    let batches = (i128::from(need) + i128::from(output) - 1) / i128::from(output);
+    i32::try_from(batches * i128::from(input) * i128::from(months))
+        .map_err(|_| "food target overflow".into())
+}
+
 /// Generic counterparties come from venue eligibility and useful stocks/capacity.
 /// Price limits remain explicit valuation assumptions, not negotiated ZIP prices.
 pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String> {
@@ -52,12 +58,12 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
                         .map(|a| a.quantity)
                         .sum();
                     target = target
-                        .checked_add(
-                            ((need.quantity + output.quantity - 1) / output.quantity)
-                                .checked_mul(input)
-                                .and_then(|q| q.checked_mul(c.horizon as i32))
-                                .ok_or("food target overflow")?,
-                        )
+                        .checked_add(stocking_target(
+                            need.quantity,
+                            output.quantity,
+                            input,
+                            c.horizon,
+                        )?)
                         .ok_or("food target overflow")?;
                 }
             }
@@ -126,4 +132,17 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
     policy.quotes = quotes;
     policy.public_sale = public_sale;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stocking_target;
+
+    #[test]
+    fn large_batches_round_without_overflowing_the_intermediate_sum() {
+        assert_eq!(stocking_target(i32::MAX, i32::MAX, 1, 4).unwrap(), 4);
+        assert_eq!(stocking_target(i32::MAX, i32::MAX - 1, 1, 4).unwrap(), 8);
+        assert_eq!(stocking_target(5, 2, 3, 4).unwrap(), 36);
+        assert!(stocking_target(i32::MAX, 1, 1, 4).is_err());
+    }
 }

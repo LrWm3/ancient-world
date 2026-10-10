@@ -85,3 +85,13 @@ buyer, just as an outstanding accepted delivery already did. Different resources
 use stable resource-ID order; this is an explicit bounded search order, not a
 claim of optimal procurement. Duplicate and distinct-resource controls select
 one offer even when objective order is reversed. All six finance tests pass.
+
+## 7. Widen demand rounding before arithmetic
+
+Stocking demand now rounds consumption batches in widened units before checking
+that the final stock target fits. Equal near-maximum need and recipe output still
+require one batch; a remainder requires a second. An unrepresentable target fails
+Open with a specific error and leaves world, state and ledger unchanged. The
+boundary arithmetic and public rollback controls pass. Input sums already bounded
+by catalog validation were left unchanged. Independent review corrected an empty
+worker-needs fixture before the final passing run.

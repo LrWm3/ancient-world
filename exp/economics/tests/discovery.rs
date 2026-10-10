@@ -390,3 +390,19 @@ fn land_admission_preserves_unpaid_process_inputs_but_not_consumed_inputs() {
         );
     }
 }
+
+#[test]
+fn unrepresentable_discovered_demand_rejects_open_atomically() {
+    let (mut w, s) = scenario::scenario().unwrap();
+    w.participants
+        .iter_mut()
+        .find(|p| p.agent == SUPPLIER)
+        .unwrap()
+        .needs[0]
+        .quantity = i32::MAX;
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    let before = (sim.world.clone(), sim.state.clone(), sim.ledger.clone());
+    let error = sim.step().unwrap_err();
+    assert!(error.contains("food target overflow"), "{error}");
+    assert_eq!((sim.world, sim.state, sim.ledger), before);
+}
