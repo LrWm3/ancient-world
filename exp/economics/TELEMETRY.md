@@ -342,3 +342,22 @@ Forecasts produce no live logs, and failed Open commits publish no decision.
 The controller retains these receipts in `World.agency` independently of logging.
 Actual economic effects remain in ordinary settlement records and financial books.
 See [state agency](STATE-AGENCY.md) for scope, observations and CPU/accounting tests.
+
+## Discovered supply and public purchases
+
+The [review iterations](REVIEW-ITERATIONS.md) add two read-only receipt views.
+`discovered_supply` appears under planning observation for selected people, only
+when new supply decisions are committed at Open. It contains the available and
+protected quantities, selected lots and baseline losses; Alternatives detail adds
+attempted lots, conditional proceeds, projected losses and failure messages.
+Losses and conditional proceeds are decimal strings. Observer attachment and
+continuation do not re-export prior decision history; private forecasts remain
+unobserved.
+
+`public_purchase` appears under settlement observation for a selected buyer **or**
+issuer. It reports requested lots, shared opening cash, protected cash (a decimal
+string), affordable/submitted/matched lots, and settled lots from accepted deal
+receipts. `physical_minting_orders.reason` still describes procurement, so it can
+say minting is idle while public sales settle. Use these separate records to tell
+an unsubmitted request from a matching failure or completed payment. Existing
+agent/month filters and log limits apply to both new record kinds.

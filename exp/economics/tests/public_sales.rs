@@ -498,3 +498,133 @@ fn collected_coin_claim_is_not_protected_twice_at_purchase_boundary() {
     assert_eq!(sim.state.exchange.forwards[&900].delivered, 3);
     assert_eq!(sim.state.balance(WORKER, COIN), 0);
 }
+
+fn rows(bytes: Vec<u8>) -> Vec<serde_json::Value> {
+    String::from_utf8(bytes)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
+}
+
+#[test]
+fn observers_expose_buyer_budgets_and_only_new_committed_supply_without_changing_books() {
+    use economics_compute_smoke::telemetry::{Config, Observer, PlanningDetail};
+    let (w, s) = discovered();
+    let (plain, book) = run(w.clone(), s.clone(), Backend::CubeCpu, 3);
+    let mut observed = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    let mut audit = scenario::audit(&observed.world, &observed.state).unwrap();
+    let mut observer = Observer::new(
+        vec![],
+        "buyer",
+        Config {
+            planning: PlanningDetail::Alternatives,
+            settlement: true,
+            agents: [WORKER].into(),
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    while observed.state.month <= 3 {
+        observer.step_audited(&mut observed, &mut audit).unwrap();
+    }
+    assert_eq!(observed.world, plain.world);
+    assert_eq!(observed.state, plain.state);
+    assert_eq!(observed.ledger, plain.ledger);
+    assert_eq!(audit, book);
+    let data = rows(observer.finish().unwrap());
+    let purchases: Vec<_> = data
+        .iter()
+        .filter(|r| r["kind"] == "public_purchase")
+        .collect();
+    assert!(!purchases.is_empty());
+    assert!(
+        purchases
+            .iter()
+            .all(|r| r["agent"] == WORKER && r["protected_cash"].is_string())
+    );
+    assert_eq!(
+        purchases
+            .iter()
+            .map(|r| r["settled_lots"].as_u64().unwrap())
+            .sum::<u64>(),
+        food_sales(&observed) as u64
+    );
+    assert!(!data.iter().any(|r| r["kind"] == "physical_minting_orders"));
+    let supply: Vec<_> = data
+        .iter()
+        .filter(|r| r["kind"] == "discovered_supply")
+        .collect();
+    let expected = observed
+        .world
+        .discovery
+        .as_ref()
+        .unwrap()
+        .supply
+        .iter()
+        .filter(|d| d.agent == WORKER)
+        .count();
+    assert_eq!(supply.len(), expected);
+    assert!(supply.iter().all(|r| r["alternatives"].is_array()));
+    // A new observer at the next Open exports only decisions made after attachment.
+    let mut resumed = Observer::new(
+        vec![],
+        "next",
+        Config {
+            planning: PlanningDetail::Selected,
+            metrics: false,
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    resumed.run_months(&mut observed, 1).unwrap();
+    let data = rows(resumed.finish().unwrap());
+    let supply: Vec<_> = data
+        .iter()
+        .filter(|r| r["kind"] == "discovered_supply")
+        .collect();
+    assert!(!supply.is_empty());
+    assert!(
+        supply
+            .iter()
+            .all(|r| r["month"] == 4 && r.get("alternatives").is_none())
+    );
+}
+
+#[test]
+fn observer_filters_limits_and_failed_open_do_not_publish_hypotheses() {
+    use economics_compute_smoke::telemetry::{Config, Observer, PlanningDetail};
+    for case in ["month", "limit", "failure", "off"] {
+        let (w, s) = discovered();
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        let config = Config {
+            planning: if case == "off" {
+                PlanningDetail::Off
+            } else {
+                PlanningDetail::Alternatives
+            },
+            settlement: true,
+            metrics: false,
+            first_month: if case == "month" { 2 } else { 0 },
+            log_limit: if case == "limit" { 0 } else { 1000 },
+            ..Config::default()
+        };
+        if case == "failure" {
+            sim.effect_limit = 0;
+        }
+        let mut observer = Observer::new(vec![], "controls", config).unwrap();
+        let result = observer.step(&mut sim);
+        if case == "failure" {
+            assert!(result.is_err());
+        } else {
+            result.unwrap();
+        }
+        let data = rows(observer.finish().unwrap());
+        assert!(
+            !data
+                .iter()
+                .any(|r| r["kind"] == "discovered_supply" || r["kind"] == "public_purchase"),
+            "{case}"
+        );
+    }
+}

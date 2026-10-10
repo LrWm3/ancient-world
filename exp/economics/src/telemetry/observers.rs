@@ -39,8 +39,31 @@ pub(super) fn batch(
     world: &World,
     batch: &Batch,
     pending: &mut Vec<Pending>,
+    supply_from: usize,
 ) -> Vec<Value> {
     let mut records = vec![];
+    if config.planning != PlanningDetail::Off
+        && batch.phase == Phase::Open
+        && let Some(c) = &world.discovery
+    {
+        for d in c
+            .supply
+            .iter()
+            .skip(supply_from)
+            .filter(|d| d.month == batch.month && selected(config, d.agent))
+        {
+            let mut row = json!({"kind":"discovered_supply", "month":d.month,"agent":d.agent,
+                "market":d.market,"resource":d.resource,"available":d.available,"protected":d.protected,
+                "selected_lots":d.selected_lots,"baseline_losses":d.baseline.iter().map(ToString::to_string).collect::<Vec<_>>()});
+            if config.planning == PlanningDetail::Alternatives {
+                row["alternatives"]=json!(d.alternatives.iter().map(|a|json!({"lots":a.lots,
+                    "conditional_proceeds":a.proceeds.to_string(),
+                    "losses":a.losses.as_ref().map(|v|v.iter().map(ToString::to_string).collect::<Vec<_>>()),
+                    "failure":a.failure})).collect::<Vec<_>>());
+            }
+            records.push(row);
+        }
+    }
     if config.settlement
         && let Some(b) = &batch.employment
     {
@@ -168,6 +191,28 @@ pub(super) fn batch(
         && let Some(c) = &world.minting
     {
         if let Some(boundary) = &batch.minting {
+            if let Some(plan) = &boundary.plan {
+                for budget in &plan.purchases {
+                    if selected(config, budget.agent) || selected(config, c.issuer) {
+                        let settled_lots = boundary
+                            .receipts
+                            .iter()
+                            .filter(|r| r.accepted)
+                            .flat_map(|r| &r.deals)
+                            .filter(|id| {
+                                boundary.deals.iter().any(|d| {
+                                    d.id == **id && d.buyer == budget.agent && d.seller == c.issuer
+                                })
+                            })
+                            .count();
+                        records.push(json!({"kind":"public_purchase","month":batch.month,"agent":budget.agent,
+                            "issuer":c.issuer,"market":c.order_policy.as_ref().map(|p|p.sale_market),
+                            "requested_lots":budget.requested_lots,"opening_cash":budget.opening_cash,
+                            "protected_cash":budget.protected_cash.to_string(),"affordable_lots":budget.affordable_lots,
+                            "submitted_lots":budget.submitted_lots,"matched_lots":budget.matched_lots,"settled_lots":settled_lots}));
+                    }
+                }
+            }
             if let Some(plan) = &boundary.plan
                 && selected(config, c.issuer)
             {

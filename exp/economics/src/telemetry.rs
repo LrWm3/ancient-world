@@ -165,6 +165,7 @@ impl<W: Write> Observer<W> {
         }
         let batches = sim.ledger.len();
         let reports = sim.reports.len();
+        let supply_from = sim.world.discovery.as_ref().map_or(0, |c| c.supply.len());
         let month = sim.state.month;
         let phase = format!("{:?}", sim.state.phase);
         let state_authority = (self.config.settlement && sim.state.phase == Phase::Open)
@@ -196,7 +197,13 @@ impl<W: Write> Observer<W> {
                         "issued_month":a.instruction.as_ref().map(|p|p.issued_month),
                         "authorized_by":a.instruction.as_ref().map(|p|p.change.authorized_by)}))?;
                 }
-                for record in observers::batch(&self.config, &sim.world, batch, &mut self.pending) {
+                for record in observers::batch(
+                    &self.config,
+                    &sim.world,
+                    batch,
+                    &mut self.pending,
+                    supply_from,
+                ) {
                     self.log(record)?;
                 }
             }

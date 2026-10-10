@@ -88,3 +88,29 @@ controls passed. Earlier replenishment changed when the nine-coin buyer trades,
 so a separate due-boundary fixture now isolates collection-plus-purchase behavior.
 Strict all-target Clippy, formatting and artifact checks passed. Independent
 review found no blocker; next is read-only observer coverage of these decisions.
+
+## 4. Observe supply and purchase decisions
+
+Independent review found that the new internal receipts were missing from useful
+buyer-filtered logs. The existing read-only observer now emits `public_purchase`
+for a selected buyer or issuer, showing requested, cash-protected, affordable,
+submitted, matched and actually settled lots. Settlement counts come from accepted
+boundary receipts, not a projection or a quote.
+
+Planning observers export `discovered_supply` only for new decisions committed
+by the observed Open. Selected detail includes the chosen quantity and baseline;
+Alternatives adds attempted lots, conditional proceeds, losses and errors.
+Large integer monetary/loss values are decimal strings. Capturing the pre-step
+history length avoids exporting old decisions when attaching or resuming an
+observer. No callbacks run inside private forecasts.
+
+Controls compare observed and unobserved CPU worlds, state, ledgers and audited
+books; verify buyer-only filtering, separate settlement reconciliation, continuation
+without backfill, detail levels, month/log limits and absence of fabricated
+supply records after a failed Open.
+
+Validation: 34 public-sale, fixed-order and telemetry tests passed, including the
+CPU accounting comparison. Strict all-target Clippy, formatting and repository
+artifact checks passed. Independent production review found no blocker. Next:
+combine discovered paid labor with later need-driven public food purchases in one
+finite circulation control, instead of assuming the separate adapters compose.
