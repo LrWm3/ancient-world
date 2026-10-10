@@ -320,6 +320,7 @@ fn public_purchase_protects_accepted_coin_delivery_and_records_the_tradeoff() {
     use economics_compute_smoke::forward::direct::Terms;
     for (claim, cash, expected_sales) in [(false, 3, 1), (true, 3, 0), (true, 6, 1), (true, 9, 2)] {
         let (mut w, mut s) = discovered();
+        w.discovery.as_mut().unwrap().horizon = 3;
         s.balances.insert((WORKER, COIN), cash);
         if claim {
             // A finite accepted coin-denominated delivery; its old advance is
@@ -368,24 +369,132 @@ fn public_purchase_protects_accepted_coin_delivery_and_records_the_tradeoff() {
         assert_eq!(deficit, if expected_sales == 0 { 3 } else { 0 });
         if claim {
             assert_eq!(sim.state.exchange.forwards[&900].delivered, 3);
-            if cash == 9 {
-                let due = sim
-                    .ledger
-                    .iter()
-                    .filter_map(|b| b.minting.as_ref())
-                    .find(|b| b.month == 4)
-                    .unwrap()
-                    .plan
-                    .as_ref()
-                    .unwrap()
-                    .purchases
-                    .iter()
-                    .find(|p| p.agent == WORKER)
-                    .unwrap();
-                assert_eq!(due.opening_cash, 3);
-                assert_eq!(due.protected_cash, 0);
-                assert_eq!(due.matched_lots, 1);
-            }
         }
     }
+}
+
+#[test]
+fn one_month_sub_lot_need_buys_food_without_rounding_away_demand() {
+    let (mut w, s) = discovered();
+    w.discovery.as_mut().unwrap().horizon = 1;
+    let (sim, _) = run(w, s, Backend::CubeCpu, 3);
+    assert_eq!(food_sales(&sim), 1);
+    assert!(
+        sim.reports
+            .iter()
+            .filter(|r| r.agent == WORKER && r.month > 1)
+            .all(|r| r.deficit(NUTRITION) == 0)
+    );
+    let plan = sim
+        .ledger
+        .iter()
+        .filter_map(|b| b.minting.as_ref())
+        .find(|b| b.month == 2)
+        .unwrap()
+        .plan
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        plan.purchases
+            .iter()
+            .find(|p| p.agent == WORKER)
+            .unwrap()
+            .requested_lots,
+        1
+    );
+}
+
+#[test]
+fn buy_lot_rounding_preserves_caps_cash_storage_and_covered_targets() {
+    use economics_compute_smoke::marketplace::Side;
+    for (target, held, cap, cash, storage, requested, matched) in [
+        (1, 0, None, 3, 32, 1, 1),
+        (3, 2, None, 3, 32, 1, 1),
+        (3, 3, None, 3, 32, 0, 0),
+        (4, 0, None, 6, 32, 2, 2),
+        (4, 0, None, 3, 32, 2, 1),
+        (1, 0, Some(0), 3, 32, 1, 0),
+        (1, 0, None, 0, 32, 1, 0),
+        (1, 0, None, 3, 0, 1, 0),
+        (i32::MAX, 0, Some(0), 0, 32, 715827883, 0),
+    ] {
+        let (mut w, mut s) = minting::order_scenario("normal").unwrap();
+        let policy = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+        policy.public_sale = Some(StockSales {
+            reserve: 0,
+            claim_months: 1,
+        });
+        policy
+            .quotes
+            .retain(|q| q.side != Side::Buy || q.agent == WORKER);
+        let q = policy
+            .quotes
+            .iter_mut()
+            .find(|q| q.side == Side::Buy)
+            .unwrap();
+        q.holding = target;
+        q.max_lots = cap;
+        s.balances.insert((WORKER, WHEAT), held);
+        s.balances.insert((WORKER, COIN), cash);
+        s.balances.insert((ISSUER, WHEAT), 6);
+        w.storage.capacities.insert(WORKER, storage);
+        s.phase = Phase::Acquire;
+        let c = w.minting.as_ref().unwrap();
+        let p = minting::orders::generate(&w, &s, c, c.order_policy.as_ref().unwrap()).unwrap();
+        let b = p.purchases.iter().find(|b| b.agent == WORKER).unwrap();
+        assert_eq!(b.requested_lots, requested, "target={target},held={held}");
+        assert_eq!(
+            b.matched_lots, matched,
+            "target={target},cap={cap:?},cash={cash},storage={storage}"
+        );
+        assert!(
+            p.deals
+                .iter()
+                .filter(|d| d.buyer == WORKER)
+                .map(|d| d.price)
+                .sum::<i32>()
+                <= cash
+        );
+    }
+}
+
+#[test]
+fn collected_coin_claim_is_not_protected_twice_at_purchase_boundary() {
+    use economics_compute_smoke::{forward::direct::Terms, marketplace::Side};
+    let (mut w, mut s) = minting::order_scenario("normal").unwrap();
+    let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+    p.public_sale = Some(StockSales {
+        reserve: 0,
+        claim_months: 2,
+    });
+    p.quotes
+        .retain(|q| q.side != Side::Buy || q.agent == WORKER);
+    w.storage.weights.insert(METAL, 0);
+    let terms = Terms {
+        id: 900,
+        seller: WORKER,
+        buyer: ISSUER,
+        month: 1,
+        due: 3,
+        goods: Amount::new(COIN, 3),
+        prepayment: Amount::new(METAL, 1),
+    };
+    s.exchange.forwards.insert(900, terms.contract());
+    w.prepaid_deliveries.push(terms);
+    s.month = 3;
+    s.balances.insert((WORKER, COIN), 6);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.run_months(1).unwrap();
+    let budget = sim
+        .ledger
+        .iter()
+        .filter_map(|b| b.minting.as_ref())
+        .flat_map(|b| &b.plan.as_ref().unwrap().purchases)
+        .find(|b| b.agent == WORKER)
+        .unwrap();
+    assert_eq!(budget.opening_cash, 3);
+    assert_eq!(budget.protected_cash, 0);
+    assert_eq!(budget.matched_lots, 1);
+    assert_eq!(sim.state.exchange.forwards[&900].delivered, 3);
+    assert_eq!(sim.state.balance(WORKER, COIN), 0);
 }

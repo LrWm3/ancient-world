@@ -5,6 +5,12 @@ use crate::marketplace::{MarketId, Side};
 const MAX_LOTS: i32 = 64;
 const MAX_QUOTES: usize = 32;
 
+/// A positive unmet target requires a whole lot, even when smaller than that lot.
+fn buy_lots(target: i32, held: i32, lot: i32) -> i32 {
+    let gap = (i64::from(target) - i64::from(held)).max(0);
+    ((gap + i64::from(lot) - 1) / i64::from(lot)) as i32
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
     pub month: u32,
@@ -241,8 +247,11 @@ fn public_sales(
             if !super::eligible(w, s, c.venue, q.agent) || q.limit < p.sale_limit {
                 continue;
             }
-            let needed = (q.holding - s.balance(q.agent, market.goods.resource)).max(0)
-                / market.goods.quantity;
+            let needed = buy_lots(
+                q.holding,
+                s.balance(q.agent, market.goods.resource),
+                market.goods.quantity,
+            );
             let cash = opening
                 .available
                 .get(&(q.agent, c.coin))
@@ -384,17 +393,20 @@ pub(super) fn generate_fixed(
         }
         let m = market(q.market)?;
         let held = s.balance(q.agent, m.goods.resource);
-        let quantity = match q.side {
-            Side::Buy => (q.holding - held).max(0),
-            Side::Sell => (opening
-                .available
-                .get(&(q.agent, m.goods.resource))
-                .copied()
-                .unwrap_or(0)
-                - q.holding)
-                .max(0),
+        let lots = match q.side {
+            Side::Buy => buy_lots(q.holding, held, m.goods.quantity),
+            Side::Sell => {
+                (opening
+                    .available
+                    .get(&(q.agent, m.goods.resource))
+                    .copied()
+                    .unwrap_or(0)
+                    - q.holding)
+                    .max(0)
+                    / m.goods.quantity
+            }
         };
-        let lots = (quantity / m.goods.quantity).min(q.max_lots.unwrap_or(MAX_LOTS));
+        let lots = lots.min(q.max_lots.unwrap_or(MAX_LOTS));
         if lots > 0 {
             plan.orders.push(Order {
                 agent: q.agent,

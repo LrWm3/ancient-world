@@ -61,9 +61,30 @@ claim actually settles in month four. Keeping only enough money for the claim
 therefore produces three food deficits in months two through four, which the test
 asserts rather than treating conservation as good economic balance.
 
-A fourth case with nine coins also pays the claim and buys food at that same
-Acquire boundary using remaining opening cash. Its receipt shows zero remaining
+A separate due-boundary case with six coins pays the three-coin claim and buys
+food at that same Acquire boundary using remaining opening cash. Its receipt shows zero remaining
 protected claim, guarding against subtracting a collected debt twice. Validation:
 29 tests across public sales, orders and provisioning passed; the expanded
 seven-test public-sale target passed again. Strict all-target Clippy, formatting
 and artifact checks passed; independent review found no blocker.
+
+## 3. Whole-lot demand for small needs
+
+Independent review confirmed that floor division silently removed positive buying
+needs smaller than a market lot. Fixed and public-sale buyers now use widened
+ceiling division of the unmet target. Sellers still round down; no fractional
+inventory or cash is invented. Quote ceilings, opening cash, claims and actual
+shared storage admission still constrain fills. Buying one whole lot may exceed
+the target; stored remainder reduces subsequent demand.
+
+New controls cover a one-month nutrition target buying a three-grain lot and
+actually consuming food on CPU; partial and sufficient holdings; multi-lot gaps;
+zero authorization; insufficient cash/storage; and maximum integer target without
+overflow. The prior cash-commitment comparison now uses a three-month target (one
+exact lot), keeping that policy comparison independent of the rounding correction.
+
+Validation: 34 discovery/order/provisioning regressions and all ten public-sale
+controls passed. Earlier replenishment changed when the nine-coin buyer trades,
+so a separate due-boundary fixture now isolates collection-plus-purchase behavior.
+Strict all-target Clippy, formatting and artifact checks passed. Independent
+review found no blocker; next is read-only observer coverage of these decisions.
