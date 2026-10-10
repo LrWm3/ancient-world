@@ -350,6 +350,43 @@ pub(crate) fn protected_stock(
         .collect())
 }
 
+/// Smallest bounded stock purchase achieving the best non-worsening consumption
+/// outcome. Uses current stocks and claims; future harvests and fills are absent.
+pub(crate) fn purchase_lots(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    goods: &Amount,
+    months: u32,
+    maximum: i32,
+) -> Result<i32, String> {
+    let claims = protected_claims(world, state, agent, months)?;
+    let stocks = stock_map(&state.balances, agent);
+    let mut before = unclaimed(&stocks, &claims);
+    let mut best = consume(world, state, agent, months, &mut before, false)?;
+    let mut selected = 0;
+    for lots in 1..=maximum {
+        if best.values().all(|q| *q == 0) {
+            break;
+        }
+        let quantity = stocks.get(&goods.resource).copied().unwrap_or(0)
+            + i128::from(lots) * i128::from(goods.quantity);
+        if quantity > i128::from(i32::MAX) {
+            break;
+        }
+        let mut candidate = stocks.clone();
+        candidate.insert(goods.resource, quantity);
+        let mut available = unclaimed(&candidate, &claims);
+        let deficits = consume(world, state, agent, months, &mut available, false)?;
+        if deficits.iter().all(|(r, q)| *q <= best[r]) && deficits.iter().any(|(r, q)| *q < best[r])
+        {
+            selected = lots;
+            best = deficits;
+        }
+    }
+    Ok(selected)
+}
+
 fn unclaimed(
     stocks: &BTreeMap<ResourceId, i128>,
     claims: &BTreeMap<ResourceId, i128>,

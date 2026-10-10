@@ -351,3 +351,163 @@ fn collective_surplus_sales_preserve_member_food_and_household_claims() {
         );
     }
 }
+
+#[test]
+fn collective_need_bids_use_private_food_and_policy_with_finite_money() {
+    use economics_compute_smoke::household_governance::Policy;
+    for case in ["hungry", "private food", "no cash", "wealth policy"] {
+        let (mut w, mut s) = household_fixture();
+        s.balances.insert((HOME, WHEAT), 0);
+        s.balances.insert((HOME, COIN), 3);
+        s.balances.insert((WORKER, WHEAT), 4);
+        s.balances.insert((WORKER, COIN), 0);
+        match case {
+            "private food" => {
+                s.balances.insert((SUPPLIER, WHEAT), 1);
+                s.balances.insert((GROWER, WHEAT), 1);
+            }
+            "no cash" => {
+                s.balances.insert((HOME, COIN), 0);
+            }
+            "wealth policy" => {
+                w.households[0].governance.charter.initial_policy = Policy::NetOutput
+            }
+            _ => {}
+        }
+        let (reference, book) = run(w.clone(), s.clone(), Backend::Reference);
+        let (cpu, cpu_book) = run(w, s, Backend::CubeCpu);
+        assert_eq!(cpu.world, reference.world);
+        assert_eq!(cpu.state, reference.state);
+        assert_eq!(cpu.ledger, reference.ledger);
+        assert_eq!(cpu_book, book);
+        let deals = sales(&cpu);
+        assert_eq!(deals.len(), usize::from(case == "hungry"), "{case}");
+        if case == "hungry" {
+            assert_eq!((deals[0].seller, deals[0].buyer), (WORKER, HOME));
+            assert_eq!(cpu.state.balance(HOME, COIN), 0);
+            assert!(
+                cpu.reports
+                    .iter()
+                    .filter(|r| [SUPPLIER, GROWER, WORKER].contains(&r.agent))
+                    .all(|r| r.deficit(NUTRITION) == 0)
+            );
+        }
+        let quotes = &cpu
+            .world
+            .minting
+            .as_ref()
+            .unwrap()
+            .order_policy
+            .as_ref()
+            .unwrap()
+            .quotes;
+        assert_eq!(
+            quotes
+                .iter()
+                .any(|q| q.agent == HOME
+                    && q.side == economics_compute_smoke::marketplace::Side::Buy),
+            case == "hungry" || case == "no cash"
+        );
+    }
+}
+
+#[test]
+fn collective_bids_search_past_individually_useless_small_lots() {
+    let (mut w, mut s) = household_fixture();
+    s.balances.insert((HOME, WHEAT), 0);
+    s.balances.insert((HOME, COIN), 4);
+    s.balances.insert((WORKER, WHEAT), 6);
+    for d in w
+        .definitions
+        .iter_mut()
+        .filter(|d| d.execution == Execution::Consumption)
+    {
+        for a in d
+            .stages
+            .iter_mut()
+            .flat_map(|s| &mut s.entry_inputs)
+            .filter(|a| a.resource == WHEAT)
+        {
+            a.quantity = 2;
+        }
+    }
+    w.marketplaces
+        .iter_mut()
+        .find(|v| v.agent == VENUE)
+        .unwrap()
+        .markets
+        .iter_mut()
+        .find(|m| m.id == WHEAT)
+        .unwrap()
+        .goods
+        .quantity = 1;
+    w.minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .sale_limit = 1;
+    let (sim, _) = run(w, s, Backend::CubeCpu);
+    let q = sim
+        .world
+        .minting
+        .as_ref()
+        .unwrap()
+        .order_policy
+        .as_ref()
+        .unwrap()
+        .quotes
+        .iter()
+        .find(|q| q.agent == HOME)
+        .unwrap();
+    assert_eq!(q.max_lots, Some(4));
+    assert_eq!(sales(&sim).len(), 4);
+    assert!(
+        sim.reports
+            .iter()
+            .filter(|r| [SUPPLIER, GROWER, WORKER].contains(&r.agent))
+            .all(|r| r.deficit(NUTRITION) == 0)
+    );
+}
+
+#[test]
+fn collective_purchase_money_protects_unfunded_member_coin_claims() {
+    use economics_compute_smoke::forward::direct::Terms;
+    for claim in [false, true] {
+        let (mut w, mut s) = household_fixture();
+        w.discovery.as_mut().unwrap().horizon = 2;
+        s.balances.insert((HOME, WHEAT), 0);
+        s.balances.insert((HOME, COIN), 3);
+        s.balances.insert((SUPPLIER, COIN), 0);
+        s.balances.insert((WORKER, WHEAT), 5);
+        if claim {
+            w.storage.weights.insert(METAL, 0);
+            let t = Terms {
+                id: 900,
+                seller: SUPPLIER,
+                buyer: ISSUER,
+                month: 1,
+                due: 2,
+                goods: Amount::new(COIN, 3),
+                prepayment: Amount::new(METAL, 1),
+            };
+            s.exchange.forwards.insert(t.id, t.contract());
+            w.prepaid_deliveries.push(t);
+        }
+        // This denomination-swap fixture exercises claim protection only;
+        // it is outside the reporting-coin forward valuation adapter.
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.run_months(1).unwrap();
+        let b = sim
+            .ledger
+            .iter()
+            .filter_map(|b| b.minting.as_ref())
+            .flat_map(|b| &b.plan.as_ref().unwrap().purchases)
+            .find(|b| b.agent == HOME)
+            .unwrap();
+        assert_eq!(b.protected_cash, if claim { 3 } else { 0 });
+        assert_eq!(b.submitted_lots, i32::from(!claim));
+        assert_eq!(sales(&sim).len(), usize::from(!claim));
+    }
+}

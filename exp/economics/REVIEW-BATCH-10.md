@@ -45,3 +45,23 @@ The opt-in path also honors existing collective purchasing charters: members do
 not bid against their household for food. Five private-sale and thirteen supplier
 forecast tests pass, including identical-horizon household/member claim controls
 and audited CPU continuation. Collective buying is the next bounded adapter.
+
+## 3. Collective consumption bids
+
+The private-market option now lets households buy food under their existing
+collective purchasing charter and permitted needs-oriented policy. A bounded
+whole-lot search reuses the ordinary consumption and claim readers, offsets member
+private food, and chooses the smallest count attaining its best non-worsening
+consumption result. It does not assume future harvests, wages or market fills.
+
+The quote preserves its lot authorization. Clearing protects collective and
+member monetary claims, then enforces real opening money and storage. A household
+with no money can express demand without receiving an invented purchase. Wealth
+policies do not acquire a new food-buy mandate.
+
+Eight private-market tests, twelve household-market tests and eleven need-order
+tests pass. Coverage includes multi-lot minimum useful consumption and collective
+cash protection for an unfunded member claim. The coin-delivery/metal-prepayment
+claim fixture checks physical simulation only: that denomination swap is outside
+the reporting-coin-advance/noncoin-delivery valuation adapter. Normal food trades
+retain full audited CPU/reference comparisons; this is not broader FX support.

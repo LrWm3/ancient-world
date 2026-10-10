@@ -1,6 +1,8 @@
 use super::*;
 use crate::marketplace::Side;
 
+const MAX_HOUSEHOLD_PURCHASE_LOTS: i32 = 64;
+
 fn stocking_target(need: i32, output: i32, input: i32, months: u32) -> Result<i32, String> {
     let batches = (i128::from(need) + i128::from(output) - 1) / i128::from(output);
     i32::try_from(batches * i128::from(input) * i128::from(months))
@@ -132,6 +134,30 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
                     limit: policy.sale_limit,
                     holding: 0,
                 });
+            } else if crate::households::market::buys(w, s, home.agent) {
+                let lots = crate::need_orders::purchase_lots(
+                    w,
+                    s,
+                    home.agent,
+                    &sale.goods,
+                    c.horizon,
+                    MAX_HOUSEHOLD_PURCHASE_LOTS,
+                )?;
+                if lots > 0 {
+                    let target = i32::try_from(
+                        i128::from(s.balance(home.agent, sale.goods.resource))
+                            + i128::from(lots) * i128::from(sale.goods.quantity),
+                    )
+                    .map_err(|_| "household stock target overflow")?;
+                    quotes.push(crate::minting::orders::Quote {
+                        max_lots: Some(lots),
+                        agent: home.agent,
+                        market: sale.id,
+                        side: Side::Buy,
+                        limit: policy.sale_limit,
+                        holding: target,
+                    });
+                }
             }
         }
     }

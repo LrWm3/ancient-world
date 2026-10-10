@@ -317,7 +317,12 @@ fn public_sales(
                 .get(&(q.agent, c.coin))
                 .copied()
                 .unwrap_or(0);
-            let commitments = crate::need_orders::claims(w, s, q.agent, policy.claim_months)?;
+            let commitments =
+                if p.private_sales.is_some() && w.households.iter().any(|h| h.agent == q.agent) {
+                    crate::need_orders::protected_stock(w, s, q.agent, policy.claim_months)?
+                } else {
+                    crate::need_orders::claims(w, s, q.agent, policy.claim_months)?
+                };
             let protected_cash = commitments.get(&c.coin).copied().unwrap_or(0);
             // Private asks may differ from the public valuation. Reserve each
             // bid at its own limit so every crossing price preserves claims.
