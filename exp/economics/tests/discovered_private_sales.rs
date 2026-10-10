@@ -567,6 +567,24 @@ fn financial_admission_after_open_rechecks_person_sale_reserves() {
                 sales(&sim).iter().filter(|d| d.month == 1).count(),
                 usize::from(case != "accepted")
             );
+            let budget = sim
+                .ledger
+                .iter()
+                .filter(|b| b.month == 1)
+                .filter_map(|b| b.minting.as_ref())
+                .filter_map(|b| b.plan.as_ref())
+                .flat_map(|p| &p.sales)
+                .find(|b| b.agent == SUPPLIER)
+                .unwrap();
+            assert_eq!(budget.authorized_lots, 1);
+            assert_eq!(budget.opening_available, 5);
+            assert_eq!(
+                budget.protected_stock,
+                if case == "accepted" { 3 } else { 2 }
+            );
+            assert!(budget.eligible);
+            assert_eq!(budget.submitted_lots, i32::from(case != "accepted"));
+            assert_eq!(budget.matched_lots, budget.submitted_lots);
             assert_eq!(
                 sim.state.exchange.forwards.contains_key(&900),
                 case != "declined"
@@ -587,4 +605,38 @@ fn financial_admission_after_open_rechecks_person_sale_reserves() {
         assert_eq!(a.reports, b.reports);
         assert_eq!(ab, bb);
     }
+}
+
+#[test]
+fn revoked_sale_permission_keeps_the_unsubmitted_authorization_receipt() {
+    let (w, s) = fixture();
+    let mut audit = scenario::audit(&w, &s).unwrap();
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    audit.step(&mut sim).unwrap();
+    sim.world
+        .transaction_policy
+        .as_mut()
+        .unwrap()
+        .permissions
+        .remove(&(
+            economics_compute_smoke::opportunities::PERSON_TYPE,
+            Action::StockTrade,
+        ));
+    while sim.state.month == 1 {
+        audit.step(&mut sim).unwrap();
+    }
+    let receipt = sim
+        .ledger
+        .iter()
+        .filter_map(|b| b.minting.as_ref())
+        .filter_map(|b| b.plan.as_ref())
+        .flat_map(|p| &p.sales)
+        .find(|b| b.agent == SUPPLIER)
+        .unwrap();
+    assert!(!receipt.eligible);
+    assert_eq!(receipt.authorized_lots, 1);
+    assert_eq!(receipt.feasible_lots, 1);
+    assert_eq!(receipt.submitted_lots, 0);
+    assert_eq!(receipt.matched_lots, 0);
+    assert!(sales(&sim).is_empty());
 }

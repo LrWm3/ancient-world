@@ -88,3 +88,16 @@ next-month food shortage without moving financial or market scheduling.
 Nine private-sale tests and four circulation tests pass, including audited
 CPU/reference continuation across the accepted/declined/outside-horizon controls.
 An older unequal-price fixture now supplies genuine surplus over its horizon.
+
+## 6. Seller authorization receipts
+
+Stock-sale plans retain opening available stock, the explicit floor and authorized
+lot ceiling, effective live protection, eligibility, feasible/submitted quantities
+and matched lots. Public inventory records supply separately from demand-capped
+submission. These are domain receipts; they do not execute additional decisions.
+A permission revoked after Open retains a feasible but unsubmitted authorization.
+Late financial admission records exactly why an authorized lot becomes unavailable.
+
+Ten private-sale tests and thirteen public-sale tests pass. Independent review
+requested the post-Open revocation control, now included. Matched quantities are
+planning results; final accepted settlement remains a separate receipt.

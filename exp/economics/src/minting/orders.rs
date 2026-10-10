@@ -60,6 +60,20 @@ pub struct PurchaseBudget {
     pub submitted_lots: i32,
     pub matched_lots: i32,
 }
+/// Stock authorization at clearing, before settlement accepts actual transfers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaleBudget {
+    pub agent: AgentId,
+    pub market: MarketId,
+    pub opening_available: i32,
+    pub quote_floor: i32,
+    pub authorized_lots: i32,
+    pub protected_stock: i128,
+    pub eligible: bool,
+    pub feasible_lots: i32,
+    pub submitted_lots: i32,
+    pub matched_lots: i32,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
     pub target_month: Option<u32>,
@@ -70,6 +84,7 @@ pub struct Plan {
     pub reason: String,
     pub provision: Vec<super::provisioning::Decision>,
     pub purchases: Vec<PurchaseBudget>,
+    pub sales: Vec<SaleBudget>,
 }
 
 pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
@@ -266,9 +281,7 @@ fn public_sales(
                 .iter()
                 .filter(|q| q.side == Side::Sell && q.market == p.sale_market)
             {
-                if !super::eligible(w, s, c.venue, q.agent) {
-                    continue;
-                }
+                let eligible = super::eligible(w, s, c.venue, q.agent);
                 let held = opening
                     .available
                     .get(&(q.agent, market.goods.resource))
@@ -291,7 +304,19 @@ fn public_sales(
                 let lots = ((i128::from(held) - floor).max(0) / i128::from(market.goods.quantity))
                     .min(i128::from(q.max_lots.unwrap_or(MAX_LOTS)))
                     as i32;
-                if lots > 0 {
+                plan.sales.push(SaleBudget {
+                    agent: q.agent,
+                    market: q.market,
+                    opening_available: held,
+                    quote_floor: q.holding,
+                    authorized_lots: q.max_lots.unwrap_or(MAX_LOTS),
+                    protected_stock: floor,
+                    eligible,
+                    feasible_lots: lots,
+                    submitted_lots: if eligible { lots } else { 0 },
+                    matched_lots: 0,
+                });
+                if lots > 0 && eligible {
                     plan.orders.push(Order {
                         agent: q.agent,
                         market: q.market,
@@ -363,7 +388,22 @@ fn public_sales(
             }
         }
         let lots = supply.min(demand);
-        if lots > 0 && p.public_sale.is_some() && super::eligible(w, s, c.venue, c.issuer) {
+        let eligible = super::eligible(w, s, c.venue, c.issuer);
+        if p.public_sale.is_some() {
+            plan.sales.push(SaleBudget {
+                agent: c.issuer,
+                market: p.sale_market,
+                opening_available: held,
+                quote_floor: policy.reserve,
+                authorized_lots: MAX_LOTS,
+                protected_stock: protected,
+                eligible,
+                feasible_lots: supply,
+                submitted_lots: if eligible { lots } else { 0 },
+                matched_lots: 0,
+            });
+        }
+        if lots > 0 && p.public_sale.is_some() && eligible {
             plan.orders.push(Order {
                 agent: c.issuer,
                 market: p.sale_market,
@@ -374,6 +414,13 @@ fn public_sales(
         }
     }
     clear(w, s, c, plan, opening)?;
+    for budget in &mut plan.sales {
+        budget.matched_lots = plan
+            .deals
+            .iter()
+            .filter(|d| d.seller == budget.agent && d.market == budget.market)
+            .count() as i32;
+    }
     for budget in &mut plan.purchases {
         budget.matched_lots = plan
             .deals
@@ -406,6 +453,7 @@ pub(super) fn generate_fixed(
         target_month: target,
         provision: vec![],
         purchases: vec![],
+        sales: vec![],
         required_funding: 0,
         orders: vec![],
         deals: vec![],
