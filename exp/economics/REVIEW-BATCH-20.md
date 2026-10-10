@@ -29,3 +29,17 @@ Validation: 25 discovery/supply tests passed, including the unchanged productive
 baseline; strict all-target Clippy, formatting, diff and artifact checks passed.
 Independent review found no blocker. Longer forecasts remain conditional and may
 reject deals that a short forecast accepted; they are not a universal welfare rule.
+
+## 2. Exact-lot forward discovery
+
+The supplier filter now admits exactly one projected surplus unit for the existing
+one-unit forward. Ordinary delivery and independent benefit checks still decide
+acceptance. CPU/audited cases deliver one or two opening stock units' single sale;
+zero stock, private nutrition, an existing claim and denied trade permission do
+not create a new harmful worker contract. Collected goods may subsequently be
+sold by their new owner; the committed-stock control tests the original debtor,
+not an unjustified permanent ban on circulation of those goods.
+
+The 25 discovery/supply controls remain unchanged and passing. Two new financial
+controls cover actual delivery and exclusions. Independent review found no blocker;
+strict Clippy, formatting and artifact checks passed.

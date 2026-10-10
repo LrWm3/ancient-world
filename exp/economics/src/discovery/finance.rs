@@ -252,7 +252,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             .agents
             .iter()
             .map(|a| a.id)
-            .filter(|a| *a != buyer && baseline.state.balance(*a, resource) > FORWARD_LOT)
+            .filter(|a| *a != buyer && baseline.state.balance(*a, resource) >= FORWARD_LOT)
             .collect();
         sellers.sort_unstable();
         let through = s
