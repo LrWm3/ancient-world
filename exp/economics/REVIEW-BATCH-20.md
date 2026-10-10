@@ -127,3 +127,12 @@ comparison detail use the existing observer configuration. A continuation emits
 only new assessments. Read-only controls compare complete world, state and ledger
 with an unobserved run; no forecast branch produces external logs. See TELEMETRY.md
 for the distinction between proposal publication and actual financial settlement.
+
+## 11. Validate discovery interest terms up front
+
+Discovery now shares the executed credit model's rate bound. Zero and 10,000 basis
+points are valid configurations; higher rates fail construction instead of being
+repeatedly proposed and rejected in private rollouts. The temporary invalid-rate
+projection fixture was replaced by endpoint/extreme configuration controls.
+Candidate-specific projection failures remain observable. Nine financial controls
+pass; independent review found no blocker.

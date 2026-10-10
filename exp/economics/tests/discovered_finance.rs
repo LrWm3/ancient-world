@@ -293,7 +293,7 @@ fn financial_assessments_distinguish_no_supply_from_published_delivery() {
 #[test]
 fn loan_diagnostics_distinguish_funding_gain_and_publication_from_admission() {
     use economics_compute_smoke::discovery::finance::{Instrument, Outcome};
-    for case in ["funded", "no funds", "early installment", "invalid rate"] {
+    for case in ["funded", "no funds", "early installment"] {
         let (mut w, mut s) = mint_loan(1);
         if case == "no funds" {
             s.balances.insert((SUPPLIER, COIN), 0);
@@ -306,15 +306,6 @@ fn loan_diagnostics_distinguish_funding_gain_and_publication_from_admission() {
                 .as_mut()
                 .unwrap()
                 .loan_months = 4;
-        }
-        if case == "invalid rate" {
-            w.discovery
-                .as_mut()
-                .unwrap()
-                .finance
-                .as_mut()
-                .unwrap()
-                .monthly_rate_bps = 10_001;
         }
         let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
         while sim.state.month < 2 {
@@ -353,9 +344,29 @@ fn loan_diagnostics_distinguish_funding_gain_and_publication_from_admission() {
                     assert_eq!(sim.world.lending.len(), 1);
                 }
                 "early installment" => assert_eq!(p.outcome, Outcome::NoMutualGain),
-                "invalid rate" => assert!(matches!(p.outcome, Outcome::ProjectionFailed(_))),
                 _ => unreachable!(),
             }
+        }
+    }
+}
+
+#[test]
+fn discovery_interest_rates_use_the_contract_execution_bounds() {
+    for rate in [0, 10_000, 10_001, u32::MAX] {
+        let (mut w, s) = mint_loan(1);
+        w.discovery
+            .as_mut()
+            .unwrap()
+            .finance
+            .as_mut()
+            .unwrap()
+            .monthly_rate_bps = rate;
+        let result = Simulation::new(w, s, Backend::Reference);
+        if rate <= 10_000 {
+            assert!(result.is_ok());
+        } else {
+            let error = result.err().expect("invalid rate was accepted");
+            assert!(error.contains("discovery monthly interest rate"), "{error}");
         }
     }
 }

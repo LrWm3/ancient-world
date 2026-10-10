@@ -145,6 +145,12 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     if let Some(g) = &c.state {
         agency::objectives::validate(w, &g.objectives)?;
     }
+    if c.finance
+        .as_ref()
+        .is_some_and(|r| r.monthly_rate_bps > crate::credit::RATE_SCALE as u32)
+    {
+        return Err("invalid discovery monthly interest rate".into());
+    }
     if let (Some(finance), Some(mint)) = (&c.finance, &w.minting)
         && mint.order_policy.is_some()
         && finance.denomination != mint.coin
