@@ -209,3 +209,36 @@ fn mint_underwriting_cannot_treat_grain_as_procurement_coins() {
     };
     assert!(err.contains("procurement currency"), "{err}");
 }
+
+#[test]
+fn reserve_objectives_cannot_publish_duplicate_forward_requests() {
+    for other_resource in [WHEAT, METAL] {
+        let mut results = vec![];
+        for reverse in [false, true] {
+            let (mut w, mut s) = surplus(2);
+            s.balances.insert((ISSUER, COIN), 2);
+            let c = w.discovery.as_mut().unwrap();
+            c.finance
+                .as_mut()
+                .unwrap()
+                .unit_values
+                .insert(other_resource, 1);
+            c.state.as_mut().unwrap().objectives.push(Objective {
+                scope: Scope::Organization,
+                metric: Metric::Reserve {
+                    resource: other_resource,
+                    target: 1,
+                },
+            });
+            if reverse {
+                c.state.as_mut().unwrap().objectives.reverse();
+            }
+            let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+            sim.run_months(2).unwrap();
+            assert_eq!(sim.world.prepaid_deliveries.len(), 1);
+            assert_eq!(sim.state.exchange.forwards.len(), 1);
+            results.push(sim.world.prepaid_deliveries.clone());
+        }
+        assert_eq!(results[0], results[1]);
+    }
+}

@@ -212,29 +212,26 @@ fn mutually_beneficial(comparisons: &BTreeMap<AgentId, (Vec<i128>, Vec<i128>)>) 
 fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(), String> {
     // An organization's stock reserve objective is demand; a forecast surplus is
     // an offer candidate. One finite lot is attempted per buyer at each boundary.
-    let buyers: Vec<_> = w
-        .agency
-        .iter()
-        .flat_map(|(&a, controller)| {
-            controller
-                .config
-                .objectives
-                .iter()
-                .filter_map(move |o| match o.metric {
-                    Metric::Reserve { resource, target }
-                        if o.scope == Scope::Organization && resource != rule.denomination =>
-                    {
-                        Some((a, resource, target))
-                    }
-                    _ => None,
-                })
-        })
-        .collect();
-    for (buyer, resource, target) in buyers {
+    let mut buyers = BTreeMap::<(AgentId, ResourceId), i32>::new();
+    for (&agent, controller) in &w.agency {
+        for objective in &controller.config.objectives {
+            if let Metric::Reserve { resource, target } = objective.metric
+                && objective.scope == Scope::Organization
+                && resource != rule.denomination
+            {
+                let demand = buyers.entry((agent, resource)).or_default();
+                *demand = (*demand).max(target);
+            }
+        }
+    }
+    for ((buyer, resource), target) in buyers {
         let Some(&price) = rule.unit_values.get(&resource) else {
             continue;
         };
-        if s.balance(buyer, resource) >= target
+        if w.prepaid_deliveries
+            .iter()
+            .any(|f| f.buyer == buyer && f.month >= s.month)
+            || s.balance(buyer, resource) >= target
             || s.balance(buyer, rule.denomination) < price
             || s.exchange
                 .forwards

@@ -76,3 +76,12 @@ new lease. Consumed entry inputs are not reserved twice. Existing monthly servic
 reservation and conservative handling of same-boundary incoming purchases remain.
 A two-case integration control compares CPU/reference admission at Acquire, then
 checks existing work completes on Reference. Independent review found no blocker.
+
+## 6. One published forward per buyer and boundary
+
+Reserve objectives are collapsed by buyer/resource using the maximum target.
+Current or future published forward terms now block another proposal for that
+buyer, just as an outstanding accepted delivery already did. Different resources
+use stable resource-ID order; this is an explicit bounded search order, not a
+claim of optimal procurement. Duplicate and distinct-resource controls select
+one offer even when objective order is reversed. All six finance tests pass.
