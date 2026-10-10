@@ -100,6 +100,7 @@ pub fn scenario() -> Result<(World, State), String> {
         }),
         through: 0,
         receipts: vec![],
+        financial: vec![],
         supply: vec![],
         public_sales: false,
     });

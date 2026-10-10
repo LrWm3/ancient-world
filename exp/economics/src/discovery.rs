@@ -12,7 +12,7 @@ use crate::{
 use std::collections::BTreeMap;
 
 mod admission;
-mod finance;
+pub mod finance;
 mod institutions;
 mod market;
 pub mod scenario;
@@ -51,6 +51,8 @@ pub struct Config {
     pub finance: Option<FinanceRule>,
     pub through: u32,
     pub receipts: Vec<Receipt>,
+    /// Diagnostic financial assessments; admission and settlement remain authoritative.
+    pub financial: Vec<finance::Assessment>,
     /// Diagnostic opportunity-cost decisions; fills remain in the ordinary ledger.
     pub supply: Vec<supply::Decision>,
     /// Derive reserve-protected public sales independently of mint funding.

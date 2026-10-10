@@ -95,3 +95,16 @@ Open with a specific error and leaves world, state and ledger unchanged. The
 boundary arithmetic and public rollback controls pass. Input sums already bounded
 by catalog validation were left unchanged. Independent review corrected an empty
 worker-needs fixture before the final passing run.
+
+## 8. Structured forward assessments
+
+Financial discovery now retains typed assessments with candidate counts, bounded
+horizons, parties and units. Attempts distinguish projection failure, performance
+shortfall, no mutual gain and publication. Candidate IDs may repeat after rejection;
+only published terms can be correlated with a later contract. These records are
+diagnostics, not another execution model. Existing text receipts remain available.
+
+No-supply, successful-delivery and legally forbidden-trade controls distinguish
+empty assessments, published proposals and performance shortfalls. Seven finance
+tests and strict all-target Clippy pass. Actual admission and delivery remain in
+the ordinary ledger and forward book.

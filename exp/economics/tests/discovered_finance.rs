@@ -100,6 +100,12 @@ fn absent_needed_committed_or_forbidden_stock_is_not_a_forward_surplus() {
         if case == "committed" {
             assert_eq!(sim.state.exchange.forwards[&900].delivered, 1);
         }
+        if case == "forbidden" {
+            use economics_compute_smoke::discovery::finance::Outcome;
+            assert!(sim.world.discovery.as_ref().unwrap().financial.iter()
+                .flat_map(|a| &a.attempts)
+                .any(|a| a.counterparty == WORKER && a.outcome == Outcome::PerformanceShortfall));
+        }
     }
 }
 
@@ -240,5 +246,46 @@ fn reserve_objectives_cannot_publish_duplicate_forward_requests() {
             results.push(sim.world.prepaid_deliveries.clone());
         }
         assert_eq!(results[0], results[1]);
+    }
+}
+
+#[test]
+fn financial_assessments_distinguish_no_supply_from_published_delivery() {
+    use economics_compute_smoke::discovery::finance::{Instrument, Outcome};
+    for quantity in [0, 1] {
+        let (w, s) = surplus(quantity);
+        let sim = run(w, s, Backend::Reference);
+        let assessments: Vec<_> = sim
+            .world
+            .discovery
+            .as_ref()
+            .unwrap()
+            .financial
+            .iter()
+            .filter(|a| a.instrument == Instrument::Forward && a.requester == ISSUER)
+            .collect();
+        assert!(!assessments.is_empty());
+        if quantity == 0 {
+            assert!(
+                assessments
+                    .iter()
+                    .all(|a| a.candidate_count == 0 && a.attempts.is_empty())
+            );
+        } else {
+            let a = assessments
+                .iter()
+                .find(|a| a.attempts.iter().any(|p| p.outcome == Outcome::Published))
+                .unwrap();
+            let p = a
+                .attempts
+                .iter()
+                .find(|p| p.outcome == Outcome::Published)
+                .unwrap();
+            assert_eq!(
+                (a.resource, a.denomination, p.quantity, p.prepayment),
+                (WHEAT, COIN, 1, Some(1))
+            );
+            assert_eq!(sim.state.exchange.forwards[&p.candidate_id].delivered, 1);
+        }
     }
 }

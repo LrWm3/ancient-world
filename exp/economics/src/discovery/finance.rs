@@ -5,6 +5,48 @@ use agency::objectives::{Metric, Objective, Scope};
 const LOAN_GRACE_MONTHS: u32 = 1;
 const FORWARD_LOT: i32 = 1;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Instrument {
+    Loan,
+    Forward,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    ProjectionFailed(String),
+    PerformanceShortfall,
+    NoMutualGain,
+    Published,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Attempt {
+    pub counterparty: AgentId,
+    /// Rejected candidates can reuse IDs. Only Published correlates with public terms.
+    pub candidate_id: u32,
+    /// Units of the assessment resource (principal for a loan).
+    pub quantity: i32,
+    /// Forward prepayment in denomination units; absent for loan proposals.
+    pub prepayment: Option<i32>,
+    pub comparisons: BTreeMap<AgentId, (Vec<i128>, Vec<i128>)>,
+    pub outcome: Outcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Assessment {
+    pub month: u32,
+    pub instrument: Instrument,
+    /// Buyer for a forward, borrower for a loan.
+    pub requester: AgentId,
+    pub resource: ResourceId,
+    pub denomination: ResourceId,
+    pub horizon: u32,
+    /// Baseline stock candidates for forwards; not a promise of legal eligibility.
+    /// Attempts stop after publication and can be fewer than this count.
+    pub candidate_count: usize,
+    pub attempts: Vec<Attempt>,
+}
+
 fn objectives(w: &World, agent: AgentId, coin: ResourceId) -> Vec<Objective> {
     let mut result = w
         .agency
@@ -252,6 +294,17 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             .filter(|a| *a != buyer && baseline.state.balance(*a, resource) >= FORWARD_LOT)
             .collect();
         sellers.sort_unstable();
+        let assessment = w.discovery.as_ref().unwrap().financial.len();
+        w.discovery.as_mut().unwrap().financial.push(Assessment {
+            month: s.month,
+            instrument: Instrument::Forward,
+            requester: buyer,
+            resource,
+            denomination: rule.denomination,
+            horizon,
+            candidate_count: sellers.len(),
+            attempts: vec![],
+        });
         let through = s
             .month
             .checked_add(horizon - 1)
@@ -290,7 +343,19 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             candidate.prepaid_deliveries.push(terms.clone());
             let projected = match forecast(&candidate, s, horizon) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(error) => {
+                    w.discovery.as_mut().unwrap().financial[assessment]
+                        .attempts
+                        .push(Attempt {
+                            counterparty: seller,
+                            candidate_id: id,
+                            quantity: FORWARD_LOT,
+                            prepayment: Some(price),
+                            comparisons: BTreeMap::new(),
+                            outcome: Outcome::ProjectionFailed(error),
+                        });
+                    continue;
+                }
             };
             let buyer_objectives = objectives(w, buyer, rule.denomination);
             let mut seller_objectives = objectives(w, seller, rule.denomination);
@@ -328,6 +393,22 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                 .get(&id)
                 .is_some_and(|f| f.delivered == terms.goods.quantity);
             let accepted = delivered && mutually_beneficial(&comparisons);
+            w.discovery.as_mut().unwrap().financial[assessment]
+                .attempts
+                .push(Attempt {
+                    counterparty: seller,
+                    candidate_id: id,
+                    quantity: FORWARD_LOT,
+                    prepayment: Some(price),
+                    comparisons: comparisons.clone(),
+                    outcome: if !delivered {
+                        Outcome::PerformanceShortfall
+                    } else if !accepted {
+                        Outcome::NoMutualGain
+                    } else {
+                        Outcome::Published
+                    },
+                });
             record(
                 w,
                 s,
