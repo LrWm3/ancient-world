@@ -23,6 +23,8 @@ pub struct Policy {
     pub provisioning: Option<super::provisioning::Policy>,
     /// Sell surplus independently of mint funding; ordinary clearing still decides fills.
     pub public_sale: Option<StockSales>,
+    /// Opt-in peer stock sales with this accepted-claim protection horizon.
+    pub private_sales: Option<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StockSales {
@@ -71,9 +73,13 @@ pub struct Plan {
 }
 
 pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
-    if p.public_sale.as_ref().is_some_and(|v| {
-        v.reserve < 0 || !(1..=crate::need_orders::MAX_RESERVE_MONTHS).contains(&v.claim_months)
-    }) || p.public_sale.is_some() && p.provisioning.is_some()
+    if p.private_sales
+        .is_some_and(|months| !(1..=crate::need_orders::MAX_RESERVE_MONTHS).contains(&months))
+        || p.private_sales.is_some() && p.provisioning.is_some()
+        || p.public_sale.as_ref().is_some_and(|v| {
+            v.reserve < 0 || !(1..=crate::need_orders::MAX_RESERVE_MONTHS).contains(&v.claim_months)
+        })
+        || p.public_sale.is_some() && p.provisioning.is_some()
     {
         return Err("invalid public stock sales policy".into());
     }
@@ -174,9 +180,11 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
             || q.holding < 0
             || q.max_lots.is_some_and(|n| !(0..=MAX_LOTS).contains(&n))
             || !keys.insert((q.agent, q.market))
-            || q.side == Side::Sell && q.market == p.sale_market
+            || q.side == Side::Sell && q.market == p.sale_market && p.private_sales.is_none()
             || q.side == Side::Buy && q.market != p.sale_market
-            || q.side == Side::Sell && !p.input_limits.contains_key(&q.market)
+            || q.side == Side::Sell
+                && q.market != p.sale_market
+                && !p.input_limits.contains_key(&q.market)
         {
             return Err("invalid mint counterparty quote policy".into());
         }
@@ -204,6 +212,19 @@ pub(crate) fn generate_with(
     let mut plan = generate_fixed(w, s, c, p, opening)?;
     if let Some(policy) = &p.public_sale {
         public_sales(w, s, c, p, policy, opening, &mut plan)?;
+    } else if let Some(months) = p.private_sales {
+        public_sales(
+            w,
+            s,
+            c,
+            p,
+            &StockSales {
+                reserve: 0,
+                claim_months: months,
+            },
+            opening,
+            &mut plan,
+        )?;
     } else {
         clear(w, s, c, &mut plan, opening)?;
     }
@@ -237,14 +258,43 @@ fn public_sales(
         i128::from(policy.reserve) + claims.get(&market.goods.resource).copied().unwrap_or(0);
     let supply = ((i128::from(held) - protected).max(0) / i128::from(market.goods.quantity))
         .min(i128::from(MAX_LOTS)) as i32;
-    if super::eligible(w, s, c.venue, c.issuer) {
+    {
         let mut demand = 0;
+        if p.private_sales.is_some() {
+            for q in p
+                .quotes
+                .iter()
+                .filter(|q| q.side == Side::Sell && q.market == p.sale_market)
+            {
+                if !super::eligible(w, s, c.venue, q.agent) {
+                    continue;
+                }
+                let held = opening
+                    .available
+                    .get(&(q.agent, market.goods.resource))
+                    .copied()
+                    .unwrap_or(0);
+                let lots = ((held - q.holding).max(0) / market.goods.quantity)
+                    .min(q.max_lots.unwrap_or(MAX_LOTS));
+                if lots > 0 {
+                    plan.orders.push(Order {
+                        agent: q.agent,
+                        market: q.market,
+                        side: q.side,
+                        limit: q.limit,
+                        lots,
+                    });
+                }
+            }
+        }
         for q in p
             .quotes
             .iter()
             .filter(|q| q.side == Side::Buy && q.market == p.sale_market)
         {
-            if !super::eligible(w, s, c.venue, q.agent) || q.limit < p.sale_limit {
+            if !super::eligible(w, s, c.venue, q.agent)
+                || (p.private_sales.is_none() && q.limit < p.sale_limit)
+            {
                 continue;
             }
             let needed = required_lots(
@@ -259,8 +309,15 @@ fn public_sales(
                 .unwrap_or(0);
             let commitments = crate::need_orders::claims(w, s, q.agent, policy.claim_months)?;
             let protected_cash = commitments.get(&c.coin).copied().unwrap_or(0);
+            // Private asks may differ from the public valuation. Reserve each
+            // bid at its own limit so every crossing price preserves claims.
+            let budget_price = if p.private_sales.is_some() {
+                q.limit
+            } else {
+                p.sale_limit
+            };
             let affordable_lots = ((i128::from(cash) - protected_cash).max(0)
-                / i128::from(p.sale_limit))
+                / i128::from(budget_price))
             .min(i128::from(MAX_LOTS)) as i32;
             let lots = needed
                 .min(q.max_lots.unwrap_or(MAX_LOTS))
@@ -286,7 +343,7 @@ fn public_sales(
             }
         }
         let lots = supply.min(demand);
-        if lots > 0 {
+        if lots > 0 && p.public_sale.is_some() && super::eligible(w, s, c.venue, c.issuer) {
             plan.orders.push(Order {
                 agent: c.issuer,
                 market: p.sale_market,
@@ -465,23 +522,22 @@ pub(super) fn clear(
 ) -> Result<(), String> {
     plan.deals.clear();
     plan.orders
-        .sort_by_key(|o| (o.side != Side::Sell, o.market, o.agent));
+        .sort_by_key(|o| (o.side != Side::Sell, o.market, o.limit, o.agent));
+    let sale_market = c.order_policy.as_ref().unwrap().sale_market;
     let mut remaining: Vec<i32> = plan.orders.iter().map(|o| o.lots).collect();
     let mut resources = opening.clone();
     let mut next_id = 1;
     let mut shortages = vec![];
-    for (i, order) in plan
-        .orders
-        .iter()
-        .enumerate()
-        .filter(|(_, o)| o.agent == c.issuer)
-    {
+    for (i, order) in plan.orders.iter().enumerate().filter(|(_, o)| {
+        (o.side == Side::Sell && o.market == sale_market)
+            || (o.agent == c.issuer && o.side == Side::Buy)
+    }) {
         let mut candidates: Vec<_> = plan
             .orders
             .iter()
             .enumerate()
             .filter(|(_, other)| {
-                other.agent != c.issuer
+                other.agent != order.agent
                     && other.market == order.market
                     && other.side != order.side
                     && match order.side {
@@ -504,7 +560,7 @@ pub(super) fn clear(
             while remaining[i] > 0 && remaining[j] > 0 {
                 let (buyer, seller, price) = match order.side {
                     Side::Buy => (c.issuer, other.agent, other.limit),
-                    Side::Sell => (other.agent, c.issuer, order.limit),
+                    Side::Sell => (other.agent, order.agent, order.limit),
                 };
                 let deal = Deal {
                     id: next_id,
@@ -544,7 +600,7 @@ pub(super) fn clear(
         }
     }
     if !shortages.is_empty() {
-        plan.deals.retain(|d| d.seller == c.issuer);
+        plan.deals.retain(|d| d.market == sale_market);
         plan.reason = format!("input package unmatched: {}", shortages.join("; "));
     }
     Ok(())

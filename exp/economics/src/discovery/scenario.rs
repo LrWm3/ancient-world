@@ -110,6 +110,7 @@ pub fn scenario() -> Result<(World, State), String> {
         financial: vec![],
         supply: vec![],
         public_sales: false,
+        private_sales: false,
     });
     Ok((w, s))
 }

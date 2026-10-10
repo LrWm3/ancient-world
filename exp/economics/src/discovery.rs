@@ -59,6 +59,8 @@ pub struct Config {
     pub supply: Vec<supply::Decision>,
     /// Derive reserve-protected public sales independently of mint funding.
     pub public_sales: bool,
+    /// Discover reserve-protected private food asks in the same listed stock market.
+    pub private_sales: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FinanceRule {

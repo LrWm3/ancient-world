@@ -607,6 +607,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
     c.deals.clear();
     c.order_policy = Some(orders::Policy {
         public_sale: None,
+        private_sales: None,
         month: MINT_MONTH,
         additional_months: BTreeSet::new(),
         provisioning: None,

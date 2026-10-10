@@ -68,14 +68,24 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
                 }
             }
         }
-        if target > 0 {
+        let sell = c.private_sales && {
+            let floors = if w.participants.iter().any(|p| p.agent == person) {
+                crate::need_orders::protected_stock(w, s, person, c.horizon)?
+            } else {
+                crate::need_orders::claims(w, s, person, c.horizon)?
+            };
+            let floor = floors.get(&sale.goods.resource).copied().unwrap_or(0);
+            i128::from(s.balance(person, sale.goods.resource)) - floor
+                >= i128::from(sale.goods.quantity)
+        };
+        if target > 0 || sell {
             quotes.push(crate::minting::orders::Quote {
                 max_lots: None,
                 agent: person,
                 market: sale.id,
-                side: Side::Buy,
+                side: if sell { Side::Sell } else { Side::Buy },
                 limit: policy.sale_limit,
-                holding: target,
+                holding: if sell { 0 } else { target },
             });
         }
         for (&id, &limit) in &policy.input_limits {
@@ -131,6 +141,7 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
     let policy = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
     policy.quotes = quotes;
     policy.public_sale = public_sale;
+    policy.private_sales = c.private_sales.then_some(c.horizon);
     Ok(())
 }
 
