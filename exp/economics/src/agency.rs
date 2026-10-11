@@ -534,12 +534,12 @@ fn forecast(
             .chain(c.preferences.values().flatten())
             .any(|o| matches!(o.metric, objectives::Metric::ReserveExposure { .. }));
         while sim.state.month < end {
-            if observe_path && sim.state.phase == Phase::Open {
+            if sim.state.phase == Phase::Open {
                 peer_ballots.extend(peers.apply_ballots(&mut sim.world, &sim.state)?);
                 starts.extend(peers.apply_hypotheses(&mut sim.world, &sim.state)?);
             }
             sim.step()?;
-            if sim.state.phase == Phase::Open {
+            if observe_path && sim.state.phase == Phase::Open {
                 path.record(&sim.world, &sim.state)?;
             }
         }
