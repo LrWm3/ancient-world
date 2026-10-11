@@ -29,6 +29,7 @@ fn static_portfolios_include_stopping_and_signed_price_target_choices() {
     let catalog = agency::discovery::programs(&w, WORKSHOP).unwrap();
     let quotes: Vec<_> = catalog
         .values()
+        .filter(|p| p.commands.len() == 1)
         .flat_map(|p| &p.commands)
         .filter_map(|cmd| match cmd {
             Command::PeerStockQuotes(q) => Some(q),
@@ -111,6 +112,62 @@ fn portfolio_discovery_covers_partial_stops_and_bounds_joint_expansion() {
         assert_eq!(
             keys,
             [vec![], vec![ORE], vec![FIREWOOD], vec![FIREWOOD, ORE]].into()
+        );
+    }
+}
+
+#[test]
+fn combined_procurement_and_production_can_improve_when_either_alone_cannot() {
+    use economics_compute_smoke::{acceptance::TOWN, compute::Backend, simulation::Simulation};
+    let (mut w, mut s) = fixture(&[2], &[4]).unwrap();
+    s.balances.insert((WORKSHOP, ORE), 0);
+    s.balances.insert((TOWN, ORE), 8);
+    w.minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .peer_stocks
+        .as_mut()
+        .unwrap()
+        .quotes
+        .retain(|q| q.agent != WORKSHOP);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    sim.step().unwrap();
+    let d = &sim.world.agency[&WORKSHOP].history[0];
+    let chosen = d
+        .accepted
+        .as_ref()
+        .expect("productive compound should be chosen");
+    assert_eq!(chosen.commands.len(), 2, "{d:?}");
+    let retain = d
+        .alternatives
+        .iter()
+        .find(|a| a.program.is_none())
+        .unwrap()
+        .losses
+        .as_ref()
+        .unwrap();
+    let chosen_loss = d
+        .alternatives
+        .iter()
+        .find(|a| a.program == d.chosen)
+        .unwrap()
+        .losses
+        .as_ref()
+        .unwrap();
+    assert!(chosen_loss < retain, "{d:?}");
+    for a in d.alternatives.iter().filter(|a| {
+        a.program
+            .is_some_and(|id| d.catalog[&id].commands.len() == 1)
+    }) {
+        assert!(
+            a.losses
+                .as_ref()
+                .expect("standalone forecast must be valid")
+                >= retain,
+            "single command unexpectedly improves: {d:?}"
         );
     }
 }

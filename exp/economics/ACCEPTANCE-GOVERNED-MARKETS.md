@@ -49,3 +49,11 @@ Validation results and the remaining iterations are recorded here as completed.
    preselected. Cartesian expansion and the overall catalog reject excess size
    rather than silently truncating. Three stock-discovery tests cover static
    catalogs, malformed options, partial stops and joint expansion bounds.
+
+7. **Compound production and procurement.** Discovery evaluates bounded work plus
+   quote portfolios as well as either command alone. A zero-ore test demonstrates
+   that the combined program improves a valid forecast while neither standalone
+   command does. Retaining policy wins equal-loss ties; among equally improving
+   new programs, a productive bundle with quotes precedes work alone. This explicit
+   tie rule permits posting useful offers before a peer has selected its program.
+   Joint catalog size is checked before constructing combinations.

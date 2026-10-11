@@ -91,23 +91,52 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
                 }
             }),
     );
-    commands.extend(
-        markets::discovery::portfolios(w, agent)?
-            .into_iter()
-            .map(Command::PeerStockQuotes),
-    );
-    if commands.len() > MAX_PROGRAMS {
+    let mut portfolios = markets::discovery::portfolios(w, agent)?;
+    // On equal improving forecasts, offer a bounded productive bundle before
+    // work alone. Retaining existing policy still wins every equal-loss tie.
+    portfolios.sort_by_key(|q| q.is_empty());
+    let work_count = commands
+        .iter()
+        .filter(|c| matches!(c, Command::WorkTargets(_)))
+        .count();
+    let total = work_count
+        .checked_mul(portfolios.len())
+        .and_then(|n| n.checked_add(commands.len()))
+        .and_then(|n| n.checked_add(portfolios.len()));
+    if total.is_none_or(|n| n > MAX_PROGRAMS) {
         return Err("discovered program catalog exceeds bounded search".into());
     }
-    Ok(commands
+    let mut programs = vec![];
+    for quotes in &portfolios {
+        for work in commands
+            .iter()
+            .filter(|c| matches!(c, Command::WorkTargets(_)))
+        {
+            programs.push(vec![work.clone(), Command::PeerStockQuotes(quotes.clone())]);
+        }
+    }
+    programs.extend(commands.into_iter().map(|c| vec![c]));
+    programs.extend(
+        portfolios
+            .into_iter()
+            .map(|q| vec![Command::PeerStockQuotes(q)]),
+    );
+    if programs.len() > MAX_PROGRAMS {
+        return Err("discovered program catalog exceeds bounded search".into());
+    }
+    Ok(programs
         .into_iter()
         .enumerate()
-        .map(|(i, command)| {
+        .map(|(i, commands)| {
             (
                 i as u32,
                 Program {
-                    name: format!("discovered {command:?}"),
-                    commands: vec![command],
+                    name: if commands.len() == 1 {
+                        format!("discovered {:?}", commands[0])
+                    } else {
+                        format!("discovered {commands:?}")
+                    },
+                    commands,
                 },
             )
         })
