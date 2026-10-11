@@ -271,3 +271,9 @@ fn verify_reordering(scenario: Scenario) {
     assert_eq!(reordered.sim.world.agency, base.sim.world.agency);
     assert_eq!(c::check(&reordered).unwrap(), c::check(&base).unwrap());
 }
+
+#[test]
+fn voluntarily_published_offers_continue_on_cpu_replay_and_reordered_catalogs() {
+    verify_recurring(acceptance::publication::scenario);
+    verify_reordering(acceptance::publication::scenario);
+}

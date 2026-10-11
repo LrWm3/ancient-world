@@ -70,3 +70,11 @@ controller continues to retain its plan on equal forecasts.
    inventory elsewhere in the chain. `Startup::PostedMetal` is an inherited fixture
    label: this variant removes that supplied ask too. These two controls and the
    successful treatment all use monthly reviews.
+
+8. **CPU continuation and replay.** The 48-month scenario passes the existing
+   continuation harness with CPU/reference world, state, ledger, report and audit
+   equality, reconstruction at every CPU phase, dated event replay and independent
+   catalog reordering. Both organizations first accept publication in month 1;
+   later productive choices and leadership rotation still satisfy the unchanged
+   governed-readiness check. This is in-memory reconstruction, not a new durable
+   checkpoint format, and tests three complete post-startup operating years.
