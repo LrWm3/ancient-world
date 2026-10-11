@@ -128,9 +128,12 @@ detect economic failure rather than merely checking conservation.
 Prices, signed options, working-stock goals, employment, identities, initial assets
 and consent remain supplied. The acceptance fixture permits one calibrated ore
 price; it does not demonstrate negotiated pricing or ZIP. Static bounded search
-is not unrestricted portfolio planning. The cash-first failure remains a concrete
+is not unrestricted portfolio planning. The cash-first failure under this batch's forecast remains a concrete
 counterparty-expectation gap, and the reserve priorities are a declared calibration
-rather than an endogenous solution. Permanent supply/access failures remain
+rather than an endogenous solution. The subsequent
+[peer-expectation experiment](ACCEPTANCE-PEER-EXPECTATIONS.md) passes an opt-in
+cash-first variant using a twelve-month horizon and observed process/ballot
+hypotheses, while retaining this original failure as a control. Permanent supply/access failures remain
 failures; the temporary interruption demonstrates recovery only after supply is
 restored. This batch adds neither unrestricted organization formation nor
 self-directed personal policy changes.

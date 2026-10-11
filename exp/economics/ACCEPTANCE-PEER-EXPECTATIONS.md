@@ -72,7 +72,7 @@ activity is not a financial claim or counterparty consent.
    All rows have zero food deficits. Ending arrears alone obscure prior missed
    payroll in the twelve-month accepted-only/process-only controls. The passing
    row keeps replenishment at the month-13 review, pays 48 wage coins per
-   organization and has workshop net income 44. These results support the combined
+   organization and has workshop net income 44 over all 48 months. These results support the combined
    bounded treatment, not an assertion that longer forecasts always improve plans.
 
 7. **Authority and finite-execution controls.** Recurring demand now uses the
@@ -103,3 +103,69 @@ activity is not a financial claim or counterparty consent.
    observer exports the frozen evidence and private candidate outcomes without
    adding future live transactions or changing World, State, ledger or audit.
    Eight continuation tests and one observer test pass.
+
+10. **Runnable comparison and documented boundaries.** The CPU acceptance example
+    selects this treatment with `--expected-peers`; its existing
+    `--continuation-matrix` option also accepts that flag. README, integration,
+    operating-authority and forecast documentation distinguish the opt-in result
+    from the unchanged governed control and default forecast policy.
+
+## What remains assumed
+
+This is the experiment's full-information model, including individual accepted
+ballots and incumbent preferences. It does not infer secret ballots or model
+private information. Repeated ballots preserve observed choices without computing
+new platforms or political preferences. Recurring work uses a bounded own-output
+goal gate, not the peer's optimizer or a forecast of competing goals. Neither
+hypothesis promises performance under unforeseen political or economic changes.
+
+Evidence is frozen at each real decision, expires without renewal from imagined
+outcomes and applies only at future Open boundaries. Household voting and
+multi-period process recurrence are not projected. The acceptance variant still
+supplies identities, consent, employment, prices, endowments and goals. Cash-first
+retains secondary metal/ore objectives for candidate discovery: cash-only,
+sale-linked production discovery remains open. The 24-month memory and twelve-month
+horizon are a measured calibration, not a universal improvement. The old
+`AcceptedOnly` default is unchanged; no personal self-directed policy changes or
+new organization formation are introduced.
+
+## Run
+
+From `exp/economics`:
+
+```sh
+cargo +1.92.0 run --locked --release --example acceptance -- --expected-peers
+cargo +1.92.0 run --locked --release --example acceptance -- --expected-peers --continuation-matrix
+```
+
+The baseline CLI passes on CubeCL CPU: 48 months, 46 mints, 47 workshop and town
+batches each, zero food deficits and no wage arrears. Both employers pay 48 wage
+coins; nine separate books reconcile. Three complete post-startup operating years
+pass the existing economic gates. Permanent failure controls remain failures;
+recovery from unforeseen shocks is not established for this cash-first variant.
+
+## Verification
+
+Final verification passed **148 tests**: 18 library tests and 130 integration
+tests across 24 suites. This includes acceptance and governed controls,
+organizational authority/discovery/programs, state and commitment agency,
+peer-stock/mint orders, forecast context, the new peer expectation/election/resource
+controls, the seven-case CPU/reference failure matrix, continuation and telemetry.
+The standalone CubeCL CPU baseline also passed. All-target release Clippy passed
+with warnings denied, formatting passed, and repository artifact checks passed.
+No generated run artifacts are committed.
+
+Focused reproduction of the new boundaries:
+
+```sh
+cargo +1.92.0 test --locked --release -j8 \
+  --test agency_expectations --test peer_election_expectations \
+  --test peer_expectation_constraints --test acceptance_expectations \
+  --test acceptance_expectation_controls --test acceptance_continuation \
+  --test expectation_telemetry
+cargo +1.92.0 clippy --locked --release --all-targets -j8 -- -D warnings
+cargo +1.92.0 fmt --check
+```
+
+Independent review found no blocking implementation issue; its requested scope
+qualifications and actual vacancy controls are included above.

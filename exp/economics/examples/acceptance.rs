@@ -1,14 +1,17 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
-    let governed = std::env::args().any(|a| a == "--governed");
+    let expected_peers = std::env::args().any(|a| a == "--expected-peers");
+    let governed = expected_peers || std::env::args().any(|a| a == "--governed");
     if std::env::args().any(|a| a == "--continuation-matrix") {
         use acceptance::continuation as c;
         println!(
             "case,ready,food_deficit,wage_arrears,last_year_workshop_income,last_year_town_income"
         );
         for case in c::Case::ALL {
-            let (w, s) = if governed {
+            let (w, s) = if expected_peers {
+                acceptance::expectations::scenario(case)?
+            } else if governed {
                 acceptance::governed::scenario(case)?
             } else if std::env::args().any(|a| a == "--spot") {
                 c::spot_scenario(case)?
@@ -48,7 +51,9 @@ fn main() -> Result<(), String> {
         )
     }) {
         use acceptance::continuation as c;
-        let (w, s) = if governed {
+        let (w, s) = if expected_peers {
+            acceptance::expectations::scenario(c::Case::Baseline)?
+        } else if governed {
             acceptance::governed::scenario(c::Case::Baseline)?
         } else if std::env::args().any(|a| a == "--spot") {
             c::spot_scenario(c::Case::Baseline)?

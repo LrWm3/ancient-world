@@ -61,6 +61,14 @@ settlement. Constitutional market slots must jointly fit the existing book.
 The calibrated reserve-priority baseline passes 48 months; cash-first planning
 still fails under the conservative peer-demand forecast. This does not remove
 supplied identities, consent, employment, prices or goals.
+The [peer-expectation variant](ACCEPTANCE-PEER-EXPECTATIONS.md) now passes cash-first
+planning with a twelve-month horizon and bounded observed process/state-ballot
+hypotheses. Accepted-only and shorter-horizon controls retain their failures.
+CPU/reference, every-phase reconstruction, dated replay, independent catalog
+reordering and observer controls pass. Missing supply, access, margin and timely
+payroll still fail readiness. Defaults are unchanged; this is a calibrated
+full-information expectation policy, not general peer optimization or cash-only
+production discovery.
 
 The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
 households, governance selections, leases, loans, forwards, quotes or dated work.

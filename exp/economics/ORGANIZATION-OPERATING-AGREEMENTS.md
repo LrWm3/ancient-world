@@ -65,3 +65,19 @@ The [governed acceptance report](ACCEPTANCE-GOVERNED-MARKETS.md) records ten
 implementation iterations and the working-capital objective calibration. It does
 not establish general price discovery, unrestricted portfolio search, endogenous
 employment or self-changing constitutions.
+
+## Explicit counterparty expectations
+
+`agency::Config.peer_expectations` defaults to `AcceptedOnly`. The opt-in
+`RecentSuccessfulStarts` and `RecentSuccessfulStartsAndBallots` policies freeze
+observed peer evidence once per evaluated decision. Each candidate uses the same
+snapshot in its isolated forecast; normal admission and settlement determine
+whether hypothetical work succeeds. They do not run the peer's optimizer or
+publish real peer commands. Incumbent preferences, when supplied, override
+collective output-reserve goals for the recurring-work gate.
+
+The existing organization-decision observer includes the snapshot, private ballot
+admission receipts, attempted/completed work and closing stocks. The
+[acceptance comparison](ACCEPTANCE-PEER-EXPECTATIONS.md) documents horizon/memory
+calibration, election and resource controls, and the remaining limits. This policy
+is part of the supplied sealed configuration, not a self-directed policy change.

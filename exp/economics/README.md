@@ -81,6 +81,15 @@ It passes the same 48-month economic gates; cash-first planning remains a failin
 control. Prices, working-reserve goals, employment and initial consent are still
 supplied. Run `cargo +1.92.0 run --locked --release --example acceptance -- --governed`.
 
+The [peer-expectation follow-up](ACCEPTANCE-PEER-EXPECTATIONS.md) adds an opt-in
+cash-first variant that passes 48 months on CPU. It combines a twelve-month
+workshop forecast with bounded repetition of observed peer work and state ballots.
+The shorter-horizon and accepted-only controls still fail; the default remains
+`AcceptedOnly`. These are explicit full-information hypotheses, not future consent
+or guaranteed demand. Prices, employment, initial consent and secondary inventory
+goals remain supplied. Run
+`cargo +1.92.0 run --locked --release --example acceptance -- --expected-peers`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

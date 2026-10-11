@@ -1,8 +1,8 @@
 # Shared forecast observation context
 
 Implemented in `src/forecast.rs`. Need-directed search, its planning rollouts,
-remaining-value work choices, collateral resale valuation, borrowing, sale-only
-and joint production/sale planning construct their
+remaining-value work choices, collateral resale valuation, borrowing, sale-only,
+joint production/sale planning and organizational agency construct their
 observations through `ForecastContext`. `search::SearchContext` remains a public
 alias, so existing search strategies keep their interface.
 
@@ -18,12 +18,12 @@ neither advances time nor accrues, pays, reserves or publishes anything.
 | Current balances, capacity, conditions, ownership and process progress | Preserve committed state |
 | Accepted loans, land agreements, obligations and dated reserved work | Preserve, including known future due dates |
 | Catalogs, rates, process recipes, rights and configured application | Preserve as known scenario terms/plans |
-| Capacity override fixtures | Remove; observed capacity is already in state after Open |
-| Scripted process starts | Retain this month's starts only |
+| Capacity override fixtures | Preserve only the current override after Open; hide unopened/future overrides |
+| Process starts | Preserve accepted organizational starts and published mint-policy dates; other fixture starts survive only for the current month |
 | Discretionary credit transfer fixtures | Retain current/past months; hide later transfers |
 | Configured resale buyer | Exclude from rollouts; speculative bids must not recursively become forecast income |
 
-Current-month fixture actions are treated as known scheduled inputs, including
+Current-month process-start fixtures are treated as known scheduled inputs, including
 when the snapshot is taken before Open. This preserves the pilot's existing
 observation rules; it is not an agent-specific visibility or announcement system.
 Past transfers do not replay because execution remains dated. Unaccepted offers
@@ -59,7 +59,7 @@ horizons, objectives and fallback rules remain separate. See the
 ## Scope and verification
 
 This shared boundary covers search/planning, work choice, resale, borrowing,
-sale-only and joint production/sale planning. The older forward
+sale-only, joint production/sale planning and organizational agency. The older forward
 production projection has its own specialized construction and is not migrated
 in this increment. Full catalogs/state are visible: private information,
 uncertainty distributions and alternative observation policies are not implemented.
@@ -73,9 +73,24 @@ work/resale decisions, and response to current buyer cash. Existing search,
 planning, work-choice and resale suites check capacity-shock invisibility,
 scenario outcomes, CPU/reference results, batching and checkpoint continuation.
 
-Validation: **27 tests passed** across those five suites; all-target Clippy passed
+Original context validation: **27 tests passed** across those five suites; all-target Clippy passed
 with warnings denied. Run from this directory:
 
 ```sh
 cargo +1.92.0 test --locked --test forecast_context --test search --test planning --test work_choice --test resale
 ```
+
+## Organizational peer hypotheses
+
+Organizational forecasts freeze autonomous controllers and preserve accepted work
+and governance history through this context. Domain-specific hypotheses live in
+`agency::expectations`, not in snapshot sanitization. `AcceptedOnly` is the default;
+opt-in variants repeat bounded observations of completed one-month peer work and,
+separately, individual state ballots through ordinary future admission. Only future
+Open boundaries receive hypotheses, and imagined outcomes never refresh evidence.
+They do not authorize live work, issue live cash or promise future counterparties.
+
+The [peer-expectation acceptance report](ACCEPTANCE-PEER-EXPECTATIONS.md) records
+the comparison and current verification. Observation still uses full information,
+including accepted ballots and incumbent preferences. It does not infer secret
+ballots or simulate a peer's future political/economic optimization.
