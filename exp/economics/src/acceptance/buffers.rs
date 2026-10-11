@@ -120,4 +120,36 @@ mod tests {
             assert_eq!(config.objectives, expected);
         }
     }
+    #[test]
+    fn personal_goals_preserve_scope_and_unrelated_priorities() {
+        let (w, _) = financing::scenario(Case::Baseline).unwrap();
+        let buffer = recipe_inputs(w.definition(REFINE)).unwrap();
+        let mut c = w.agency[&WORKSHOP].config.clone();
+        let cash = c.objectives[0].clone();
+        let need = Objective {
+            scope: Scope::Members,
+            metric: Metric::Deaths,
+        };
+        c.preferences.insert(7, vec![need.clone(), cash.clone()]);
+        let mut personal_cash = cash.clone();
+        personal_cash.scope = Scope::Agents([8].into());
+        c.preferences.insert(8, vec![personal_cash.clone()]);
+        for policy in [Policy::Off, Policy::InputsFirst, Policy::CashFirst] {
+            let mut variant = c.clone();
+            apply(&mut variant, &buffer, policy);
+            let mut expected = vec![need.clone(), cash.clone()];
+            if policy != Policy::Off {
+                expected.insert(
+                    1 + usize::from(policy == Policy::CashFirst),
+                    buffer[0].clone(),
+                );
+            }
+            assert_eq!(variant.preferences[&7], expected);
+            assert_eq!(variant.preferences[&8], [personal_cash.clone()]);
+            assert_eq!(
+                variant.objectives.len(),
+                c.objectives.len() + usize::from(policy != Policy::Off)
+            );
+        }
+    }
 }
