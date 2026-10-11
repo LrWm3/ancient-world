@@ -43,3 +43,15 @@ controller continues to retain its plan on equal forecasts.
    it now discards the superseded fixed-route receipts. Its separate provisioning
    policy is unchanged and is not covered by this new stock-protection guarantee;
    all 15 provisioning regressions pass.
+
+5. **Matched acceptance fixture.** `acceptance::publication` removes both supplied
+   organization asks, retains the exact finite inventories and signed options,
+   and enables only the new publication policy. A structural test compares whole
+   initial worlds/states after changing just that field, and pins cash-only goals,
+   empty supplied program menus and absence of organizational work orders/asks.
+   The measured reference comparison produces 44 mints, 43 workshop batches and
+   40 town batches with publication, versus zero of each with retention. Readiness
+   passes only with publication; food deficit/ending arrears are 0/0 versus 67/2.
+   The initial forecasts contain no hypothetical peer work. Later forecasts still
+   use the existing observed-process/state-ballot recurrence model; this experiment
+   does not remove that assumption.

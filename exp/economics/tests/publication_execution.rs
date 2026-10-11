@@ -1,32 +1,12 @@
 use economics_compute_smoke::{
-    acceptance::{self, Run, TOWN, WORKSHOP, continuation as c, sales},
-    agency::{Command, publication::Policy},
+    acceptance::{self, Run, TOWN, WORKSHOP, continuation as c, publication},
+    agency::Command,
     compute::Backend,
     minting::{METAL, ORE},
-    model::*,
 };
-fn fixture(enabled: bool) -> (World, State) {
-    let (mut w, s) =
-        sales::with_startup(c::Case::Baseline, sales::Startup::SupplyChainInventory).unwrap();
-    let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
-    p.quotes
-        .retain(|q| q.agent != WORKSHOP || q.market != METAL);
-    p.peer_stocks
-        .as_mut()
-        .unwrap()
-        .quotes
-        .retain(|q| q.agent != TOWN || q.market != ORE);
-    if enabled {
-        for id in [WORKSHOP, TOWN] {
-            w.agency.get_mut(&id).unwrap().config.publication =
-                Policy::StockedAsksOnEqualProjection;
-        }
-    }
-    (w, s)
-}
 #[test]
 fn stocked_asks_publish_next_open_before_independent_buyer_action() {
-    let (w, s) = fixture(true);
+    let (w, s) = publication::scenario(c::Case::Baseline).unwrap();
     let run = |backend| {
         let mut run = Run::new(w.clone(), s.clone(), backend).unwrap();
         run.through(1).unwrap();
