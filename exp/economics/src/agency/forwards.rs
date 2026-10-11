@@ -15,7 +15,7 @@ const MAX_DELIVERY_MONTHS: u32 = 12;
 pub struct Options {
     /// One market lot, prepaid at this exact total price in its payment resource.
     pub prepayment: i32,
-    /// Months from acceptance to delivery; admission is next month; conditional work starts the following Open.
+    /// Months from publication to delivery; admission is next month; conditional work starts the following Open.
     pub delivery_months: u32,
 }
 

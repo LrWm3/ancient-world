@@ -21,6 +21,42 @@ impl Stocks {
     pub const ALL: [Self; 4] = [Self::Both, Self::OreOnly, Self::MetalOnly, Self::Neither];
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Liquidity {
+    TerminalReserve,
+    MonthlyExposure,
+}
+
+/// Initial constitutional preference variant, before any mandate is sealed.
+/// Targets, ordering, beneficiaries, money and institutional rights are unchanged.
+pub fn with_liquidity(
+    case: c::Case,
+    enabled: bool,
+    stocks: Stocks,
+    liquidity: Liquidity,
+) -> Result<(World, State), String> {
+    use crate::agency::objectives::Metric;
+    let (mut w, s) = with_stocks(case, enabled, stocks)?;
+    if liquidity == Liquidity::MonthlyExposure {
+        for agent in [WORKSHOP, TOWN] {
+            let config = &mut w.agency.get_mut(&agent).unwrap().config;
+            for o in config
+                .objectives
+                .iter_mut()
+                .chain(config.preferences.values_mut().flatten())
+            {
+                if let Metric::Reserve { resource, target } = o.metric
+                    && resource == crate::minting::COIN
+                {
+                    o.metric = Metric::ReserveExposure { resource, target };
+                }
+            }
+        }
+    }
+    crate::settlement::validate_world(&w, &s)?;
+    Ok((w, s))
+}
+
 pub fn with_stocks(case: c::Case, enabled: bool, stocks: Stocks) -> Result<(World, State), String> {
     let (w, mut s) = with_authority(case, enabled)?;
     if matches!(stocks, Stocks::MetalOnly | Stocks::Neither) {

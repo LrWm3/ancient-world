@@ -108,6 +108,8 @@ pub struct ProjectedSale {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Projection {
+    /// Completed-month detail only when an exposure objective requests it.
+    /// Terminal-only alternatives keep this empty to bound retained history.
     pub path: path::Path,
     /// Settled sales in this private branch, never receipts promised to live agents.
     pub sales: Vec<ProjectedSale>,
@@ -526,8 +528,13 @@ fn forecast(
         let mut starts = vec![];
         let mut peer_ballots = vec![];
         let mut path = path::Path::new(s.month);
+        let observe_path = c
+            .objectives
+            .iter()
+            .chain(c.preferences.values().flatten())
+            .any(|o| matches!(o.metric, objectives::Metric::ReserveExposure { .. }));
         while sim.state.month < end {
-            if sim.state.phase == Phase::Open {
+            if observe_path && sim.state.phase == Phase::Open {
                 peer_ballots.extend(peers.apply_ballots(&mut sim.world, &sim.state)?);
                 starts.extend(peers.apply_hypotheses(&mut sim.world, &sim.state)?);
             }

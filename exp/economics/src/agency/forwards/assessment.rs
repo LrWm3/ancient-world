@@ -14,6 +14,8 @@ pub struct Comparison {
     pub horizon: u32,
     pub baseline: Vec<i128>,
     pub proposed: Vec<i128>,
+    pub baseline_path: agency::path::Path,
+    pub proposed_path: agency::path::Path,
     pub admitted: bool,
     pub delivered_on_time: i32,
 }
@@ -60,28 +62,32 @@ pub fn assess(w: &World, s: &State, proposal: &Proposal) -> Result<Assessment, S
             agent,
             controller.config.peer_expectations,
         )?;
-        let (base, _, _) = project(w, s, horizon, &peers, None)?;
-        let (proposed, admitted, delivered_on_time) =
+        let (base, _, _, baseline_path) = project(w, s, horizon, &peers, None)?;
+        let (proposed, admitted, delivered_on_time, proposed_path) =
             project(w, s, horizon, &peers, Some(proposal))?;
         comparisons.insert(
             agent,
             Comparison {
                 governor,
                 horizon,
-                baseline: agency::objectives::measure(
+                baseline: agency::objectives::measure_projection(
                     &base.world,
                     &base.state,
                     &base.reports,
                     agent,
                     &objectives,
+                    &baseline_path,
                 )?,
-                proposed: agency::objectives::measure(
+                proposed: agency::objectives::measure_projection(
                     &proposed.world,
                     &proposed.state,
                     &proposed.reports,
                     agent,
                     &objectives,
+                    &proposed_path,
                 )?,
+                baseline_path,
+                proposed_path,
                 admitted,
                 delivered_on_time,
             },
@@ -99,7 +105,7 @@ fn project(
     horizon: u32,
     peers: &agency::expectations::Snapshot,
     proposal: Option<&Proposal>,
-) -> Result<(Simulation, bool, i32), String> {
+) -> Result<(Simulation, bool, i32, agency::path::Path), String> {
     let (mut world, state) = crate::forecast::ForecastContext::new(w, s).into_parts();
     if let Some(p) = proposal {
         super::execution::record(&mut world, s, p)?;
@@ -111,6 +117,7 @@ fn project(
         .ok_or("forward projection date overflow")?;
     let mut admitted = false;
     let mut on_time = 0;
+    let mut path = agency::path::Path::new(s.month);
     while sim.state.month < end {
         let open = sim.state.phase == Phase::Open;
         if open {
@@ -118,6 +125,9 @@ fn project(
             peers.apply_hypotheses(&mut sim.world, &sim.state)?;
         }
         sim.step()?;
+        if sim.state.phase == Phase::Open {
+            path.record(&sim.world, &sim.state)?;
+        }
         if let Some(p) = proposal
             && let Some(c) = sim.state.exchange.forwards.get(&p.terms.id)
         {
@@ -127,7 +137,7 @@ fn project(
             }
         }
     }
-    Ok((sim, admitted, on_time))
+    Ok((sim, admitted, on_time, path))
 }
 
 pub(super) fn activate(w: &mut World, p: &Proposal) -> Result<(), String> {
