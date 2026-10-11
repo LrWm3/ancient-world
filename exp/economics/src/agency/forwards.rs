@@ -4,6 +4,7 @@ use super::organization::Agreement;
 use crate::{marketplace::MarketId, model::*};
 
 pub mod assessment;
+pub mod execution;
 
 const MAX_PROPOSALS: usize = 64;
 const MIN_DELIVERY_MONTHS: u32 = 3;

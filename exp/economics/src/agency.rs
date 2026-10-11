@@ -61,6 +61,7 @@ pub struct Controller {
     pub discover_programs: bool,
     pub history: Vec<Decision>,
     pub applied_through: u32,
+    pub startup_forwards: Vec<forwards::execution::Agreement>,
     /// Static operating mandate sealed at the first live opening.
     mandate: Option<(Config, bool)>,
     organization: Option<organization::Agreement>,
@@ -84,6 +85,7 @@ impl Controller {
             discover_programs: false,
             history: vec![],
             applied_through: 0,
+            startup_forwards: vec![],
             mandate: None,
             organization: None,
         }
@@ -269,8 +271,11 @@ pub fn validate_program(w: &World, agent: AgentId, p: &Program) -> Result<(), St
 }
 
 pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
+    forwards::execution::validate_history(w, s)?;
     for (&agent, c) in &w.agency {
-        if c.applied_through > s.month || (!c.history.is_empty() && c.mandate.is_none()) {
+        if c.applied_through > s.month
+            || ((!c.history.is_empty() || !c.startup_forwards.is_empty()) && c.mandate.is_none())
+        {
             return Err("invalid organization decision boundary".into());
         }
         let catalog = if c.discover_programs {
@@ -723,11 +728,16 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
             .get_or_insert_with(|| (c.config.clone(), c.discover_programs));
     }
     apply_due(w, s)?;
+    forwards::execution::activate_due(w, s)?;
     let opening = w.clone();
     let actors: Vec<_> = w
         .agency
         .iter()
-        .filter(|(_, c)| c.autonomous && c.history.last().is_none_or(|d| d.month < s.month))
+        .filter(|(a, c)| {
+            c.autonomous
+                && !forwards::execution::pending(w, **a)
+                && c.history.last().is_none_or(|d| d.month < s.month)
+        })
         .map(|(&a, _)| a)
         .collect();
     for agent in actors {
@@ -788,7 +798,22 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
                 selected = decision.alternatives.iter().find(|a| a.program == Some(id));
             }
             let last = c.history.iter().rev().find(|d| d.chosen.is_some());
-            let held = last.is_some_and(|last| s.month - last.month < c.config.minimum_tenure);
+            let forward_month = opening
+                .agency
+                .values()
+                .flat_map(|c| &c.startup_forwards)
+                .filter(|a| {
+                    [a.proposal.terms.buyer, a.proposal.terms.seller].contains(&agent)
+                        && !matches!(a.status, forwards::execution::Status::AdmissionRejected(_))
+                })
+                .map(|a| a.month)
+                .max();
+            let held = last
+                .map(|d| d.month)
+                .into_iter()
+                .chain(forward_month)
+                .max()
+                .is_some_and(|month| s.month - month < c.config.minimum_tenure);
             if !due && !emergency {
                 decision.reason = "election observation; policy review not due".into();
             } else if authority.is_none() {

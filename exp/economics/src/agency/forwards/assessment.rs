@@ -102,14 +102,13 @@ fn project(
 ) -> Result<(Simulation, bool, i32), String> {
     let (mut world, state) = crate::forecast::ForecastContext::new(w, s).into_parts();
     if let Some(p) = proposal {
-        world.prepaid_deliveries.push(p.terms.clone());
+        super::execution::record(&mut world, s, p)?;
     }
     let mut sim = Simulation::new(world, state, Backend::Reference)?;
     let end = s
         .month
         .checked_add(horizon)
         .ok_or("forward projection date overflow")?;
-    let mut activated = false;
     let mut admitted = false;
     let mut on_time = 0;
     while sim.state.month < end {
@@ -125,19 +124,13 @@ fn project(
                 if sim.state.month <= p.terms.due {
                     on_time = c.delivered;
                 }
-                // Admission was in the preceding month; no same-Acquire reuse of
-                // prepaid cash or work before the contract actually exists.
-                if open && !activated && sim.state.month > p.terms.month {
-                    activate(&mut sim.world, p)?;
-                    activated = true;
-                }
             }
         }
     }
     Ok((sim, admitted, on_time))
 }
 
-fn activate(w: &mut World, p: &Proposal) -> Result<(), String> {
+pub(super) fn activate(w: &mut World, p: &Proposal) -> Result<(), String> {
     for (agent, id) in [
         (p.terms.buyer, p.buyer_program),
         (p.terms.seller, p.seller_program),
