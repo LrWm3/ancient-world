@@ -130,3 +130,15 @@ Independent review passed. A focused audited CPU/reference integration test show
 household seed reaching a parent with no personal food demand, production with no
 invented personal need goal, and actual support at the following Open. Missing
 seed or disabled support planning prevents that chain.
+
+## 11. Make scarce parental support priority explicit
+
+`SupportOrder` preserves oldest-first by default and offers dated per-parent
+rotation. Open receipts capture the policy, opening spendable stock after credit
+and the donor reserve, and each sibling order. Existing dependents still precede
+births; storage limits and finite funds remain binding.
+
+Independent review requested adjacent-month order checks. All twenty-five
+reproduction tests pass, including audited CPU/reference/replay comparisons on
+identical opening claims, alternate months, stocked children and full child
+storage. These tests show who receives scarce food, not a survival advantage.

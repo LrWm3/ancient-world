@@ -96,6 +96,7 @@ pub fn scenario(reproduce: bool, scarce: bool) -> (World, State) {
     w.demography = Some(Config {
         enabled: reproduce,
         plan_support: false,
+        support_order: super::SupportOrder::OldestFirst,
         parents: [PERSON, PERSON + 1].into(),
         descendants_reproduce: true,
         first_month: 1,

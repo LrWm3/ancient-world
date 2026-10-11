@@ -1324,3 +1324,91 @@ fn household_inputs_can_fund_support_only_production() {
         );
     }
 }
+
+#[test]
+fn scarce_parental_support_uses_explicit_dated_priority() {
+    use demography::SupportOrder;
+    let (mut w, mut s) = scenario(true, false);
+    let c = w.demography.as_mut().unwrap();
+    c.parents = [PERSON].into();
+    c.max_births = 2;
+    c.interval_months = 1;
+    c.birth_buffer_months = 1;
+    c.maturity_months = 10;
+    s.balances.insert((PERSON, GRAIN), 10);
+    let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+    while sim.state.month < 4 {
+        sim.step().unwrap();
+    }
+    assert_eq!(sim.state.demography.births.len(), 2);
+    let run = |backend, policy, stocked: bool, full: bool| {
+        let mut w = sim.world.clone();
+        let mut s = sim.state.clone();
+        w.demography.as_mut().unwrap().support_order = policy;
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == FORAGE)
+            .unwrap()
+            .enabled = false;
+        s.balances.insert((PERSON, GRAIN), 2);
+        s.balances.insert((FIRST_CHILD, GRAIN), 0);
+        s.balances
+            .insert((FIRST_CHILD + 1, GRAIN), i32::from(stocked));
+        if full {
+            use economics_compute_smoke::scenario::SEED;
+            w.storage.weights.insert(SEED, 1);
+            s.balances.insert(
+                (FIRST_CHILD + 1, SEED),
+                w.demography.as_ref().unwrap().person.storage,
+            );
+        }
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+        a.step(&mut sim).unwrap();
+        let b = sim.ledger[0].demography.as_ref().unwrap();
+        assert_eq!(b.support_order, policy);
+        assert_eq!(b.pools[0].spendable, 1);
+        assert_eq!(
+            b.pools[0].children,
+            if policy == SupportOrder::Rotating {
+                vec![FIRST_CHILD + 1, FIRST_CHILD]
+            } else {
+                vec![FIRST_CHILD, FIRST_CHILD + 1]
+            }
+        );
+        let mut adjacent = s.clone();
+        adjacent.month += 1;
+        let mut alternate = Simulation::new(w.clone(), adjacent, backend).unwrap();
+        alternate.step().unwrap();
+        assert_eq!(
+            alternate.ledger[0].demography.as_ref().unwrap().pools[0].children,
+            vec![FIRST_CHILD, FIRST_CHILD + 1]
+        );
+        assert_eq!(b.support.iter().map(|r| r.delivered).sum::<i32>(), 1);
+        let recipient = if policy == SupportOrder::Rotating && !stocked && !full {
+            FIRST_CHILD + 1
+        } else {
+            FIRST_CHILD
+        };
+        assert_eq!(
+            b.support.iter().find(|r| r.delivered == 1).unwrap().child,
+            recipient
+        );
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 1);
+        let mut replay = s;
+        demography::replay(&mut w, &mut replay, &sim.ledger[0], backend, 256).unwrap();
+        assert_eq!((w, replay), (sim.world.clone(), sim.state.clone()));
+        (sim.state, sim.ledger, a)
+    };
+    for (policy, stocked, full) in [
+        (SupportOrder::OldestFirst, false, false),
+        (SupportOrder::Rotating, false, false),
+        (SupportOrder::Rotating, true, false),
+        (SupportOrder::Rotating, false, true),
+    ] {
+        assert_eq!(
+            run(Backend::Reference, policy, stocked, full),
+            run(Backend::CubeCpu, policy, stocked, full)
+        );
+    }
+}

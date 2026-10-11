@@ -11,11 +11,25 @@ pub struct Template {
     pub conditions: Vec<ConditionRule>,
     pub storage: i32,
 }
+/// Priority only within each parent's finite opening support pool.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SupportOrder {
+    #[default]
+    OldestFirst,
+    Rotating,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SupportPool {
+    pub parent: AgentId,
+    pub spendable: i32,
+    pub children: Vec<AgentId>,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub enabled: bool,
     /// Forecast known dependent support in planning; never hypothetical births.
     pub plan_support: bool,
+    pub support_order: SupportOrder,
     pub parents: BTreeSet<AgentId>,
     pub descendants_reproduce: bool,
     pub first_month: u32,
@@ -53,6 +67,8 @@ pub struct Support {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub support_order: SupportOrder,
+    pub pools: Vec<SupportPool>,
     pub births: Vec<Birth>,
     pub matured: Vec<AgentId>,
     pub support: Vec<Support>,
@@ -260,7 +276,7 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
     Ok(())
 }
 
-/// Same-opening stocks; existing dependents first, oldest ID first. Births use
+/// Same-opening stocks; existing dependents first under explicit priority. Births use
 /// the remainder, one per eligible parent, stable parent ID priority.
 pub(crate) fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String> {
     let Some(c) = &w.demography else {
@@ -270,6 +286,8 @@ pub(crate) fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String>
         return Ok(None);
     }
     let mut b = Boundary {
+        support_order: c.support_order,
+        pools: vec![],
         births: vec![],
         matured: vec![],
         support: vec![],
@@ -297,7 +315,46 @@ pub(crate) fn evaluate(w: &World, s: &State) -> Result<Option<Boundary>, String>
                 .ok_or("opening credit overdraws support stock")?;
         }
     }
+    let mut children: BTreeMap<AgentId, Vec<&Birth>> = BTreeMap::new();
     for birth in s.demography.births.values() {
+        if s.terminal.contains_key(&birth.child) {
+            continue;
+        }
+        if s.month >= birth.adult_at {
+            if b.after.matured.insert(birth.child) {
+                b.matured.push(birth.child);
+            }
+        } else {
+            children.entry(birth.parent).or_default().push(birth);
+        }
+    }
+    for (&parent, siblings) in &mut children {
+        if c.support_order == SupportOrder::Rotating {
+            let offset = s.month.saturating_sub(1) as usize % siblings.len();
+            siblings.rotate_left(offset);
+        }
+        let spendable = if s.terminal.contains_key(&parent) {
+            0
+        } else {
+            available
+                .get(&(parent, c.support.resource))
+                .copied()
+                .unwrap_or(0)
+                .saturating_sub(c.parent_reserve)
+                .max(0)
+        };
+        b.pools.push(SupportPool {
+            parent,
+            spendable,
+            children: siblings.iter().map(|b| b.child).collect(),
+        });
+    }
+    // Keep receipt ordering unchanged for the legacy policy, including across parents.
+    let mut ordered: Vec<_> = children.values().flatten().copied().collect();
+    if c.support_order == SupportOrder::OldestFirst {
+        ordered.sort_by_key(|b| b.child);
+    }
+    for birth in ordered {
         if s.terminal.contains_key(&birth.child) {
             continue;
         }
