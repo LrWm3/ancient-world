@@ -1224,6 +1224,7 @@ fn contributed_labor(
 ) -> Result<(Vec<Effect>, LaborDecision), String> {
     use crate::household_governance::{self as governance, Policy};
     let people: BTreeSet<_> = members(a, state).collect();
+    let beneficiaries: BTreeSet<_> = need_recipients(a, state).into_iter().collect();
     let order = governance::ordered(a, state);
     let baseline = probe(world, state)?;
     let base_value = work_value(world, &baseline, &people);
@@ -1233,7 +1234,7 @@ fn contributed_labor(
         Policy::NeedsFirst | Policy::NeedsThenIncome | Policy::NeedsThenCommitments { .. }
     );
     let baseline_needs = needs_first
-        .then(|| needs::project(world, state, &baseline, &people))
+        .then(|| needs::project(world, state, &baseline, &beneficiaries))
         .transpose()?;
     let baseline_income = (policy == Policy::NeedsThenIncome)
         .then(|| income::project(world, state, &baseline, a.agent))
@@ -1429,7 +1430,7 @@ fn contributed_labor(
         }
         let value = work_value(world, &final_plan, &people);
         let projected_needs = needs_first
-            .then(|| needs::project(world, &final_state, &final_plan, &people))
+            .then(|| needs::project(world, &final_state, &final_plan, &beneficiaries))
             .transpose()?;
         let projected_income = (policy == Policy::NeedsThenIncome)
             .then(|| income::project(world, &final_state, &final_plan, a.agent))

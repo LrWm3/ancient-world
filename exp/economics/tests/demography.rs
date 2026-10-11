@@ -1148,3 +1148,95 @@ fn collective_market_bids_can_feed_a_child_with_no_adult_food_demand() {
         );
     }
 }
+
+#[test]
+fn household_governance_can_prioritize_child_food_over_more_output() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        household_governance::{Contribution, Policy},
+        households,
+    };
+    let run = |backend, policy, enabled, work| {
+        const CRAFT: ResourceId = 950;
+        let (mut w, mut s) = family_household(enabled, 0);
+        w.resources.push(Resource {
+            id: CRAFT,
+            name: "craft goods".into(),
+            kind: ResourceKind::Stock,
+        });
+        let food = w.definitions.iter_mut().find(|d| d.id == FORAGE).unwrap();
+        food.enabled = work;
+        food.stages[0].monthly_services[0].quantity = 2;
+        let mut craft = food.clone();
+        craft.id = CRAFT;
+        craft.name = "craft".into();
+        craft.enabled = true;
+        craft.stages[0].entry_inputs.clear();
+        craft.outputs = vec![Amount::new(CRAFT, 100)];
+        w.definitions.push(craft);
+        for p in &mut w.participants {
+            p.needs[0].quantity = 0;
+        }
+        w.condition_rules.clear();
+        s.balances.insert((PERSON + 1, GRAIN), 0);
+        let mut h = w.households.remove(0);
+        w.agents.retain(|a| a.id != h.agent);
+        h.adults = vec![PERSON, PERSON + 1];
+        h.governance.charter.initial_policy = policy;
+        h.governance.charter.contribution = Contribution::Percent(100);
+        households::form(&mut w, &s, h).unwrap();
+        w.activities.orders = vec![
+            WorkOrder {
+                agent: PERSON + 1,
+                definition: FORAGE,
+                priority: 0,
+                target: Target::Stock(Amount::new(GRAIN, 20)),
+            },
+            WorkOrder {
+                agent: PERSON,
+                definition: CRAFT,
+                priority: 0,
+                target: Target::Stock(Amount::new(CRAFT, 1000)),
+            },
+        ];
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let d = sim
+            .ledger
+            .iter()
+            .find(|b| b.month == 2 && b.phase == Phase::Productive)
+            .unwrap()
+            .household
+            .as_ref()
+            .unwrap()
+            .labor
+            .first()
+            .unwrap();
+        let fed = policy == Policy::NeedsFirst && enabled && work;
+        assert_eq!(d.recipient, Some(if fed { PERSON + 1 } else { PERSON }));
+        assert_eq!(
+            sim.reports
+                .iter()
+                .find(|r| r.agent == FIRST_CHILD && r.month == 2)
+                .unwrap()
+                .deficit(NUTRITION),
+            if fed { 0 } else { 1 }
+        );
+        assert!(d.contributions.iter().all(|c| c.member < FIRST_CHILD));
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (policy, enabled, work) in [
+        (Policy::NeedsFirst, true, true),
+        (Policy::NetOutput, true, true),
+        (Policy::NeedsFirst, false, true),
+        (Policy::NeedsFirst, true, false),
+    ] {
+        assert_eq!(
+            run(Backend::Reference, policy, enabled, work),
+            run(Backend::CubeCpu, policy, enabled, work)
+        );
+    }
+}

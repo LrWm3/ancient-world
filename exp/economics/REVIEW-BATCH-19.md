@@ -107,3 +107,15 @@ boundary test pass. CPU/reference audited controls show an actual collective coi
 payment and food purchase feeds a child when adults have no food demand; disabled
 support or absent cash does not. Stocked-child and cross-maturity forecasts avoid
 charging the same child food twice or after dependent eligibility ends.
+
+## 9. Govern contributed labor for dependent welfare
+
+Needs-first household governance includes charter-supported dependents in its
+baseline and candidate welfare projections. Workers, donors, work rights and
+retained commitments remain adult-scoped. The same finite labor pool can therefore
+choose food for a hungry child over a larger unweighted craft output.
+
+Independent review passed. Twenty-three reproduction and twenty-four household
+income tests pass. Audited CPU/reference controls distinguish needs-first from
+net-output policy, disabled dependent support and unavailable food production;
+they check actual child deprivation and adult-only donor receipts.
