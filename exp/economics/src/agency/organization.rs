@@ -72,10 +72,9 @@ pub(crate) fn validate(w: &World, agent: AgentId, a: &Agreement) -> Result<(), S
         || a.members.contains(&agent)
         || a.members.iter().any(|id| {
             !w.agents.iter().any(|p| p.id == *id)
-                || !w
-                    .transaction_policy
+                || w.transaction_policy
                     .as_ref()
-                    .is_some_and(|p| p.agent_types.get(id) == Some(&PERSON_TYPE))
+                    .is_none_or(|p| p.agent_types.get(id) != Some(&PERSON_TYPE))
         })
         || a.processes.iter().any(|id| {
             !w.definitions

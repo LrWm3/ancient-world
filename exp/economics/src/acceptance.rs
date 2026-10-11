@@ -15,6 +15,8 @@ use crate::{
     simulation::Simulation,
 };
 
+pub mod continuation;
+
 pub const RUN_MONTHS: u32 = integration::RUN_MONTHS;
 
 pub const WORKSHOP: AgentId = 810;

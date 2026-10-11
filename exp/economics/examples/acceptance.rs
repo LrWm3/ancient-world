@@ -1,6 +1,56 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
+    if std::env::args().any(|a| a == "--continuation-matrix") {
+        use acceptance::continuation as c;
+        println!(
+            "case,ready,food_deficit,wage_arrears,last_year_workshop_income,last_year_town_income"
+        );
+        for case in c::Case::ALL {
+            let (w, s) = c::scenario(case)?;
+            let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
+            run.through(c::MONTHS)?;
+            let evidence = run.evidence()?;
+            let report = c::check(&run)?;
+            let year = report.periods.last().unwrap();
+            println!(
+                "{case:?},{},{},{},{},{}",
+                report.ready(),
+                evidence.people_food_deficit,
+                evidence.wage_arrears,
+                year.workshop_income,
+                year.municipal_income
+            );
+            if report.ready() != (case == c::Case::Baseline) {
+                return Err(format!(
+                    "unexpected acceptance outcome: {case:?}: {:?}",
+                    report.failures
+                ));
+            }
+        }
+        return Ok(());
+    }
+    if !std::env::args().any(|a| {
+        matches!(
+            a.as_str(),
+            "--legacy" | "--matrix" | "--tight-food" | "--no-sales-target"
+        )
+    }) {
+        use acceptance::continuation as c;
+        let (w, s) = c::scenario(c::Case::Baseline)?;
+        let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
+        run.through(c::MONTHS)?;
+        let report = c::check(&run)?;
+        println!("{:#?}\n{report:#?}", run.evidence()?);
+        if !report.ready() {
+            return Err(format!("acceptance failed: {:?}", report.failures));
+        }
+        println!(
+            "Acceptance passed: {} months, including three recurring operating cycles.",
+            c::MONTHS
+        );
+        return Ok(());
+    }
     if std::env::args().any(|a| a == "--matrix") {
         println!(
             "case,food_deficit,smith_deficit,mints,metal_lots,home_food_lots,private_food_lots,smith_food_lots,municipal_work,wage_arrears,workshop_income,storage_rejections,timely_forward"
