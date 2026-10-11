@@ -1261,3 +1261,54 @@ fn optional_worker_policy_protects_food_without_inventing_wage_purchases() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn worker_comparisons_are_replay_validated_and_do_not_publish_on_tampering() {
+    use economics_compute_smoke::employment::supply::Policy;
+    let (mut w, s) = production(6);
+    w.employment_offers.insert(1);
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+    let mut sim = Simulation::new(w.clone(), s, Backend::Reference).unwrap();
+    while sim.state.phase != Phase::Acquire {
+        sim.step().unwrap();
+    }
+    let opening = sim.state.clone();
+    sim.step().unwrap();
+    let batch = sim.ledger.last().unwrap();
+    let decisions = &batch.employment.as_ref().unwrap().supply;
+    assert_eq!(decisions.len(), 1);
+    assert_eq!(
+        (
+            decisions[0].maximum,
+            decisions[0].searched_maximum,
+            decisions[0].selected
+        ),
+        (2, 2, 2)
+    );
+    assert_eq!(
+        decisions[0].alternatives[0].losses.as_ref(),
+        Some(&decisions[0].baseline)
+    );
+    for case in 0..3 {
+        let mut altered = batch.clone();
+        let d = &mut altered.employment.as_mut().unwrap().supply[0];
+        match case {
+            0 => d.selected = 1,
+            1 => d.horizon = 2,
+            _ => d.alternatives.clear(),
+        }
+        let mut state = opening.clone();
+        assert!(
+            commit(
+                &w,
+                &mut state,
+                &altered,
+                Backend::Reference,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(state, opening);
+    }
+}

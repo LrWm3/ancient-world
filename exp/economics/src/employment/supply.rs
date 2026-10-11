@@ -8,6 +8,26 @@ const MAX_HOURS: i32 = 64;
 pub struct Policy {
     pub horizon: u32,
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Alternative {
+    pub hours: i32,
+    pub losses: Option<Vec<i128>>,
+    pub failure: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Decision {
+    pub agreement: u32,
+    pub month: u32,
+    pub worker: AgentId,
+    pub horizon: u32,
+    pub maximum: i32,
+    pub searched_maximum: i32,
+    pub objectives: Vec<crate::agency::objectives::Objective>,
+    pub baseline: Vec<i128>,
+    pub alternatives: Vec<Alternative>,
+    /// Approved by the worker for this assessment; final delivery is in the receipt.
+    pub selected: i32,
+}
 pub(super) fn validate(w: &World) -> Result<(), String> {
     if w.employment_supply.iter().any(|(a, p)| {
         !(1..=MAX_HORIZON).contains(&p.horizon) || !w.participants.iter().any(|x| x.agent == *a)
@@ -23,9 +43,9 @@ pub(super) fn quantity(
     prior: &Boundary,
     terms: &Terms,
     maximum: i32,
-) -> Result<i32, String> {
+) -> Result<(i32, Option<Decision>), String> {
     let Some(policy) = w.employment_supply.get(&terms.worker) else {
-        return Ok(maximum);
+        return Ok((maximum, None));
     };
     let (mut world, state) = crate::households::hiring::preview(w, s, base, prior)?;
     world.employment_supply.clear();
@@ -53,10 +73,36 @@ pub(super) fn quantity(
         )
     };
     let baseline = project(0)?;
-    for hours in (1..=maximum.min(MAX_HOURS)).rev() {
-        if project(hours).is_ok_and(|losses| losses.iter().zip(&baseline).all(|(a, b)| a <= b)) {
-            return Ok(hours);
+    let mut decision = Decision {
+        agreement: terms.id,
+        month: s.month,
+        worker: terms.worker,
+        horizon: policy.horizon,
+        maximum,
+        searched_maximum: maximum.min(MAX_HOURS),
+        objectives: goals.clone(),
+        baseline,
+        alternatives: vec![],
+        selected: 0,
+    };
+    for hours in (1..=decision.searched_maximum).rev() {
+        let result = project(hours);
+        let acceptable = result
+            .as_ref()
+            .is_ok_and(|losses| losses.iter().zip(&decision.baseline).all(|(a, b)| a <= b));
+        let (losses, failure) = match result {
+            Ok(v) => (Some(v), None),
+            Err(e) => (None, Some(e)),
+        };
+        decision.alternatives.push(Alternative {
+            hours,
+            losses,
+            failure,
+        });
+        if acceptable {
+            decision.selected = hours;
+            break;
         }
     }
-    Ok(0)
+    Ok((decision.selected, Some(decision)))
 }

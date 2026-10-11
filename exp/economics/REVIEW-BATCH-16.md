@@ -38,3 +38,12 @@ jobs retain their defaults. Dated production plans remain binding and prevent
 optional hiring. Independent review identified the discrete-quantity issue and
 confirmed the decreasing intersection loop fixes it. All 20 hiring tests pass,
 including food-vs-wages, enough spare hours, no capacity and default-consent controls.
+
+## 4. Preserve worker assessment evidence
+
+Employment boundaries retain each bounded assessment's horizon, objectives,
+requested/search maximum, baseline, alternatives, errors and worker-approved
+quantity. Final delivery remains separate, so trimming is not mistaken for an
+accepted forecast. Settlement recomputes this evidence. Altered selection, horizon
+and alternatives are rejected without publishing state. Independent review found
+no blocker; all 21 household-hiring tests pass.

@@ -71,6 +71,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
+    pub supply: Vec<supply::Decision>,
     pub after: Book,
     pub receipts: Vec<Receipt>,
     pub transactions: Vec<Transaction>,
@@ -287,6 +288,7 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
         crate::households::income_reservations::Reservations::new(w, s, resources.storage.clone());
     let mut execution = finance::Execution::from_parts(resources.available, resources.storage);
     let mut b = Boundary {
+        supply: vec![],
         after: s.employment.clone(),
         receipts: vec![],
         transactions: vec![],
@@ -375,7 +377,8 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                 if delivered > 0 && w.employment_offers.contains(&t.id) {
                     let initial = delivered;
                     loop {
-                        let allowed = supply::quantity(w, s, base, &b, t, delivered)?;
+                        let (allowed, decision) = supply::quantity(w, s, base, &b, t, delivered)?;
+                        b.supply.extend(decision);
                         if allowed == delivered {
                             break;
                         }
