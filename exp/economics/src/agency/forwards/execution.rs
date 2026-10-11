@@ -187,7 +187,10 @@ pub(crate) fn validate_history(w: &World, s: &State) -> Result<(), String> {
             }
             let activation = t.month.checked_add(1).ok_or("activation date overflow")?;
             match a.status {
-                Status::Pending if s.month > activation => {
+                Status::Pending
+                    if s.month > activation
+                        || (s.month == activation && s.phase != Phase::Open) =>
+                {
                     return Err("stale pending forward activation".into());
                 }
                 Status::Activated(month) | Status::AdmissionRejected(month)

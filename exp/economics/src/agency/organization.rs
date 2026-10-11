@@ -17,9 +17,9 @@ pub struct Agreement {
     pub term_months: u32,
     /// Constitutional bounds on the operating programs, additional to state law.
     pub processes: BTreeSet<DefinitionId>,
-    /// Static, signed choices; these confer no marketplace or legal eligibility.
-    /// Separate consent for one startup prepayment per signed market.
+    /// Separate consent for startup prepayment; execution permits one per resource.
     pub forwards: BTreeMap<crate::marketplace::MarketId, super::forwards::Options>,
+    /// Static, signed choices; these confer no marketplace or legal eligibility.
     pub stock_markets: BTreeMap<crate::marketplace::MarketId, super::markets::Options>,
 }
 

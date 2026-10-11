@@ -23,7 +23,13 @@ fn forward_authority_is_separate_and_bounded() {
             .forwards
             .is_empty()
     );
-    for (price, months, valid) in [(2, 3, true), (0, 2, false), (2, 1, false), (2, 13, false)] {
+    for (price, months, valid) in [
+        (2, 3, true),
+        (0, 2, false),
+        (2, 1, false),
+        (2, 2, false),
+        (2, 13, false),
+    ] {
         let mut candidate = w.clone();
         assert_eq!(
             authorize(

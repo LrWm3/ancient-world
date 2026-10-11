@@ -148,6 +148,15 @@ fn published_work_waits_for_admission_and_rejection_leaves_no_work() {
                 .any(|o| o.agent == acceptance::TOWN),
             funded
         );
+        for agent in [acceptance::WORKSHOP, acceptance::TOWN] {
+            let expected =
+                &sim.world.agency[&acceptance::WORKSHOP].startup_forwards[0].programs[&agent];
+            assert_eq!(
+                economics_compute_smoke::agency::accepted_programs(&sim.world, agent)
+                    .any(|p| p == expected),
+                funded
+            );
+        }
     }
 }
 

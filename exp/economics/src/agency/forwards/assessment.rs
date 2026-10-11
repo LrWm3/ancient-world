@@ -118,12 +118,12 @@ fn project(
             peers.apply_hypotheses(&mut sim.world, &sim.state)?;
         }
         sim.step()?;
-        if let Some(p) = proposal {
-            if let Some(c) = sim.state.exchange.forwards.get(&p.terms.id) {
-                admitted = true;
-                if sim.state.month <= p.terms.due {
-                    on_time = c.delivered;
-                }
+        if let Some(p) = proposal
+            && let Some(c) = sim.state.exchange.forwards.get(&p.terms.id)
+        {
+            admitted = true;
+            if sim.state.month <= p.terms.due {
+                on_time = c.delivered;
             }
         }
     }
