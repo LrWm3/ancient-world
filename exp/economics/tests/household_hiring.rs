@@ -1312,3 +1312,53 @@ fn worker_comparisons_are_replay_validated_and_do_not_publish_on_tampering() {
         assert_eq!(state, opening);
     }
 }
+
+#[test]
+fn worker_observer_respects_detail_and_both_party_filters_without_changing_execution() {
+    use economics_compute_smoke::{
+        employment::supply::Policy,
+        telemetry::{Config, Observer, PlanningDetail},
+    };
+    let (mut w, s) = production(6);
+    w.employment_offers.insert(1);
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+    let mut plain = Simulation::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    plain.run_months(1).unwrap();
+    for (detail, agent, count) in [
+        (PlanningDetail::Off, WORKER, 0),
+        (PlanningDetail::Selected, WORKER, 1),
+        (PlanningDetail::Alternatives, HOME, 1),
+        (PlanningDetail::Alternatives, PERSON, 0),
+    ] {
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut observer = Observer::new(
+            vec![],
+            "worker",
+            Config {
+                planning: detail,
+                agents: [agent].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        observer.run_months(&mut sim, 1).unwrap();
+        assert_eq!((&sim.state, &sim.ledger), (&plain.state, &plain.ledger));
+        let bytes = observer.finish().unwrap();
+        let rows: Vec<serde_json::Value> = String::from_utf8(bytes)
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .filter(|r: &serde_json::Value| r["kind"] == "worker_supply")
+            .collect();
+        assert_eq!(rows.len(), count);
+        for r in rows {
+            assert_eq!(r["worker_approved"], 2);
+            assert_eq!(r["delivered"], 2);
+            assert_eq!(
+                r.get("alternatives").is_some(),
+                detail == PlanningDetail::Alternatives
+            );
+        }
+    }
+}

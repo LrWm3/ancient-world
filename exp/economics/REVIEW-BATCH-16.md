@@ -47,3 +47,11 @@ quantity. Final delivery remains separate, so trimming is not mistaken for an
 accepted forecast. Settlement recomputes this evidence. Altered selection, horizon
 and alternatives are rejected without publishing state. Independent review found
 no blocker; all 21 household-hiring tests pass.
+
+## 5. Observe worker decisions externally
+
+The existing planning observer now emits worker comparisons, with either party's
+filter, selected/alternative detail and actual delivery separate from approval.
+No hypothetical execution occurs in the observer. The focused CPU test passes
+with Off, Selected, Alternatives and an unrelated-agent filter; observed and plain
+state/ledger agree. Independent review found no blocker.

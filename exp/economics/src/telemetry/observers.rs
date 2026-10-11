@@ -100,6 +100,31 @@ pub(super) fn batch(
             records.push(row);
         }
     }
+    if config.planning != PlanningDetail::Off
+        && let Some(b) = &batch.employment
+    {
+        for d in &b.supply {
+            let Some(t) = world.employment.iter().find(|t| t.id == d.agreement) else {
+                continue;
+            };
+            if !selected(config, d.worker) && !selected(config, t.employer) {
+                continue;
+            }
+            let mut row = json!({"kind":"worker_supply", "month":d.month,
+                "agreement":d.agreement,"worker":d.worker,"employer":t.employer,
+                "horizon":d.horizon,"maximum":d.maximum,"searched_maximum":d.searched_maximum,
+                "worker_approved":d.selected,
+                "delivered":b.receipts.iter().find(|r| r.agreement == d.agreement && r.earned_month == d.month).map_or(0,|r| r.delivered),
+                "objectives":d.objectives.iter().map(|o|format!("{o:?}")).collect::<Vec<_>>(),
+                "baseline_losses":d.baseline.iter().map(ToString::to_string).collect::<Vec<_>>()});
+            if config.planning == PlanningDetail::Alternatives {
+                row["alternatives"] = json!(d.alternatives.iter().map(|a|json!({
+                    "hours":a.hours,"losses":a.losses.as_ref().map(|v|v.iter().map(ToString::to_string).collect::<Vec<_>>()),
+                    "failure":a.failure})).collect::<Vec<_>>());
+            }
+            records.push(row);
+        }
+    }
     if config.settlement
         && let Some(b) = &batch.employment
     {
