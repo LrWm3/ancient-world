@@ -16,6 +16,7 @@ use crate::{
 };
 
 pub mod continuation;
+pub mod governed;
 
 pub const RUN_MONTHS: u32 = integration::RUN_MONTHS;
 

@@ -57,3 +57,32 @@ Validation results and the remaining iterations are recorded here as completed.
    new programs, a productive bundle with quotes precedes work alone. This explicit
    tie rule permits posting useful offers before a peer has selected its program.
    Joint catalog size is checked before constructing combinations.
+
+8. **Governed 48-month variant.** `acceptance::governed` starts without workshop
+   or town work menus, work orders or ore quotes. Their signed governors discover
+   and accept programs at month 1, effective month 2. The checker additionally
+   requires discovered production and trading decisions and fails gracefully if
+   an operating controller is absent.
+
+   An initial cash-first workshop objective failed: 14 mints and 13 batches per
+   organization, ending with wage arrears despite no food deficits. Forecasts
+   preserve accepted peer intent but do not invent later autonomous state demand;
+   cash-first choice therefore stopped replenishment at a later review. The
+   bounded correction specifies metal, then ore working reserves, then cash as
+   the workshop's objectives. Town objectives value cash before its output buffer,
+   so the production target is not mistaken for a sale floor. This is explicit
+   goal calibration, not a solution to counterparty expectations or arbitrary
+   inventory valuation.
+
+   The corrected reference and CubeCL CPU runs pass: 46 mints issue 460 coins;
+   both organizations complete 47 batches and each pays 48 wage coins; food
+   deficits and wage arrears are zero. All nine books reconcile. Each post-startup
+   year records 12 batches per organization, 24 ore delivered and workshop/town
+   income of 12/13. Final cash is 52/57, matching the supplied-quote spot variant.
+
+Run from `exp/economics`:
+
+```sh
+cargo +1.92.0 run --locked --release --example acceptance -- --governed
+cargo +1.92.0 run --locked --release --example acceptance -- --governed --continuation-matrix
+```

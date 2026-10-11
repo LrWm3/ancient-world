@@ -1,13 +1,16 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
+    let governed = std::env::args().any(|a| a == "--governed");
     if std::env::args().any(|a| a == "--continuation-matrix") {
         use acceptance::continuation as c;
         println!(
             "case,ready,food_deficit,wage_arrears,last_year_workshop_income,last_year_town_income"
         );
         for case in c::Case::ALL {
-            let (w, s) = if std::env::args().any(|a| a == "--spot") {
+            let (w, s) = if governed {
+                acceptance::governed::scenario(case)?
+            } else if std::env::args().any(|a| a == "--spot") {
                 c::spot_scenario(case)?
             } else {
                 c::scenario(case)?
@@ -15,7 +18,11 @@ fn main() -> Result<(), String> {
             let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
             run.through(c::MONTHS)?;
             let evidence = run.evidence()?;
-            let report = c::check(&run)?;
+            let report = if governed {
+                acceptance::governed::check(&run)?
+            } else {
+                c::check(&run)?
+            };
             let year = report.periods.last().unwrap();
             println!(
                 "{case:?},{},{},{},{},{}",
@@ -41,14 +48,20 @@ fn main() -> Result<(), String> {
         )
     }) {
         use acceptance::continuation as c;
-        let (w, s) = if std::env::args().any(|a| a == "--spot") {
+        let (w, s) = if governed {
+            acceptance::governed::scenario(c::Case::Baseline)?
+        } else if std::env::args().any(|a| a == "--spot") {
             c::spot_scenario(c::Case::Baseline)?
         } else {
             c::scenario(c::Case::Baseline)?
         };
         let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
         run.through(c::MONTHS)?;
-        let report = c::check(&run)?;
+        let report = if governed {
+            acceptance::governed::check(&run)?
+        } else {
+            c::check(&run)?
+        };
         println!("{:#?}\n{report:#?}", run.evidence()?);
         if !report.ready() {
             return Err(format!("acceptance failed: {:?}", report.failures));
