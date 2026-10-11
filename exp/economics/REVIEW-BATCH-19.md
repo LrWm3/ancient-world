@@ -197,3 +197,15 @@ Independent review passed. The audited CPU/reference integration test rejects a
 child's attempted acceptance atomically, verifies no automatic citizenship at
 maturity, settles an explicit membership agreement without creating stocks/assets,
 executes newly permitted work, and rejects a backdated citizenship checkpoint.
+
+## 17. Exercise worker consent against next-month child support
+
+The existing worker opportunity-cost policy already includes dependents; a new
+integrated test demonstrates that it composes with support-only production.
+A two-month horizon rejects paid work that would prevent the next Open's food
+support, while a one-month horizon/default consent accepts it. Spare productive
+hours allow both the paid job and child support.
+
+Independent review passed. Four audited CPU/reference controls check actual wages,
+child objectives, month-two meals and checkpoint continuation. No new worker
+planner or automatic policy change was necessary.

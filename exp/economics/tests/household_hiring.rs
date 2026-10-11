@@ -2164,3 +2164,92 @@ fn optional_worker_protection_composes_with_repeated_food_sales_and_market_inter
         }
     }
 }
+
+#[test]
+fn worker_horizon_protects_next_open_child_support_but_allows_spare_hours() {
+    use economics_compute_smoke::{
+        demography::{self, scenario::FIRST_CHILD},
+        employment::supply::Policy,
+        scenario::{GRAIN, NUTRITION},
+    };
+    let run = |backend, horizon, capacity| {
+        let (mut w, mut s) = production(6);
+        let mut c = demography::scenario::scenario(true, false)
+            .0
+            .demography
+            .unwrap();
+        c.parents = [WORKER].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = true;
+        w.demography = Some(c);
+        w.storage.capacities.insert(WORKER, 12);
+        w.storage.weights.insert(GRAIN, 1);
+        s.balances.insert((WORKER, GRAIN), 2);
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap()
+            .capacity
+            .quantity = capacity;
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        if horizon > 0 {
+            w.employment_supply.insert(WORKER, Policy { horizon });
+        }
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                inventory: [((WORKER, GRAIN), 2)].into(),
+                services: Some(Default::default()),
+                processes: Some(Default::default()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        through(&mut a, &mut sim, 1);
+        let protected = horizon == 2 && capacity == 2;
+        assert_eq!(
+            sim.state.balance(WORKER, TOKEN),
+            if protected { 0 } else { 2 }
+        );
+        if horizon > 0 {
+            use economics_compute_smoke::agency::objectives::Scope;
+            let d = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.employment.as_ref())
+                .flat_map(|b| &b.supply)
+                .next()
+                .unwrap();
+            assert!(
+                d.objectives
+                    .iter()
+                    .any(|o| matches!(&o.scope,Scope::Agents(ids) if ids.contains(&FIRST_CHILD)))
+            );
+        }
+        let mut resumed = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        let mut ra = a.clone();
+        through(&mut a, &mut sim, 2);
+        through(&mut ra, &mut resumed, 2);
+        assert_eq!((&sim.state, &a), (&resumed.state, &ra));
+        assert_eq!(
+            sim.reports
+                .iter()
+                .find(|r| r.agent == FIRST_CHILD && r.month == 2)
+                .unwrap()
+                .deficit(NUTRITION),
+            if protected || capacity == 4 { 0 } else { 1 }
+        );
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (horizon, capacity) in [(0, 2), (1, 2), (2, 2), (2, 4)] {
+        assert_eq!(
+            run(Backend::Reference, horizon, capacity),
+            run(Backend::CubeCpu, horizon, capacity)
+        );
+    }
+}
