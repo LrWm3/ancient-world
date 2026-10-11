@@ -100,6 +100,66 @@ fn factorial(stocks: Stocks) {
                     );
                 }
             }
+            if stocks == Stocks::Both {
+                let exposure = workshop == Liquidity::MonthlyExposure;
+                assert_eq!(
+                    (
+                        ready.ready(),
+                        e.completed_mints,
+                        e.workshop_batches,
+                        e.municipal_batches,
+                        e.people_food_deficit,
+                        e.wage_arrears
+                    ),
+                    if exposure {
+                        (false, 41, 40, 40, 0, 0)
+                    } else {
+                        (true, 42, 41, 40, 0, 0)
+                    }
+                );
+                let agreements = &run.sim.world.agency[&WORKSHOP].startup_forwards;
+                assert_eq!(agreements.len(), 1);
+                let a = &agreements[0];
+                assert_eq!(
+                    (a.month, a.proposal.terms.month, a.proposal.terms.due),
+                    (7, 8, 10)
+                );
+                assert_eq!(a.status, Status::Activated(9));
+                assert_eq!(
+                    run.sim.state.exchange.forwards[&a.proposal.terms.id].delivered,
+                    2
+                );
+                if exposure {
+                    assert_eq!(
+                        ready.failures,
+                        ["recurring production or market demand absent"]
+                    );
+                } else {
+                    assert!(ready.failures.is_empty());
+                }
+                for from in [13, 25, 37] {
+                    let p = continuation::period(&run, from, from + 11).unwrap();
+                    let batches = if exposure && from == 13 { 11 } else { 12 };
+                    assert_eq!(
+                        (
+                            p.workshop_batches,
+                            p.municipal_batches,
+                            p.metal_sales,
+                            p.ore_delivered
+                        ),
+                        (batches, 12, batches, 24)
+                    );
+                    assert_eq!(
+                        (
+                            p.workshop_hours,
+                            p.municipal_hours,
+                            p.workshop_wages,
+                            p.municipal_wages
+                        ),
+                        (12, 12, 12, 12)
+                    );
+                }
+            }
             for from in [13, 25, 37] {
                 println!(
                     "PERIOD {stocks:?} {workshop:?}/{town:?} {from}: {:?}",
@@ -113,4 +173,8 @@ fn factorial(stocks: Stocks) {
 #[test]
 fn metal_only_preferences() {
     factorial(Stocks::MetalOnly);
+}
+#[test]
+fn both_stock_preferences() {
+    factorial(Stocks::Both);
 }
