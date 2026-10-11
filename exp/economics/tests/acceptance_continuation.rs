@@ -71,7 +71,21 @@ fn expected_peer_plans_are_ready_with_cpu_phase_reconstruction_and_dated_replay(
     verify_recurring(acceptance::expectations::scenario);
 }
 
+fn sales_scenario(case: c::Case) -> Result<(World, State), String> {
+    acceptance::sales::with_startup(case, acceptance::sales::Startup::SupplyChainInventory)
+}
+
+#[test]
+fn cash_only_sale_plans_continue_on_cpu_and_replay_dated_world_inputs() {
+    verify_recurring_startup(sales_scenario, [5, 8]);
+    verify_reordering(sales_scenario);
+}
+
 fn verify_recurring(scenario: Scenario) {
+    verify_recurring_startup(scenario, [1, 1]);
+}
+
+fn verify_recurring_startup(scenario: Scenario, first_choices: [u32; 2]) {
     let (w, s) = scenario(c::Case::Baseline).unwrap();
     if w.minting
         .as_ref()
@@ -142,15 +156,23 @@ fn verify_recurring(scenario: Scenario) {
         assert!(p.municipal_income > 0);
         assert_eq!(p.ore_delivered, 24);
     }
-    for (agent, first) in [
+    for ((agent, first), first_month) in [
         (acceptance::WORKSHOP, acceptance::SMITH),
         (acceptance::TOWN, economics_compute_smoke::minting::SUPPLIER),
-    ] {
+    ]
+    .into_iter()
+    .zip(first_choices)
+    {
         let controller = &cpu.sim.world.agency[&agent];
-        let d = &controller.history[0];
+        let d = controller
+            .history
+            .iter()
+            .find(|d| d.accepted.is_some())
+            .unwrap();
+        assert_eq!(d.month, first_month);
         assert_eq!(d.authorized_by, Some(first));
         assert!(d.accepted.is_some());
-        assert_eq!(d.effective_month, 2);
+        assert_eq!(d.effective_month, first_month + 1);
         assert_eq!(controller.history.len(), c::MONTHS as usize);
     }
     let history = &cpu.sim.world.agency[&acceptance::TOWN].history;

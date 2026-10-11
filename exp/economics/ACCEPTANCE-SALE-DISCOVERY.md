@@ -71,3 +71,13 @@ consent, prices, employment and physical endowments remain supplied.
    eleven existing expectation/telemetry controls pass. These are private forecast
    receipts from the current mint/peer market batches, not promised live income or
    coverage of every financial arrangement.
+
+8. **CPU continuation and causal replay.** The cash-only successful startup joins
+   the shared 48-month continuation harness. Reference and CubeCL CPU agree on
+   world, state, ledger, reports and accounting, including CPU reconstruction after
+   every phase and replay with dated world inputs. Independent catalog reordering
+   preserves results. The first accepted workshop choice is month 5, effective 6;
+   the town's is month 8, effective 9. All nine continuation tests pass, retaining
+   the existing failure and interruption checks for earlier variants. This is
+   in-memory reconstruction and dated-context replay, not a durable checkpoint or
+   proof that ledger records alone reconstruct governance.
