@@ -24,3 +24,9 @@ controller continues to retain its plan on equal forecasts.
    independently selected minting produces real metal sales. World, state, ledger
    and accounting match across backends. This short test establishes timing and
    actual demand, not sustained readiness.
+
+3. **Publication safeguards.** Five selector tests cover exact ties, the current
+   governor's payment goals, existing buy/ask preservation, prohibited new buys or
+   work bundles, insufficient whole lots, signed floors, accepted delivery claims,
+   revoked trading permission and a vacant office. These are eligibility controls;
+   later clearing must independently protect stock and recheck participation.
