@@ -91,6 +91,11 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
                 }
             }),
     );
+    commands.extend(
+        markets::discovery::portfolios(w, agent)?
+            .into_iter()
+            .map(Command::PeerStockQuotes),
+    );
     if commands.len() > MAX_PROGRAMS {
         return Err("discovered program catalog exceeds bounded search".into());
     }

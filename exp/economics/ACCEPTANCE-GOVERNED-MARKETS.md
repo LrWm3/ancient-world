@@ -42,3 +42,10 @@ Validation results and the remaining iterations are recorded here as completed.
    adapters retain their prior behavior. Initial discovery rejects supplied
    programs; changing holdings does not change the historical catalog. Focused
    discovery, consent and existing discovery regressions pass.
+
+6. **Bounded market discovery.** Signed market options enumerate complete quote
+   portfolios, including stopping all trading or dropping selected markets.
+   Prices, floors and targets remain constitutional choices; no counterparty is
+   preselected. Cartesian expansion and the overall catalog reject excess size
+   rather than silently truncating. Three stock-discovery tests cover static
+   catalogs, malformed options, partial stops and joint expansion bounds.

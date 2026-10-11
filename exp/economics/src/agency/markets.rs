@@ -6,6 +6,8 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod discovery;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Options {
     pub side: Side,
