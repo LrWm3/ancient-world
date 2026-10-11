@@ -7,6 +7,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod performance;
 pub mod supply;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

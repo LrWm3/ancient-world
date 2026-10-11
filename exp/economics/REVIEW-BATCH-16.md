@@ -55,3 +55,13 @@ filter, selected/alternative detail and actual delivery separate from approval.
 No hypothetical execution occurs in the observer. The focused CPU test passes
 with Off, Selected, Alternatives and an unrelated-agent filter; observed and plain
 state/ledger agree. Independent review found no blocker.
+
+## 6. Protect accepted forward delivery deadlines
+
+Worker assessments freeze accepted forward obligations for the worker/household
+scope, including current-boundary admissions. Required remaining delivery is
+compared with actual performance at the deadline, never with a forgiven ending
+balance. Out-of-horizon and unaccepted offers are not obligations. Three audited
+CPU/reference controls pass: protect production for an admitted two-month delivery,
+ignore an unfunded proposal, and expose the limitation of a one-month horizon.
+Independent review found no blocker.

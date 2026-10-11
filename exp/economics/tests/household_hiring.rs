@@ -1362,3 +1362,63 @@ fn worker_observer_respects_detail_and_both_party_filters_without_changing_execu
         }
     }
 }
+
+#[test]
+fn worker_supply_protects_accepted_forward_delivery_at_its_collection_deadline() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        employment::supply::Policy,
+        forward::direct::Terms as Forward,
+        scenario::GRAIN,
+    };
+    for (funded, horizon, expected) in [(true, 2, 0), (false, 2, 2), (true, 1, 2)] {
+        let (mut w, mut s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        w.employment_supply.insert(WORKER, Policy { horizon });
+        w.activities.orders.push(WorkOrder {
+            agent: WORKER,
+            definition: MAKE,
+            priority: 0,
+            target: Target::Stock(Amount::new(GRAIN, 4)),
+        });
+        s.balances.insert((92, TOKEN), if funded { 1 } else { 0 });
+        w.prepaid_deliveries.push(Forward {
+            id: 70001,
+            seller: WORKER,
+            buyer: 92,
+            month: 1,
+            due: 2,
+            goods: Amount::new(GRAIN, 4),
+            prepayment: Amount::new(TOKEN, 1),
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 2);
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .get(&(1, 1))
+                    .map_or(0, |e| e.delivered),
+                expected
+            );
+            if funded {
+                assert_eq!(
+                    sim.state.exchange.forwards[&70001].performed(),
+                    if horizon == 2 { 4 } else { 0 }
+                );
+            }
+            let d = &sim
+                .ledger
+                .iter()
+                .find_map(|b| b.employment.as_ref().filter(|e| !e.supply.is_empty()))
+                .unwrap()
+                .supply[0];
+            assert_eq!(d.deliveries.len(), usize::from(funded && horizon == 2));
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

@@ -114,6 +114,7 @@ pub(super) fn batch(
                 "agreement":d.agreement,"worker":d.worker,"employer":t.employer,
                 "horizon":d.horizon,"maximum":d.maximum,"searched_maximum":d.searched_maximum,
                 "worker_approved":d.selected,
+                "delivery_objectives":d.deliveries.iter().map(|t|format!("{t:?}")).collect::<Vec<_>>(),
                 "delivered":b.receipts.iter().find(|r| r.agreement == d.agreement && r.earned_month == d.month).map_or(0,|r| r.delivered),
                 "objectives":d.objectives.iter().map(|o|format!("{o:?}")).collect::<Vec<_>>(),
                 "baseline_losses":d.baseline.iter().map(ToString::to_string).collect::<Vec<_>>()});

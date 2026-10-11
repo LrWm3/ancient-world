@@ -23,6 +23,8 @@ pub struct Decision {
     pub maximum: i32,
     pub searched_maximum: i32,
     pub objectives: Vec<crate::agency::objectives::Objective>,
+    /// Appended after the ordinary objective losses, one entry per frozen delivery.
+    pub deliveries: Vec<super::performance::Delivery>,
     pub baseline: Vec<i128>,
     pub alternatives: Vec<Alternative>,
     /// Approved by the worker for this assessment; final delivery is in the receipt.
@@ -50,6 +52,7 @@ pub(super) fn quantity(
     let (mut world, state) = crate::households::hiring::preview(w, s, base, prior)?;
     world.employment_supply.clear();
     let goals = crate::discovery::supply::objectives(&world, &state, terms.worker);
+    let deliveries = super::performance::deliveries(&world, &state, terms.worker, policy.horizon);
     let project = |hours: i32| -> Result<Vec<i128>, String> {
         let (world, mut state) = crate::forecast::ForecastContext::new(&world, &state).into_parts();
         let held = state
@@ -63,14 +66,21 @@ pub(super) fn quantity(
         // The opportunity-cost branch consumes hours, without inventing wages or
         // employer output. Actual work and payment still require normal settlement.
         let mut sim = Simulation::new(world, state, Backend::Reference)?;
-        sim.run_months(policy.horizon)?;
-        crate::agency::objectives::measure(
+        let mut delivery_losses = vec![None; deliveries.len()];
+        for _ in 0..policy.horizon {
+            let month = sim.state.month;
+            sim.run_months(1)?;
+            super::performance::observe(&deliveries, &sim.state, month, &mut delivery_losses);
+        }
+        let mut losses = crate::agency::objectives::measure(
             &sim.world,
             &sim.state,
             &sim.reports,
             terms.worker,
             &goals,
-        )
+        )?;
+        losses.extend(delivery_losses.into_iter().map(|v| v.unwrap_or(0)));
+        Ok(losses)
     };
     let baseline = project(0)?;
     let mut decision = Decision {
@@ -81,6 +91,7 @@ pub(super) fn quantity(
         maximum,
         searched_maximum: maximum.min(MAX_HOURS),
         objectives: goals.clone(),
+        deliveries: deliveries.clone(),
         baseline,
         alternatives: vec![],
         selected: 0,
