@@ -1695,3 +1695,136 @@ fn voluntary_surplus_can_be_accepted_for_a_household_child() {
         );
     }
 }
+
+#[test]
+fn failed_child_food_reservation_blocks_extra_voluntary_payment_funding() {
+    use economics_compute_smoke::{
+        employment::{ArrearsPolicy, Earned, Terms},
+        finance::{Condition, FailureRule, Obligation, Transfer},
+        household_governance::Policy,
+        scenario::SEED,
+    };
+    let run = |backend, enabled| {
+        let (w, s) = donating_family(enabled, 3);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        sim.run_months(1).unwrap();
+        let (mut w, mut s) = (sim.world, sim.state);
+        w.storage.weights.insert(SEED, 1);
+        s.balances.insert(
+            (FIRST_CHILD, SEED),
+            w.demography.as_ref().unwrap().person.storage,
+        );
+        s.balances.insert((10000, GRAIN), 1);
+        w.agents.push(Agent {
+            id: 92,
+            name: "external worker".into(),
+        });
+        w.participants.push(Participant {
+            agent: 92,
+            capacity: Amount::new(LABOR, 0),
+            needs: vec![],
+        });
+        w.storage.capacities.insert(92, 12);
+        let h = &mut w.households[0];
+        h.governance
+            .constitution
+            .permitted_policies
+            .insert(Policy::NeedsThenCommitments { months: 1 });
+        h.governance.charter.initial_policy = Policy::NeedsThenCommitments { months: 1 };
+        h.governance.charter.accept_payment_support = true;
+        h.governance.charter.hiring_budget = Some(Amount::new(GRAIN, 2));
+        h.support[0].household_target = 2;
+        w.employment.push(Terms {
+            id: 1,
+            employer: 10000,
+            worker: 92,
+            from: 1,
+            through: 1,
+            capacity: Amount::new(LABOR, 1),
+            wage_per_unit: Amount::new(GRAIN, 2),
+            on_arrears: ArrearsPolicy::SuspendDelivery,
+            rank: 0,
+        });
+        s.employment.earned.insert(
+            (1, 1),
+            Earned {
+                relief: vec![],
+                delivered: 1,
+                claim: Obligation {
+                    transfer: Transfer {
+                        from: 10000,
+                        to: 92,
+                        amount: Amount::new(GRAIN, 2),
+                    },
+                    settled: 0,
+                    condition: Condition::OnOrAfterMonth(2),
+                    failure: FailureRule::CarryArrears,
+                },
+            },
+        );
+        let mut a = Audit::with_opening(
+            &w,
+            &s,
+            TOKEN,
+            Opening {
+                inventory: s
+                    .balances
+                    .iter()
+                    .filter(|((_, r), q)| {
+                        *r != TOKEN
+                            && **q > 0
+                            && w.resources
+                                .iter()
+                                .any(|v| v.id == *r && v.kind == ResourceKind::Stock)
+                    })
+                    .map(|(a, q)| (*a, i128::from(*q)))
+                    .collect(),
+                exchange_values: [(GRAIN, 1)].into(),
+                services: Some(Default::default()),
+                processes: Some(Default::default()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let h = sim
+            .ledger
+            .iter()
+            .find(|b| b.phase == Phase::Acquire)
+            .unwrap()
+            .household
+            .as_ref()
+            .unwrap();
+        assert_eq!(h.support[0].accepted, i32::from(!enabled));
+        if enabled {
+            assert!(
+                h.reservations
+                    .iter()
+                    .any(|r| r.request.member == FIRST_CHILD && r.allocated == 0)
+            );
+        }
+        assert_eq!(sim.state.balance(92, GRAIN), if enabled { 1 } else { 2 });
+        assert_eq!(
+            sim.state.employment.earned[&(1, 1)].claim.outstanding(),
+            i32::from(enabled)
+        );
+        assert_eq!(
+            sim.reports
+                .iter()
+                .find(|r| r.agent == FIRST_CHILD)
+                .unwrap()
+                .deficit(NUTRITION),
+            1
+        );
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for enabled in [true, false] {
+        assert_eq!(
+            run(Backend::Reference, enabled),
+            run(Backend::CubeCpu, enabled)
+        );
+    }
+}

@@ -175,3 +175,15 @@ unchanged. A child need can justify accepting a willing adult's food donation.
 Independent review corrected the test's receipt channel. The audited CPU/reference
 regression checks the actual household-to-child transfer and meal, donor stock,
 charter-off and no-surplus controls, without making the child an adult member.
+
+## 15. Protect dependent needs before extra creditor funding
+
+The early needs-then-commitments support window checks actual stock cover for all
+charter-authorized need recipients. Failed child reservations cannot be treated as
+satisfied merely because the adults are fed.
+
+Independent review passed. Audited CPU/reference controls use the same full child
+storage, household grain, consenting donor and earned wage debt. With dependent
+support on, extra donation is rejected and one debt unit remains; with it off,
+the extra unit is donated and paid. Existing household grain still pays creditors.
+The child remains hungry in both cases: this policy does not create storage.

@@ -264,7 +264,7 @@ pub(super) fn prepare(
                         projected_shortfall: shortfall - i128::from(quantity),
                     });
                     let mut uncovered = false;
-                    for member in members(h, &staged) {
+                    for member in need_recipients(h, &staged) {
                         // Inspect actual post-reservation private holdings. Do not
                         // assume another shared transfer can bypass full storage.
                         let mut stocks = crate::substitution::stocks(&staged, member);
