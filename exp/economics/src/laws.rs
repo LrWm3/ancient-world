@@ -148,6 +148,7 @@ pub struct Rule {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Reason {
+    Dependent,
     UnrestrictedLegacy,
     Granted,
     Unclassified,
@@ -193,6 +194,15 @@ pub(crate) fn member(p: &Policy, s: &State, agent: AgentId, role: crate::members
     })
 }
 pub fn evaluate(w: &World, s: &State, agent: AgentId, action: Action) -> Decision {
+    if crate::demography::dependent(s, agent)
+        && !matches!(action, Action::Process(id) if w.definitions.iter().any(|d|d.id==id && d.execution==crate::model::Execution::Consumption))
+    {
+        return Decision {
+            authority: w.transaction_policy.as_ref().map(|p| p.authority),
+            allowed: false,
+            reasons: vec![Reason::Dependent],
+        };
+    }
     let Some(p) = &w.transaction_policy else {
         return Decision {
             authority: None,

@@ -1467,9 +1467,14 @@ pub fn validate_batch(world: &World, state: &State, batch: &Batch) -> Result<(),
         || (expected.is_some()
             && !(state.phase == Phase::Acquire && crate::acquisition::search_composition(world))
             && batch.production_plan != expected.as_ref().and_then(|e| e.production_plan.clone()))
-        || expected
-            .as_ref()
-            .is_some_and(|e| e.transactions != batch.transactions)
+        || expected.as_ref().is_some_and(|e| {
+            let mut transactions = e.transactions.clone();
+            // The lifecycle adapter independently verifies this Open suffix.
+            if let Some(d) = &batch.demography {
+                transactions.extend(d.transactions.clone());
+            }
+            transactions != batch.transactions
+        })
     {
         return Err("missing or altered credit settlement".into());
     }

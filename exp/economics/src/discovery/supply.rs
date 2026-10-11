@@ -31,7 +31,7 @@ pub(crate) fn objectives(
     agent: AgentId,
 ) -> Vec<agency::objectives::Objective> {
     // A supplier cannot treat harm to other members as free collective labor.
-    let members: Vec<_> = w
+    let mut members: Vec<_> = w
         .households
         .iter()
         .find(|h| h.agent == agent)
@@ -41,6 +41,13 @@ pub(crate) fn objectives(
         })
         .map(|h| crate::households::members(h, s).collect())
         .unwrap_or_else(|| vec![agent]);
+    let children: Vec<_> = members
+        .iter()
+        .flat_map(|a| crate::demography::dependents(s, *a))
+        .collect();
+    members.extend(children);
+    members.sort_unstable();
+    members.dedup();
     let mut goals: Vec<_> = members.iter().flat_map(|a| needs(w, *a)).collect();
     goals.push(agency::objectives::Objective {
         scope: agency::objectives::Scope::Agents(members.into_iter().collect()),

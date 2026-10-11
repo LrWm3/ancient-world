@@ -57,8 +57,11 @@ collective trading, external hiring, member support and explicit wind-down.
 Membership does not imply ownership or financial consolidation. Person
 self-directed policy changes remain deferred. [State governance](STATE-GOVERNANCE.md)
 now supports citizen governors and dated legal-policy choices within static
-constitutional menus. Open-ended political choices/spending, children, negotiated recruitment
-and automatic death estates remain extensions.
+constitutional menus. The opt-in [reproduction pilot](REPRODUCTION.md) now tests
+individual births, finite support and maturation, including loans and household
+opening wind-down transfers. Household child integration and enabled endogenous
+discovery with a changing dependent roster remain unsupported. Open-ended political
+choices/spending, negotiated recruitment and automatic death estates remain extensions.
 
 The [state agency controls](STATE-AGENCY.md) add bounded goals, program comparison,
 authorized work, autonomous ballots from supplied preferences and outcome review,

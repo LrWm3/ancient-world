@@ -1151,7 +1151,11 @@ household inventory. Half of each member's storage becomes a shared capacity
 pool; a functioning dwelling can provide a non-rival occupancy service. An active
 household requires a surviving adult. Future children have no numeric limit,
 with four additional adult places reserved for members growing up in the home;
-demographic transitions are not implemented yet.
+household demographic transitions remain open. The opt-in
+[reproduction pilot](REPRODUCTION.md) now registers individual children with
+finite parental support and dated maturity, but keeps them outside the adult
+signatory roster. Its execution ceiling is a scenario bound, not a proposed
+household child limit.
 
 Household resource requests carry personal and collective benefit. A finite
 allocation ranks collective benefit and then reservation sequence. Household

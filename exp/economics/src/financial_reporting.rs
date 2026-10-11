@@ -1063,6 +1063,14 @@ impl Audit {
         } else {
             vec![]
         };
+        let support_effects: Vec<_> = batch
+            .demography
+            .iter()
+            .flat_map(|d| &d.transactions)
+            .flat_map(|t| t.effects.iter().cloned())
+            .collect();
+        let (allocated_inventory, dependent_lines) =
+            allocated_inventory.pool(world, &support_effects, coin)?;
         let (opening_inventory, expiration_lines) = allocated_inventory.expire(&expired)?;
         let regenerated = if batch.phase == Phase::Open {
             crate::pools::regeneration(world, before)
@@ -1281,6 +1289,10 @@ impl Audit {
                 || mint_transactions.contains(t)
                 || loan_transfers.contains(t)
                 || inventory_sales.contains(t)
+                || batch
+                    .demography
+                    .as_ref()
+                    .is_some_and(|d| d.transactions.contains(t))
             {
                 continue;
             }
@@ -1378,6 +1390,7 @@ impl Audit {
             .chain(attachment_lines)
             .chain(expiration_lines)
             .chain(allocation_lines)
+            .chain(dependent_lines)
             .chain(capacity_allocation_lines)
             .chain(pooling_lines)
         {

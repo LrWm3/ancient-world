@@ -134,6 +134,7 @@ impl Phase {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct State {
+    pub demography: crate::demography::Book,
     pub employment: crate::employment::Book,
     pub town_market: crate::town_market::Book,
     pub credit: crate::credit::Book,
@@ -181,6 +182,7 @@ pub struct ScheduledStart {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct World {
+    pub demography: Option<crate::demography::Config>,
     pub discovery: Option<crate::discovery::Config>,
     pub agency: BTreeMap<AgentId, crate::agency::Controller>,
     pub governance_observation: Option<crate::state_governance::PublicHistory>,
@@ -305,6 +307,7 @@ pub struct Receipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Batch {
+    pub demography: Option<crate::demography::Boundary>,
     pub discovery_allocation: Vec<crate::allocation::Receipt>,
     pub forward_collections: Vec<crate::finance::CollectionReceipt>,
     pub employment: Option<crate::employment::Boundary>,
@@ -370,6 +373,7 @@ impl Batch {
 
     pub fn empty(state: &State) -> Self {
         Self {
+            demography: None,
             discovery_allocation: vec![],
             forward_collections: vec![],
             employment: Default::default(),

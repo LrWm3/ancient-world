@@ -12,6 +12,9 @@ pub struct ForecastContext {
 impl ForecastContext {
     pub fn new(world: &World, state: &State) -> Self {
         let mut world = world.clone();
+        if let Some(c) = &mut world.demography {
+            c.enabled = false;
+        }
         if let Some(c) = &mut world.discovery {
             c.enabled = false;
         }

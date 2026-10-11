@@ -159,6 +159,7 @@ pub fn with_warmth(warmth_first: bool) -> (World, State) {
 
 pub fn baseline() -> (World, State) {
     let world = World {
+        demography: None,
         discovery: None,
         agency: Default::default(),
         governance_observation: None,
@@ -326,6 +327,7 @@ pub fn baseline() -> (World, State) {
         scheduled_starts: Vec::new(),
     };
     let state = State {
+        demography: Default::default(),
         employment: Default::default(),
         credit: Default::default(),
         marketplaces: Default::default(),

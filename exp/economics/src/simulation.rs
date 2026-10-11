@@ -43,7 +43,8 @@ impl Simulation {
     /// checkpoint including configuration, pending fixture intents and receipts.
     pub fn step(&mut self) -> Result<(), String> {
         if self.state.phase == Phase::Open
-            && (!self.world.agency.is_empty()
+            && (self.world.demography.is_some()
+                || !self.world.agency.is_empty()
                 || self.world.discovery.as_ref().is_some_and(|c| c.enabled))
         {
             let mut next = self.clone();
@@ -64,6 +65,7 @@ impl Simulation {
     }
 
     pub(crate) fn step_core(&mut self) -> Result<(), String> {
+        crate::demography::prepare_open(&mut self.world, &self.state)?;
         let mut batch = Batch::empty(&self.state);
         if self.state.phase == Phase::Acquire
             && (crate::forward::direct::enabled(&self.world) || self.world.minting.is_some())
@@ -138,6 +140,10 @@ impl Simulation {
             } else if self.world.priority == Priority::ConsequenceAware {
                 crate::planning::choose(self, &mut batch)?;
             }
+        }
+        batch.demography = crate::demography::evaluate(&self.world, &self.state)?;
+        if let Some(d) = &batch.demography {
+            batch.transactions.extend(d.transactions.clone());
         }
         crate::discovery::acquire(&self.world, &self.state, &mut batch)?;
         batch.employment = crate::employment::evaluate(&self.world, &self.state, &batch)?;

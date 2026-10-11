@@ -684,7 +684,7 @@ fn apply(
     Ok(())
 }
 
-fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
+pub(crate) fn prepare(world: &World, state: &State) -> Result<(State, Boundary), String> {
     let mut staged = state.clone();
     let mut b = Boundary {
         inactive: world
@@ -1561,15 +1561,16 @@ pub(crate) fn step(sim: &mut Simulation) -> Result<(), String> {
     };
     staged.step_core()?;
     let mut batch = staged.ledger.pop().unwrap();
-    (receipt.after, receipt.remainders) = collect(&sim.world, &prepared, &staged.state, &batch)?;
+    (receipt.after, receipt.remainders) = collect(&staged.world, &prepared, &staged.state, &batch)?;
     batch.household = Some(receipt);
     commit(
-        &sim.world,
+        &staged.world,
         &mut sim.state,
         &batch,
         sim.backend,
         sim.effect_limit,
     )?;
+    sim.world = staged.world;
     sim.ledger.push(batch);
     sim.reports.extend(staged.reports);
     Ok(())

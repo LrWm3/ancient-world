@@ -11,6 +11,7 @@ const MAX_PLANNING_HORIZON_MONTHS: u32 = 120;
 const MAX_PROCESS_DURATION_MONTHS: u32 = 120;
 
 pub fn validate_world(world: &World, state: &State) -> Result<(), String> {
+    crate::demography::validate(world, state)?;
     crate::discovery::validate(world, state)?;
     crate::agency::validate(world)?;
     crate::agency::validate_history(world, state)?;
@@ -247,6 +248,7 @@ pub(crate) fn commit_core(
     if (batch.id, batch.month, batch.phase) != (state.next_batch, state.month, state.phase) {
         return Err("duplicate, stale or out-of-order batch".into());
     }
+    crate::demography::verify(world, state, batch)?;
     if batch.employment != crate::employment::evaluate(world, state, batch)? {
         return Err("missing or altered employment settlement".into());
     }
@@ -361,6 +363,9 @@ pub(crate) fn commit_core(
     }
     crate::discovery::validate_batch(world, state, batch)?;
     let mut staged = state.clone();
+    if let Some(d) = &batch.demography {
+        staged.demography = d.after.clone();
+    }
     if let Some(e) = &batch.employment {
         staged.employment = e.after.clone();
     }

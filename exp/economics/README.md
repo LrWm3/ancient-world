@@ -52,7 +52,12 @@ funding delivers both wheat units in month 4, without additional food shortages.
 Controls retain the consequences of short horizons, missing seed or missing consent.
 This is bounded preparation, not guaranteed fulfillment of arbitrary contracts.
 
-## Current progress — 2026-10-10
+The [reproduction pilot](REPRODUCTION.md) now exercises population growth with
+ordinary needs, finite parental support, maturation and deprivation consequences.
+It is opt-in and deliberately abstract; it does not yet integrate children into
+households or the self-starting institutional discovery scenario.
+
+## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.
 The subsequent planner and state-governance experiments have their own scoped results and verification.
@@ -66,7 +71,7 @@ current blanket restrictions.
 
 | Area | Implemented and exercised | Main remaining boundary |
 | --- | --- | --- |
-| Persons | Needs and deprivation, repeated processes, bounded forecasts, opportunity search, independent multi-person review, shared dated admission and active trade composition | General discovery across all drivers and sustainable autonomous cooperation |
+| Persons | Opt-in births, dependent support and maturation; needs and deprivation, repeated processes, bounded forecasts, opportunity search, independent multi-person review, shared dated admission and active trade composition | General discovery across all drivers and sustainable autonomous cooperation |
 | State and law | First-state founding with optional operating mandate, citizenship, governors, objective-based policy/work selection, supplied-preference voting, finite mint funding and paid public work; existing law/finance execution | Bounded discovered programs/deals now have an opt-in control; general founding/underwriting, multiple jurisdictions and broader governed legal terms remain open |
 | Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Composition with market/finance drivers, robust collective forecasts, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
@@ -109,6 +114,12 @@ The [sixteen-iteration follow-up](REVIEW-BATCH-16.md) verifies code/test revisio
 `cad8448`: **1,243 passed, zero failed, one ignored**, with the annual accounting
 test passed separately. Strict all-target release Clippy, formatting and artifact
 checks pass. These follow-up results do not replace the historical v1 release scope.
+
+The [reproduction follow-up](REPRODUCTION.md) passes **1,255 tests, zero failed,
+one ignored**, including twelve lifecycle/integration controls. CPU/reference
+population outcomes and separate books agree; strict all-target release Clippy
+also passes. The ignored annual accounting test passed separately. This adds an
+opt-in experiment without changing the v1 release scope.
 
 The opt-in [self-starting economy](ENDOGENOUS-DISCOVERY.md) now removes initial
 citizenships, household/land/finance agreements, counterparty quotes and operational
@@ -195,7 +206,13 @@ fishing, livestock, plot-attached housing and annual commodity-or-coin taxes.
 One-person and four-person scenarios plan repeated harvests and meet nutrition/warmth needs using generic
 process definitions, state-owned plots and dated use rights. Broader goals exceed
 the implemented adapters: finance and marketplaces have working bounded models,
-but arbitrary composition and population demographics are not implemented.
+but arbitrary composition and realistic population demographics remain open. The
+opt-in [reproduction pilot](REPRODUCTION.md) adds children with ordinary needs,
+finite parental support and dated maturity. In its 36-month CPU comparison, two
+founders become fourteen living people with abundant food supply; scarce supply
+leaves five survivors after ten births and seven deaths. Abundant supply still
+has some shortages under the simple support policy. Household child membership
+and endogenous institutional discovery for new people remain open.
 The 32-person trading fixture now uses upfront coin tool purchases and state
 advances against projected future commodity production, with finite treasury funding.
 A finite state offer now exchanges grain for a durable labor-saving tool.

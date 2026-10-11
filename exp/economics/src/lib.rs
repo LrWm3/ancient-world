@@ -178,3 +178,5 @@ mod receivable_accounting;
 pub mod composition;
 
 pub mod discovery;
+
+pub mod demography;
