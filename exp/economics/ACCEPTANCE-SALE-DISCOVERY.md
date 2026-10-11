@@ -49,3 +49,14 @@ consent, prices, employment and physical endowments remain supplied.
    Explicit inventory objectives retain their original target rather than taking
    the derived sale buffer. Four sale-discovery and two joint-authority tests pass,
    including arithmetic overflow and historical catalog stability.
+
+6. **Finite startup comparison.** Monthly review and an initial metal ask alone
+   yield one mint and no recurring work. Four opening metal units yield four
+   mints and two workshop batches, but no town production: the chain still stops.
+   Supplying four opening ore units and an initial signed town ask as well yields
+   44 mints, 43 workshop batches and 40 town batches over 48 months, with no food
+   deficits or wage arrears. The unchanged governed readiness check passes all
+   three post-startup years. These are finite opening inventories and posted
+   quotes, not supplied work targets or future purchase decisions. The cash-only
+   cold fixture retains annual reviews; all posted-startup comparisons use monthly
+   reviews, with workshop/town forecast horizons still 12/4 months.
