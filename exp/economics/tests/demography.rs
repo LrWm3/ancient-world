@@ -665,3 +665,74 @@ fn consumption_preserves_the_same_support_stock_as_the_planner() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn support_only_production_does_not_invent_personal_needs() {
+    let run = |backend, enabled, work| {
+        let (mut w, mut s) = scenario(true, false);
+        let c = w.demography.as_mut().unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = enabled;
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == PERSON)
+            .unwrap()
+            .needs[0]
+            .quantity = 0;
+        w.condition_rules.retain(|r| r.subject != PERSON);
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == FORAGE)
+            .unwrap()
+            .enabled = work;
+        let mut costly = w
+            .definitions
+            .iter()
+            .find(|d| d.id == FORAGE)
+            .unwrap()
+            .clone();
+        costly.id = FORAGE - 1;
+        costly.stages[0].monthly_services[0].quantity = 2;
+        w.pool_inputs
+            .push(economics_compute_smoke::pools::PoolInput {
+                definition: costly.id,
+                account: (economics_compute_smoke::scenario::STATE_AGENT, WILD_FOOD),
+            });
+        w.definitions.push(costly);
+        s.balances.insert((PERSON, GRAIN), 2);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let deficit: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == FIRST_CHILD)
+            .map(|r| r.deficit(NUTRITION))
+            .sum();
+        assert_eq!(deficit, if enabled && work { 0 } else { 1 });
+        assert!(
+            sim.reports
+                .iter()
+                .filter(|r| r.agent == PERSON)
+                .all(|r| r.needs[&NUTRITION].desired == 0)
+        );
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .filter(|p| p.operator == PERSON)
+                .all(|p| p.goal.is_none())
+        );
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, work) in [(true, true), (false, true), (true, false)] {
+        assert_eq!(
+            run(Backend::Reference, enabled, work),
+            run(Backend::CubeCpu, enabled, work)
+        );
+    }
+}

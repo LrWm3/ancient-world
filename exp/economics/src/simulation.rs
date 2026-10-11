@@ -404,6 +404,22 @@ impl Simulation {
                 }
             }
         }
+        // A dependent's material needs need not match the parent's own needs.
+        for participant in self.sorted_participants() {
+            if !defers(participant.agent)
+                && let Some(definition) = self.support_process(participant)
+                && !requests
+                    .iter()
+                    .any(|r| r.agent == participant.agent && r.definition == definition)
+            {
+                requests.push(Request {
+                    agent: participant.agent,
+                    definition,
+                    existing: None,
+                    need: None,
+                });
+            }
+        }
         // Collective obligations add demand through the ordinary productive resolver.
         // Preview and execution see the same offers, rights and finite resources.
         for participant in self.sorted_participants() {
@@ -940,6 +956,111 @@ impl Simulation {
             }
         }
         deficit
+    }
+
+    fn support_process(&self, participant: &Participant) -> Option<DefinitionId> {
+        let c = self.world.demography.as_ref()?;
+        if !c.plan_support || self.state.terminal.contains_key(&participant.agent) {
+            return None;
+        }
+        // Personal-need planning already covers this stock when it is an input.
+        if participant
+            .needs
+            .iter()
+            .filter(|n| n.quantity > 0)
+            .any(|n| {
+                crate::substitution::recipes_for(
+                    &self.world,
+                    &self.state,
+                    participant.agent,
+                    n.resource,
+                )
+                .iter()
+                .any(|d| d.stages[0].entry_inputs[0].resource == c.support.resource)
+            })
+        {
+            return None;
+        }
+        let horizon = u64::from(self.world.horizon);
+        if crate::demography::provision::requests(
+            &self.world,
+            &self.state,
+            participant.agent,
+            c.support.resource,
+            horizon,
+        )
+        .is_empty()
+        {
+            return None;
+        }
+        let claims = commitments::projected_claims(
+            &self.world,
+            &self.state,
+            participant.agent,
+            c.support.resource,
+            horizon,
+        );
+        let base = self.projected_shortfall(
+            participant.agent,
+            c.support.resource,
+            0,
+            None,
+            horizon,
+            &claims,
+        );
+        if base == 0 {
+            return None;
+        }
+        let mut candidates: Vec<_> =
+            crate::opportunities::processes(&self.world, &self.state, participant.agent)
+                .into_iter()
+                .filter(|d| {
+                    d.execution == Execution::Productive
+                        && d.enabled
+                        && d.outputs.iter().any(|a| a.resource == c.support.resource)
+                })
+                .filter_map(|d| {
+                    let with = self.projected_shortfall(
+                        participant.agent,
+                        c.support.resource,
+                        0,
+                        Some(d),
+                        horizon,
+                        &claims,
+                    );
+                    (with < base).then_some((std::cmp::Reverse(base - with), d.id))
+                })
+                .collect();
+        candidates.sort();
+        let next = self
+            .state
+            .processes
+            .keys()
+            .next_back()
+            .copied()
+            .unwrap_or(0)
+            .saturating_add(1);
+        for (_, id) in &candidates {
+            let request = Request {
+                agent: participant.agent,
+                definition: *id,
+                existing: None,
+                need: None,
+            };
+            if self
+                .prepare(
+                    &request,
+                    next,
+                    &self.state.balances,
+                    &BTreeMap::new(),
+                    &crate::storage::usage(&self.world, &self.state.balances),
+                )
+                .is_ok()
+            {
+                return Some(*id);
+            }
+        }
+        candidates.first().map(|(_, id)| *id)
     }
 
     fn projected_shortfall(

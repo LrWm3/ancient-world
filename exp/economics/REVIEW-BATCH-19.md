@@ -28,3 +28,17 @@ Independent review caught forecast-only protection; live consumption now shares
 it. CPU/reference audited tests cover an unavailable alternative recipe (which
 must not disable planning), existing alternative child food, and a parent choosing
 lower-yield berries to retain grain for support. All fifteen reproduction tests pass.
+
+## 3. Produce for dependents without inventing personal needs
+
+Known support gaps can generate ordinary productive requests with no personal
+need goal. The parent's need catalog and reports remain unchanged. Candidate
+benefit uses retained outputs and their completion dates; existing work is counted
+and duplicate requests are suppressed. Ordinary resolution still enforces inputs,
+rights, labor and storage.
+
+Independent review caught an infeasible first-choice producer and accidental
+activation for unrelated debts. Selection now prefers feasible candidates and
+requires actual known-dependent demand. Sixteen reproduction tests pass, including
+audited CPU/reference controls for no personal food demand, disabled planning,
+disabled work, and a lower-ID recipe requiring too much labor.
