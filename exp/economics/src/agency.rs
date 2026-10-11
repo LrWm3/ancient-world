@@ -4,6 +4,7 @@ use crate::{activities::WorkOrder, model::*, simulation::Simulation};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub mod discovery;
+pub mod expectations;
 pub mod integration;
 pub mod markets;
 pub mod objectives;
@@ -35,6 +36,7 @@ pub struct Program {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub horizon: u32,
+    pub peer_expectations: expectations::Policy,
     pub review_every: u32,
     pub minimum_tenure: u32,
     /// Optional observed objective index and loss ceiling permitting early review.
@@ -130,6 +132,7 @@ pub fn governor(w: &World, s: &State, agent: AgentId) -> Option<AgentId> {
 pub fn validate(w: &World) -> Result<(), String> {
     for (&agent, controller) in &w.agency {
         let c = &controller.config;
+        c.peer_expectations.validate()?;
         if let Some(a) = &controller.organization {
             organization::validate(w, agent, a)?;
         }
