@@ -107,6 +107,14 @@ terms remain supplied. This is bounded initial offer publication, not autonomous
 startup finance or negotiated pricing. Run
 `cargo +1.92.0 run --locked --release --example acceptance -- --offer-publication`.
 
+The [startup-forward follow-up](STARTUP-FORWARD-PROPOSALS.md) replaces the supplied
+town ore buffer with one voluntarily accepted prepaid delivery and conditional
+operating programs. It retains workshop working stocks and signed terms. The
+48-month treatment sustains production without food deficits or wage arrears;
+without forward authority the same stocks stall. Publication, admission and work
+activation remain separate, and rejected prepayment cannot activate the plans.
+Run `cargo +1.92.0 run --locked --release --example acceptance -- --startup-forward-comparison`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

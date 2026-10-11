@@ -1,5 +1,12 @@
 # Economics integration and planning interfaces
 
+The opt-in [startup-forward acceptance experiment](STARTUP-FORWARD-PROPOSALS.md)
+connects signed organizational authority, independent objective comparisons,
+ordinary prepaid delivery admission, conditional productive programs, spot
+replenishment and double-entry reporting. One agreed ore delivery replaces the
+town's initial ore stock in the 48-month scenario. Workshop working stocks and
+institutional/price terms remain supplied; this is not general autonomous finance.
+
 Verified economics v1 is candidate `a1b99fa`; subsequent opt-in planner coverage
 is recorded separately in [the comparison](PLANNER-COMPARISON.md) and its
 [calibration/market follow-up](PLANNER-CALIBRATION.md), plus the
