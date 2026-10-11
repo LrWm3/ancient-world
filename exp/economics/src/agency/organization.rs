@@ -30,6 +30,31 @@ pub fn install_initial(
     signatures: &BTreeSet<AgentId>,
     config: Config,
 ) -> Result<(), String> {
+    install(w, s, agreement, signatures, config, false)
+}
+
+/// Initial consent for bounded discovery instead of supplied command programs.
+pub fn install_discovering_initial(
+    w: &mut World,
+    s: &State,
+    agreement: Agreement,
+    signatures: &BTreeSet<AgentId>,
+    config: Config,
+) -> Result<(), String> {
+    if !config.programs.is_empty() {
+        return Err("discovering agreement must not supply programs".into());
+    }
+    install(w, s, agreement, signatures, config, true)
+}
+
+fn install(
+    w: &mut World,
+    s: &State,
+    agreement: Agreement,
+    signatures: &BTreeSet<AgentId>,
+    config: Config,
+    discovering: bool,
+) -> Result<(), String> {
     if s.month != 1
         || s.phase != Phase::Open
         || s.terminal.contains_key(&agreement.organization)
@@ -57,7 +82,11 @@ pub fn install_initial(
         return Err("operating agreement signer lacks legal authority".into());
     }
     let mut candidate = w.clone();
-    let mut controller = Controller::new(config);
+    let mut controller = if discovering {
+        Controller::discovering(config)
+    } else {
+        Controller::new(config)
+    };
     controller.organization = Some(agreement.clone());
     candidate.agency.insert(agreement.organization, controller);
     crate::settlement::validate_world(&candidate, s)?;

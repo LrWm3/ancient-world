@@ -63,7 +63,33 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
                     .operating_agreement()
                     .is_none_or(|a| a.processes.contains(id))
             })
-            .map(Command::StartProcess),
+            .map(|id| {
+                let target = w.agency[&agent].operating_agreement().and_then(|_| {
+                    w.agency[&agent].config.objectives.iter().find_map(|o| {
+                        if o.scope != objectives::Scope::Organization {
+                            return None;
+                        }
+                        let objectives::Metric::Reserve { resource, target } = o.metric else {
+                            return None;
+                        };
+                        (target > 0
+                            && w.definitions.iter().any(|d| {
+                                d.id == id && d.outputs.iter().any(|a| a.resource == resource)
+                            }))
+                        .then_some((resource, target))
+                    })
+                });
+                if let Some((resource, target)) = target {
+                    Command::WorkTargets(vec![WorkOrder {
+                        agent,
+                        definition: id,
+                        priority: 0,
+                        target: crate::activities::Target::Stock(Amount::new(resource, target)),
+                    }])
+                } else {
+                    Command::StartProcess(id)
+                }
+            }),
     );
     if commands.len() > MAX_PROGRAMS {
         return Err("discovered program catalog exceeds bounded search".into());

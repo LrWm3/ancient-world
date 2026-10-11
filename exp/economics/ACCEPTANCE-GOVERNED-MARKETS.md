@@ -35,3 +35,10 @@ Validation results and the remaining iterations are recorded here as completed.
    motivated explicit stop removes purchases while preserving counterparties and
    employment obligations. A positive supply control prevents a vacuous no-trade
    test.
+
+5. **Persistent work discovery.** A discovering signed organization derives work
+   targets from its own positive reserve objectives and permitted recipes. Matching
+   follows declared objective priority, not numeric resource IDs. Other discovery
+   adapters retain their prior behavior. Initial discovery rejects supplied
+   programs; changing holdings does not change the historical catalog. Focused
+   discovery, consent and existing discovery regressions pass.
