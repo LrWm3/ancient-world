@@ -171,17 +171,23 @@ impl Snapshot {
             else {
                 continue;
             };
-            if super::governor(w, s, e.agent).is_none()
-                || !crate::opportunities::permits(
-                    w,
-                    s,
-                    e.agent,
-                    crate::opportunities::Action::Process(e.definition),
-                )
-            {
+            let Some(governor) = super::governor(w, s, e.agent) else {
+                continue;
+            };
+            if !crate::opportunities::permits(
+                w,
+                s,
+                e.agent,
+                crate::opportunities::Action::Process(e.definition),
+            ) {
                 continue;
             }
-            let needed = c.config.objectives.iter().any(|o| o.scope == super::objectives::Scope::Organization && matches!(o.metric, super::objectives::Metric::Reserve { resource, target } if d.outputs.iter().any(|a| a.resource == resource && a.quantity > 0) && s.balance(e.agent, resource) < target));
+            let goals = c
+                .config
+                .preferences
+                .get(&governor)
+                .unwrap_or(&c.config.objectives);
+            let needed = goals.iter().any(|o| o.scope == super::objectives::Scope::Organization && matches!(o.metric, super::objectives::Metric::Reserve { resource, target } if d.outputs.iter().any(|a| a.resource == resource && a.quantity > 0) && s.balance(e.agent, resource) < target));
             if !needed
                 || w.scheduled_starts.iter().any(|a| {
                     a.month == s.month && a.agent == e.agent && a.definition == e.definition

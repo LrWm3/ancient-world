@@ -123,3 +123,72 @@ fn existing_votes_abstentions_and_expiry_do_not_create_a_guaranteed_governor() {
             .is_empty()
     );
 }
+
+#[test]
+fn abstention_insufficient_turnout_and_ineligible_choices_leave_actual_vacancies() {
+    let (w, s, _) = observed();
+    for control in ["abstain", "turnout", "dead", "ineligible", "current open"] {
+        let mut source = w.clone();
+        let current = &mut source.state_governance.as_mut().unwrap().ballots;
+        if control == "abstain" {
+            for b in current.iter_mut().filter(|b| b.ballot.term_start == 7) {
+                b.ballot.candidate = None;
+            }
+        }
+        if control == "turnout" {
+            let voter = current
+                .iter()
+                .find(|b| b.ballot.term_start == 7)
+                .unwrap()
+                .ballot
+                .voter;
+            current.retain(|b| b.ballot.term_start != 7 || b.ballot.voter == voter);
+            source
+                .state_governance
+                .as_mut()
+                .unwrap()
+                .charter
+                .election
+                .minimum_turnout_percent = 100;
+        }
+        let (mut w, mut s) = ForecastContext::new(&source, &s).into_parts();
+        let mut snapshot = Snapshot::observe(&source, &s, WORKSHOP, POLICY).unwrap();
+        s.month = 8;
+        if control == "current open" {
+            snapshot = Snapshot::observe(&source, &s, WORKSHOP, POLICY).unwrap();
+        }
+        if control == "dead" {
+            let candidate = snapshot.ballots[0].candidate.unwrap();
+            s.terminal.insert(
+                candidate,
+                economics_compute_smoke::maintenance::TerminalTransition {
+                    month: 8,
+                    subject: candidate,
+                    reason: 0,
+                    state: "test death".into(),
+                },
+            );
+        }
+        if control == "ineligible" {
+            for b in &mut snapshot.ballots {
+                b.candidate = Some(WORKSHOP);
+            }
+        }
+        let attempts = snapshot.apply_ballots(&mut w, &s).unwrap();
+        if matches!(control, "dead" | "ineligible") {
+            assert!(!attempts.is_empty());
+            assert!(attempts.iter().all(|a| !a.accepted && a.failure.is_some()));
+        }
+        if control == "current open" {
+            assert!(attempts.is_empty());
+        }
+        s.month = 9;
+        assert!(
+            economics_compute_smoke::state_governance::authority(&w, &s)
+                .unwrap()
+                .governor
+                .is_none(),
+            "{control}"
+        );
+    }
+}

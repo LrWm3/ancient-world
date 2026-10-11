@@ -74,3 +74,13 @@ activity is not a financial claim or counterparty consent.
    row keeps replenishment at the month-13 review, pays 48 wage coins per
    organization and has workshop net income 44. These results support the combined
    bounded treatment, not an assertion that longer forecasts always improve plans.
+
+7. **Authority and finite-execution controls.** Recurring demand now uses the
+   incumbent's supplied preferences when present, matching the live decision
+   adapter's override of collective objectives. A satisfied incumbent goal cannot
+   be replaced by a larger collective target. Private stepped controls retain
+   zero-wealth, lost process permission, closed venue and disabled-recipe failures;
+   attempted procurement does not manufacture input goods or money. Election tests
+   cover abstention, insufficient turnout, dead/ineligible candidates and the
+   explicit future-only boundary, asserting actual vacancies rather than merely
+   counting admitted ballots. Eight focused tests pass.
