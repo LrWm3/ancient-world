@@ -59,6 +59,8 @@ pub enum DebtSupportPolicy {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Charter {
+    /// Feed living members' dependents without admitting them as adult members.
+    pub support_dependents: bool,
     pub purchasing: Purchasing,
     /// Collective buying may cover missing entry inputs of active member processes.
     pub fund_committed_inputs: bool,
@@ -152,6 +154,7 @@ impl Governance {
                 activities: None,
             },
             charter: Charter {
+                support_dependents: false,
                 purchasing: Purchasing::Collective,
                 fund_committed_inputs: false,
                 support_member_loans: false,

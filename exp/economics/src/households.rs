@@ -145,6 +145,24 @@ pub fn members<'a>(a: &'a Agreement, state: &'a State) -> impl Iterator<Item = A
             !state.terminal.contains_key(id) && dissolution::winding_at(a, state.month).is_none()
         })
 }
+/// Material beneficiaries are distinct from adult members, signatories and workers.
+pub fn need_recipients(a: &Agreement, state: &State) -> Vec<AgentId> {
+    let adults: Vec<_> = members(a, state).collect();
+    let mut recipients = adults.clone();
+    if a.governance.charter.support_dependents {
+        let children: BTreeSet<_> = adults
+            .into_iter()
+            .flat_map(|parent| crate::demography::dependents(state, parent))
+            .collect();
+        for child in children {
+            if !recipients.contains(&child) {
+                recipients.push(child);
+            }
+        }
+    }
+    recipients
+}
+
 pub fn parent(world: &World, state: &State, person: AgentId) -> Option<AgentId> {
     world
         .households
@@ -319,7 +337,11 @@ pub fn allocate(
     for r in requests {
         if r.quantity < 0
             || r.minimum <= 0
-            || parent(world, state, r.member) != Some(r.household)
+            || (parent(world, state, r.member) != Some(r.household)
+                && !(matches!(r.purpose, Purpose::Need(_))
+                    && world.households.iter().any(|h| {
+                        h.agent == r.household && need_recipients(h, state).contains(&r.member)
+                    })))
             || !world
                 .resources
                 .iter()
@@ -398,7 +420,7 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
     });
     let protected = crate::commitments::protected_stock(world, state)?;
     for a in &world.households {
-        for member in members(a, state) {
+        for member in need_recipients(a, state) {
             let p = world
                 .participants
                 .iter()
@@ -446,6 +468,9 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                     });
                     break;
                 }
+            }
+            if !members(a, state).any(|id| id == member) {
+                continue;
             }
             if state.phase == Phase::Productive {
                 let mut definitions = BTreeSet::new();

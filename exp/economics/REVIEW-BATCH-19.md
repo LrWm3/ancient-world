@@ -80,3 +80,16 @@ reports and financial books exactly, test parent/child filters and disabled
 settlement logs, and reconcile emitted quantities with receipts. Nineteen
 reproduction and ten telemetry tests pass. No forecast or planner logging hooks
 were introduced.
+
+## 7. Feed dependents through explicit household policy
+
+Static `Charter.support_dependents` allows living members' children to receive
+ordinary need allocations. This does not change the adult roster, rights, votes,
+labor, contributions or shared storage. Children retain their private storage cap.
+Requests for child labor, inputs or debt support remain invalid.
+
+Independent review caught an unintended change to adult allocation order. Existing
+adult order is now retained, with sorted children appended. Twenty-one reproduction
+and twelve household-integration tests pass, including audited CPU/reference
+feeding with policy on/off and empty stocks, full child storage, unchanged adult
+membership, forged request rejection and reversed-adult-order scarce food.

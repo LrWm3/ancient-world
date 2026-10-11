@@ -948,3 +948,140 @@ fn lifecycle_observation_is_external_filtered_and_reconciles_receipts() {
         }
     }
 }
+
+fn family_household(enabled: bool, food: i32) -> (World, State) {
+    use economics_compute_smoke::{
+        household_governance::Governance,
+        households::{self, Agreement},
+    };
+    let (mut w, mut s) = scenario(true, false);
+    let c = w.demography.as_mut().unwrap();
+    c.parents = [PERSON].into();
+    c.max_births = 1;
+    c.birth_buffer_months = 1;
+    s.balances.insert((PERSON, GRAIN), 2);
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == FORAGE)
+        .unwrap()
+        .enabled = false;
+    let mut governance = Governance::contributed(PERSON);
+    governance.charter.support_dependents = enabled;
+    households::form(
+        &mut w,
+        &s,
+        Agreement {
+            id: 1,
+            agent: 10000,
+            governance,
+            adults: vec![PERSON],
+            membership: vec![],
+            asset_sales: vec![],
+            equipment_retirements: vec![],
+            support: vec![],
+            formed: 1,
+            dwelling_process: None,
+            admission: None,
+        },
+    )
+    .unwrap();
+    s.balances.insert((10000, GRAIN), food);
+    (w, s)
+}
+
+#[test]
+fn a_household_can_feed_children_without_admitting_adult_members() {
+    use economics_compute_smoke::households::{self, Purpose, Request};
+    let run = |backend, enabled, food| {
+        let (w, s) = family_household(enabled, food);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let deficit: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == FIRST_CHILD)
+            .map(|r| r.deficit(NUTRITION))
+            .sum();
+        assert_eq!(deficit, if enabled && food > 0 { 0 } else { 1 });
+        assert_eq!(
+            households::members(&sim.world.households[0], &sim.state).collect::<Vec<_>>(),
+            vec![PERSON]
+        );
+        assert_eq!(
+            households::parent(&sim.world, &sim.state, FIRST_CHILD),
+            None
+        );
+        assert_eq!(sim.state.balance(FIRST_CHILD, LABOR), 0);
+        let mut request = Request {
+            household: 10000,
+            member: FIRST_CHILD,
+            resource: GRAIN,
+            quantity: 1,
+            minimum: 1,
+            individual_benefit: 1,
+            collective_benefit: 1,
+            sequence: 0,
+            purpose: Purpose::Need(NUTRITION),
+        };
+        if enabled {
+            assert!(households::allocate(&sim.world, &sim.state, vec![request.clone()]).is_ok());
+        }
+        if enabled && food > 0 {
+            let mut full = sim.state.clone();
+            full.balances.insert(
+                (FIRST_CHILD, GRAIN),
+                sim.world.demography.as_ref().unwrap().person.storage,
+            );
+            let (receipts, effects) =
+                households::allocate(&sim.world, &full, vec![request.clone()]).unwrap();
+            assert_eq!(receipts[0].allocated, 0);
+            assert!(effects.is_empty());
+        }
+        for purpose in [Purpose::Labor, Purpose::Input(FORAGE), Purpose::Obligation] {
+            request.purpose = purpose;
+            assert!(households::allocate(&sim.world, &sim.state, vec![request.clone()]).is_err());
+        }
+        (sim.world, sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, food) in [(true, 4), (false, 4), (true, 0)] {
+        assert_eq!(
+            run(Backend::Reference, enabled, food),
+            run(Backend::CubeCpu, enabled, food)
+        );
+    }
+}
+
+#[test]
+fn dependent_support_preserves_existing_adult_reservation_order() {
+    let (mut w, mut s) = family_household(false, 1);
+    let mut h = w.households.remove(0);
+    w.agents.retain(|a| a.id != h.agent);
+    h.adults = vec![PERSON + 1, PERSON];
+    economics_compute_smoke::households::form(&mut w, &s, h).unwrap();
+    s.balances.insert((PERSON, GRAIN), 0);
+    s.balances.insert((PERSON + 1, GRAIN), 0);
+    let mut a = audit(&w, &s);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    while sim.state.month == 1 {
+        a.step(&mut sim).unwrap();
+    }
+    assert_eq!(
+        sim.reports
+            .iter()
+            .find(|r| r.agent == PERSON + 1)
+            .unwrap()
+            .deficit(NUTRITION),
+        0
+    );
+    assert_eq!(
+        sim.reports
+            .iter()
+            .find(|r| r.agent == PERSON)
+            .unwrap()
+            .deficit(NUTRITION),
+        1
+    );
+}
