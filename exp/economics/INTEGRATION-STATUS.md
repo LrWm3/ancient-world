@@ -47,6 +47,12 @@ consent and contracts remain supplied; founding and ownership are not establishe
 The [historical fourteen-month fixture](ACCEPTANCE-SCENARIO.md) retains its earlier
 negative-margin and declining municipal-reserve results as a separate fixture.
 
+The [spot-replenishment variant](ACCEPTANCE-STOCK-MARKET.md) removes scheduled ore
+deliveries: workshop inventory gaps generate bids against town stock asks. It
+shares opening cash, claim protection, storage and settlement with existing food
+and mint-input orders. A temporary extraction interruption preserves obligations
+and later recovers; the uninterrupted acceptance gate still records the lost work.
+
 The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
 households, governance selections, leases, loans, forwards, quotes or dated work.
 Its Open discovery and Acquire joint admission reuse these execution boundaries.

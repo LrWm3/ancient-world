@@ -1,13 +1,83 @@
 use economics_compute_smoke::{
     acceptance::{self, Run, continuation as c},
     compute::Backend,
-    model::Phase,
+    model::{Phase, State, World},
     simulation::Simulation,
 };
 
+type Scenario = fn(c::Case) -> Result<(World, State), String>;
+
+#[test]
+fn spot_replenishment_resumes_after_a_temporary_ore_supply_interruption() {
+    let run = |backend| {
+        let (w, s) = c::spot_scenario(c::Case::Baseline).unwrap();
+        let mut run = Run::new(w, s, backend).unwrap();
+        for month in 1..=c::MONTHS {
+            if month == 13 || month == 16 {
+                run.sim
+                    .world
+                    .definitions
+                    .iter_mut()
+                    .find(|d| d.id == acceptance::MUNICIPAL_WORK)
+                    .unwrap()
+                    .enabled = month == 16;
+            }
+            run.through(month).unwrap();
+        }
+        run
+    };
+    let reference = run(Backend::Reference);
+    let cpu = run(Backend::CubeCpu);
+    assert_eq!(reference.sim.state, cpu.sim.state);
+    assert_eq!(reference.sim.ledger, cpu.sim.ledger);
+    assert_eq!(reference.audit, cpu.audit);
+    let report = c::check(&cpu).unwrap();
+    assert!(!report.ready(), "missed operating work must remain visible");
+    for recovered in &report.periods[1..] {
+        assert_eq!(recovered.workshop_batches, 12);
+        assert_eq!(recovered.municipal_batches, 12);
+        assert_eq!(recovered.ore_delivered, 24);
+        assert!(recovered.workshop_income > 0 && recovered.municipal_income > 0);
+    }
+    let evidence = cpu.evidence().unwrap();
+    assert_eq!(evidence.people_food_deficit, 0);
+    assert_eq!(evidence.wage_arrears, 0);
+    assert!(!report.failures.iter().any(|f| f == "wages entered arrears"));
+    println!(
+        "supply interruption: {:?}; {:?}; {:?}",
+        cpu.evidence().unwrap(),
+        report.failures,
+        report.periods
+    );
+}
+
 #[test]
 fn recurring_economy_is_ready_on_cpu_with_phase_reconstruction_and_dated_replay() {
-    let (w, s) = c::scenario(c::Case::Baseline).unwrap();
+    verify_recurring(c::scenario);
+}
+
+#[test]
+fn stock_replenishment_is_ready_on_cpu_with_phase_reconstruction_and_dated_replay() {
+    verify_recurring(c::spot_scenario);
+}
+
+fn verify_recurring(scenario: Scenario) {
+    let (w, s) = scenario(c::Case::Baseline).unwrap();
+    if w.minting
+        .as_ref()
+        .unwrap()
+        .order_policy
+        .as_ref()
+        .unwrap()
+        .peer_stocks
+        .is_some()
+    {
+        assert!(
+            w.prepaid_deliveries
+                .iter()
+                .all(|t| t.goods.resource != economics_compute_smoke::minting::ORE)
+        );
+    }
     let mut reference = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
     assert!(c::check(&reference).is_err());
     let mut replay_state = s.clone();
@@ -78,8 +148,17 @@ fn recurring_economy_is_ready_on_cpu_with_phase_reconstruction_and_dated_replay(
 
 #[test]
 fn missing_supply_replacement_access_and_margin_fail_acceptance_with_matching_cpu_evidence() {
+    verify_controls(c::scenario);
+}
+
+#[test]
+fn spot_controls_fail_with_matching_cpu_evidence() {
+    verify_controls(c::spot_scenario);
+}
+
+fn verify_controls(scenario: Scenario) {
     for case in c::Case::ALL.into_iter().filter(|c| *c != c::Case::Baseline) {
-        let (w, s) = c::scenario(case).unwrap();
+        let (w, s) = scenario(case).unwrap();
         let mut reference = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
         reference.through(c::MONTHS).unwrap();
         let expected = c::check(&reference).unwrap();
@@ -117,7 +196,12 @@ fn missing_supply_replacement_access_and_margin_fail_acceptance_with_matching_cp
 
 #[test]
 fn verdict_requires_all_cycles_and_monthly_catalog_order_does_not_change_result() {
-    let (mut w, s) = c::scenario(c::Case::Baseline).unwrap();
+    verify_reordering(c::scenario);
+    verify_reordering(c::spot_scenario);
+}
+
+fn verify_reordering(scenario: Scenario) {
+    let (mut w, s) = scenario(c::Case::Baseline).unwrap();
     let mut base = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
     base.through(14).unwrap();
     assert!(c::check(&base).is_err());
@@ -128,6 +212,18 @@ fn verdict_requires_all_cycles_and_monthly_catalog_order_does_not_change_result(
     w.resources.reverse();
     w.employment.reverse();
     w.prepaid_deliveries.reverse();
+    if let Some(p) = &mut w
+        .minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .peer_stocks
+    {
+        p.quotes.reverse();
+    }
+    w.marketplaces[0].markets.reverse();
     let mut reordered = Run::new(w, s, Backend::Reference).unwrap();
     for month in 1..=c::MONTHS {
         reordered.through(month).unwrap();

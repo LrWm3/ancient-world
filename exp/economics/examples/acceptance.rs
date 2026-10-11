@@ -7,7 +7,11 @@ fn main() -> Result<(), String> {
             "case,ready,food_deficit,wage_arrears,last_year_workshop_income,last_year_town_income"
         );
         for case in c::Case::ALL {
-            let (w, s) = c::scenario(case)?;
+            let (w, s) = if std::env::args().any(|a| a == "--spot") {
+                c::spot_scenario(case)?
+            } else {
+                c::scenario(case)?
+            };
             let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
             run.through(c::MONTHS)?;
             let evidence = run.evidence()?;
@@ -37,7 +41,11 @@ fn main() -> Result<(), String> {
         )
     }) {
         use acceptance::continuation as c;
-        let (w, s) = c::scenario(c::Case::Baseline)?;
+        let (w, s) = if std::env::args().any(|a| a == "--spot") {
+            c::spot_scenario(c::Case::Baseline)?
+        } else {
+            c::scenario(c::Case::Baseline)?
+        };
         let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
         run.through(c::MONTHS)?;
         let report = c::check(&run)?;

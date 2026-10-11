@@ -69,6 +69,11 @@ Supply, access, margin and late-payroll controls must fail readiness. Initial id
 consent, prices, contracts and constitutional menus remain supplied; this is a bounded
 recurring economy, not arbitrary autonomous organization formation.
 
+The [inventory-driven acceptance variant](ACCEPTANCE-STOCK-MARKET.md) replaces
+scheduled ore forwards with workshop bids and town asks in the existing venue.
+It protects shared cash reserves across markets and recovers after a temporary
+ore-production interruption. Prices and inventory targets remain supplied.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

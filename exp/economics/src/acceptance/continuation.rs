@@ -214,6 +214,50 @@ pub fn scenario(case: Case) -> Result<(World, State), String> {
     Ok((w, s))
 }
 
+/// Same economy with inventory-driven ore bids/asks instead of dated deliveries.
+pub fn spot_scenario(case: Case) -> Result<(World, State), String> {
+    let (mut w, s) = scenario(case)?;
+    w.prepaid_deliveries
+        .retain(|t| !(t.seller == TOWN && t.buyer == WORKSHOP && t.goods.resource == ORE));
+    let venue = &mut w.marketplaces[0];
+    venue.allowed_types.insert(TOWN_TYPE);
+    venue.markets.push(crate::marketplace::Market {
+        id: ORE,
+        goods: Amount::new(ORE, ORE_LOT),
+        payment: COIN,
+        price_tick: 1,
+    });
+    let mut quotes = vec![crate::minting::orders::Quote {
+        agent: TOWN,
+        market: ORE,
+        side: Side::Sell,
+        limit: ORE_PRICE,
+        holding: 0,
+        max_lots: None,
+    }];
+    if case != Case::NoReplacementOrders {
+        quotes.push(crate::minting::orders::Quote {
+            agent: WORKSHOP,
+            market: ORE,
+            side: Side::Buy,
+            limit: ORE_PRICE,
+            holding: ORE_BUFFER,
+            max_lots: None,
+        });
+    }
+    w.minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .peer_stocks = Some(crate::minting::orders::peer_stocks::Policy {
+        claim_months: SALE_PROTECTION_MONTHS,
+        quotes,
+    });
+    Ok((w, s))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Period {
     pub from: u32,
@@ -259,7 +303,7 @@ pub fn period(run: &Run, from: u32, through: u32) -> Result<Period, String> {
             })
             .count()
     };
-    let ore_delivered = run
+    let forward_ore: i32 = run
         .sim
         .ledger
         .iter()
@@ -277,6 +321,23 @@ pub fn period(run: &Run, from: u32, through: u32) -> Result<Period, String> {
                 Some(quantity)
             }
             _ => None,
+        })
+        .sum();
+    let spot_ore: i32 = accepted_deals(&run.sim)
+        .filter(|d| between(d.month) && d.seller == TOWN && d.buyer == WORKSHOP)
+        .filter_map(|d| {
+            let venue = run.sim.world.minting.as_ref()?.venue;
+            run.sim
+                .world
+                .marketplaces
+                .iter()
+                .find(|v| v.agent == venue)
+                .and_then(|v| {
+                    v.markets
+                        .iter()
+                        .find(|m| m.id == d.market && m.goods.resource == ORE)
+                })
+                .map(|m| m.goods.quantity)
         })
         .sum();
     let employment = |id| {
@@ -304,7 +365,7 @@ pub fn period(run: &Run, from: u32, through: u32) -> Result<Period, String> {
         metal_sales: accepted_deals(&run.sim)
             .filter(|d| between(d.month) && d.seller == WORKSHOP && d.market == METAL)
             .count(),
-        ore_delivered,
+        ore_delivered: forward_ore + spot_ore,
         workshop_income: w.net_income,
         municipal_income: t.net_income,
         workshop_opening_cash: w.opening_cash,

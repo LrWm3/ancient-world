@@ -6,6 +6,11 @@ marketplace operating together for **48 months**. Readiness means this configure
 economy passes the gates below; it does not mean arbitrary organizations can
 discover a sustainable economy from scratch.
 
+The [inventory-driven follow-up](ACCEPTANCE-STOCK-MARKET.md) passes the same gates
+with workshop/town ore bids and asks replacing the dated ore-forward schedule.
+It also exercises temporary supply interruption and recovery. The baseline and
+measurements on this page retain their original forward-based configuration.
+
 Run from `exp/economics`:
 
 ```sh
