@@ -209,3 +209,17 @@ hours allow both the paid job and child support.
 Independent review passed. Four audited CPU/reference controls check actual wages,
 child objectives, month-two meals and checkpoint continuation. No new worker
 planner or automatic policy change was necessary.
+
+## 18. Compare support planning under population pressure
+
+The CPU reproduction example accepts `--support-matrix` for planning/allocation
+controls and `--overlapping-cohorts` for twelve-month childhood against the same
+six-month birth interval. The default retains the original four configurations.
+CSV output now includes actual requested/delivered support and shortfall, including
+birth buffers. Generated outputs remain ignored.
+
+Independent review passed. All 32 audited matrix runs completed. The results table
+in [REPRODUCTION.md](REPRODUCTION.md#support-planning-comparisons) records settings
+and outcomes. Planning removes abundant-world deficits. Under scarcity it reduces
+childhood deficits but not deaths; it can change births and their timing. Rotation
+has no aggregate outcome effect in these fixtures. No-birth controls remain stable.

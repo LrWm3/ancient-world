@@ -16,7 +16,10 @@ use the existing condition model; dead children do not mature or restart.
 At Open, the resolver first supports existing living dependents from their
 parent's stored resources, retaining the configured parent reserve. Requests are
 capped by the child's current stock deficit, the donor's available stock and
-storage. Existing children have stable child-ID priority. Then eligible adults
+storage. `SupportOrder::OldestFirst` preserves stable child-ID priority by default;
+`Rotating` rotates each parent’s sibling order by month. Receipts retain the policy,
+opening spendable stock and child order. Unfillable or zero-demand requests leave
+food for the next sibling. This changes allocation, not monthly timing. Then eligible adults
 may reproduce, one birth per parent per month, in stable parent-ID order:
 
 - The parent is living, mature, outside the cooldown and has no recorded deprivation.
@@ -116,6 +119,60 @@ orders and bounded lot selection may buy missing support stocks, even for a pare
 with no personal demand for that resource; money, market access and storage remain
 necessary. These changes do not alter the legacy comparison above.
 
+## Household and institutional integration
+
+A static household `Charter.support_dependents` may include living members' children
+in need reservations, collective purchases, contributed-labor welfare comparisons
+and voluntary-surplus decisions. It defaults off. Children remain outside the adult
+roster: they donate no labor, do not vote or sign, and do not contribute shared
+storage. Their own finite storage still limits delivery. Parent support planning
+also lets household inputs fund ordinary production for children. Early voluntary
+payment funding checks dependent needs without changing existing creditor rights.
+
+At maturity, household accession still requires an explicit agreement and consent;
+citizenship similarly requires accepting the state's offer. Historical admission
+checks reject pre-maturity signatures even after a person grows up. Mature labor
+alone grants neither institutional membership nor land. Worker protection with a
+two-month horizon can retain time for the next Open's child support; the one-month
+control misses that consequence. Available spare hours still permit paid work.
+
+## Support-planning comparisons
+
+```sh
+cargo +1.92.0 run --locked --release --example reproduction -- --support-matrix
+cargo +1.92.0 run --locked --release --example reproduction -- --support-matrix --overlapping-cohorts
+```
+
+Both matrices run 36 months on CPU with audited books. They hold initial resources
+and rules fixed within each comparison. The second fixture changes childhood from
+six to twelve months, while retaining the six-month birth interval; it is a separate
+overlapping-cohort stress test. Support totals include actual birth buffers.
+
+| Childhood | Supply | Support planning | Births | Deaths | Living | Nutrition deficit | Childhood deficit | Support delivered/requested |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 6 months | Abundant | Off | 12 | 0 | 14 | 14 | 12 | 60/72 |
+| 6 months | Abundant | On | 12 | 0 | 14 | 0 | 0 | 72/72 |
+| 6 months | Scarce | Off | 10 | 7 | 5 | 59 | 12 | 44/56 |
+| 6 months | Scarce | On | 8 | 7 | 3 | 45 | 2 | 46/48 |
+| 12 months | Abundant | Off | 12 | 0 | 14 | 38 | 38 | 86/124 |
+| 12 months | Abundant | On | 12 | 0 | 14 | 0 | 0 | 144/144 |
+| 12 months | Scarce | Off | 6 | 4 | 4 | 45 | 22 | 42/64 |
+| 12 months | Scarce | On | 6 | 4 | 4 | 36 | 5 | 61/66 |
+
+Oldest-first and rotating support produce identical aggregate outcomes in these
+fixtures. Focused identical-request scarcity tests separately verify that rotation
+changes the recipient and alternates by month. Neither observation establishes a
+survival benefit from rotation. Every no-birth control retains two living adults
+with zero nutrition deficits under either planning or allocation policy.
+
+Planning removes the abundant-world deficit and reduces missed child support under
+scarcity. Death counts under scarcity do not improve; birth counts and timing can
+change, so total deficits are not a per-child welfare comparison. In the overlapping
+abundant fixture, planning brings births forward enough that all descendants mature
+by month 36, whereas six remain children without it. The fixed birth ceiling still
+precludes any claim of natural equilibrium. Raw CSVs are local ignored outputs;
+this table is the source-controlled result summary.
+
 ## Verification and limits
 
 On 2026-10-11, the full release suite passed **1,255 tests, zero failed, one
@@ -139,15 +196,14 @@ reproductive decision made by the person's planner. One configured support stock
 and one parent are supported. Births do not reserve future support and the parent's
 reserve is not a general priority rule protecting all future debts.
 
-Household children, child-specific storage/pooling and growing-up admission remain
-separate work. Existing member/worker objective scopes include known dependents
-when comparing harm, but that does not make every household or person planner
-family-aware. Enabled endogenous discovery is explicitly rejected with this
-configuration until dependent-aware registration/admission exists. The comparison
-uses an unlicensed foraging world; it does not demonstrate citizenship, recruitment
-or land acquisition by grown children.
+The household adapters above cover known children, not adoption, guardianship after
+parental death, automatic grown-child accession, or a separate child pooling policy.
+Existing worker/private support protections do not make every planner family-aware.
+Enabled endogenous discovery remains explicitly rejected until its dynamic
+registration/admission adapters handle dependent rosters. The standalone comparison
+uses unlicensed foraging; focused tests separately exercise explicit citizenship
+and household admission, not autonomous recruitment or land acquisition.
 
-The next useful comparison is support-aware person/household planning against the
-same opening resources, separating a shortage of food from food being produced
-or transferred too late. Demographic realism can follow once that economic loop
-works.
+The next useful work is dependent-aware endogenous discovery and explicit guardian
+policy, then demographic choice/realism if needed. Individual self-directed policy
+changes remain deferred.
