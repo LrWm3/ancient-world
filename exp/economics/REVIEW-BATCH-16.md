@@ -83,3 +83,12 @@ not confused with a cleared ending balance. A grain loan and coin wage test chec
 protected payment, missed payment under supplied consent, and an unfunded proposal;
 all three audited CPU/reference controls pass. Independent review found no blocker.
 This measures worst arrears within the horizon, not a complete credit-risk model.
+
+## 9. Separate worse own arrears from unrelated distress
+
+A two-loan control gives the worker a baseline shortfall of one unit; selling
+hours would increase it to five. An unrelated borrower misses seven units without
+changing the worker's comparison. Finite storage is held slack and identical to
+isolate payment performance (the original seven-unit store raised the baseline to
+three). Audited CPU/reference runs and decision equality pass. Independent review
+found no blocker. A global missed-payment boolean would miss this distinction.

@@ -1586,3 +1586,127 @@ fn worker_supply_protects_accepted_loan_payments_in_their_own_denomination() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn worker_loan_losses_are_scoped_and_detect_worsening_existing_shortfalls() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        credit::{Advance, LoanOffer},
+        employment::supply::Policy,
+        scenario::GRAIN,
+    };
+    let mut decisions = vec![];
+    for unrelated in [false, true] {
+        let (mut w, mut s) = production(6);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .extend([(PERSON_TYPE, Action::Borrow), (PERSON_TYPE, Action::Lend)]);
+        // Hold storage slack constant to isolate scoped payment performance.
+        w.storage
+            .capacities
+            .extend([(WORKER, 32), (PERSON, 32), (92, 32)]);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        w.employment_supply.insert(WORKER, Policy { horizon: 2 });
+        w.activities.orders.push(WorkOrder {
+            agent: WORKER,
+            definition: MAKE,
+            priority: 0,
+            target: Target::Stock(Amount::new(GRAIN, 10)),
+        });
+        let stock = if unrelated { 12 } else { 5 };
+        s.balances.insert((PERSON, GRAIN), stock);
+        for (id, debtor, principal) in [(70002, WORKER, 5), (70003, 92, 7)] {
+            if debtor == 92 && !unrelated {
+                continue;
+            }
+            w.lending.push(Advance {
+                id,
+                debtor,
+                terms: LoanOffer {
+                    creditor: PERSON,
+                    denomination: GRAIN,
+                    max_principal: principal,
+                    monthly_rate_bps: 10000,
+                    term_months: 1,
+                    grace_months: 0,
+                },
+                principal,
+                month: 1,
+                collateral: None,
+                priority: 0,
+            });
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    inventory: [((PERSON, GRAIN), i128::from(stock))].into(),
+                    exchange_values: [(GRAIN, 1)].into(),
+                    services: Some(Default::default()),
+                    processes: Some(Default::default()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            through(&mut a, &mut sim, 2);
+            let d = sim
+                .ledger
+                .iter()
+                .find_map(|b| b.employment.as_ref().filter(|e| !e.supply.is_empty()))
+                .unwrap()
+                .supply[0]
+                .clone();
+            assert_eq!(
+                d.loans.iter().map(|l| l.id).collect::<Vec<_>>(),
+                vec![70002]
+            );
+            assert_eq!(d.baseline.last(), Some(&1));
+            assert_eq!(
+                d.alternatives
+                    .iter()
+                    .find(|a| a.hours == 2)
+                    .unwrap()
+                    .losses
+                    .as_ref()
+                    .unwrap()
+                    .last(),
+                Some(&5)
+            );
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .get(&(1, 1))
+                    .map_or(0, |e| e.delivered),
+                0
+            );
+            if unrelated {
+                assert!(
+                    sim.ledger
+                        .iter()
+                        .filter_map(|b| b.credit.as_ref())
+                        .flat_map(|b| &b.events)
+                        .any(|e| matches!(
+                            e,
+                            economics_compute_smoke::credit::Event::Arrears {
+                                loan: 70003,
+                                amount: 7,
+                                ..
+                            }
+                        ))
+                );
+            }
+            (sim.state, sim.ledger, a, d)
+        };
+        let reference = run(Backend::Reference);
+        assert_eq!(reference, run(Backend::CubeCpu));
+        decisions.push(reference.3);
+    }
+    assert_eq!(decisions[0], decisions[1]);
+}
