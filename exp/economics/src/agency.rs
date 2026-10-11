@@ -90,6 +90,7 @@ impl Controller {
 pub struct Projection {
     pub closing_stocks: BTreeMap<ResourceId, i32>,
     pub peer_attempts: Vec<expectations::Attempt>,
+    pub peer_ballots: Vec<expectations::elections::Attempt>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -474,13 +475,16 @@ fn forecast(
             .checked_add(c.horizon)
             .ok_or("forecast month overflow")?;
         let mut starts = vec![];
+        let mut peer_ballots = vec![];
         while sim.state.month < end {
             if sim.state.phase == Phase::Open {
+                peer_ballots.extend(peers.apply_ballots(&mut sim.world, &sim.state)?);
                 starts.extend(peers.apply_hypotheses(&mut sim.world, &sim.state)?);
             }
             sim.step()?;
         }
         let projection = Projection {
+            peer_ballots,
             closing_stocks: sim
                 .world
                 .resources

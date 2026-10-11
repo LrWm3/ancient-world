@@ -41,3 +41,13 @@ activity is not a financial claim or counterparty consent.
    frozen future voting leaves the month-15 office vacant. Extra demand alone does
    not solve this second missing counterparty action. This remains a negative
    control rather than relaxing readiness or silently assuming authority.
+
+5. **Explicit voting hypotheses.** A separate
+   `RecentSuccessfulStartsAndBallots` variant observes only the current begun
+   state-election cohort. It repeats individual choices, including abstentions,
+   through ordinary ballot admission at future pre-term Open. It never extends an
+   incumbent's term directly. Already accepted ballots win; freshness is measured
+   from real issuance, not renewed by hypothetical voting. Each candidate reports
+   hypothetical ballot admission outcomes. Stepped tests demonstrate ordinary
+   elections and process completion across future terms, preserving the live world.
+   Household elections are not projected by this adapter.

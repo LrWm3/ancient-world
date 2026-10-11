@@ -3,6 +3,8 @@
 use crate::model::*;
 use std::collections::BTreeMap;
 
+pub mod elections;
+
 const MAX_MEMORY_MONTHS: u32 = 24;
 const REQUIRED_OBSERVATIONS: usize = 2;
 
@@ -13,10 +15,22 @@ pub enum Policy {
     RecentSuccessfulStarts {
         memory_months: u32,
     },
+    RecentSuccessfulStartsAndBallots {
+        memory_months: u32,
+    },
 }
 impl Policy {
+    fn memory(self) -> Option<u32> {
+        match self {
+            Self::AcceptedOnly => None,
+            Self::RecentSuccessfulStarts { memory_months }
+            | Self::RecentSuccessfulStartsAndBallots { memory_months } => Some(memory_months),
+        }
+    }
     pub fn validate(self) -> Result<(), String> {
-        if matches!(self, Self::RecentSuccessfulStarts { memory_months } if !(1..=MAX_MEMORY_MONTHS).contains(&memory_months))
+        if self
+            .memory()
+            .is_some_and(|m| !(1..=MAX_MEMORY_MONTHS).contains(&m))
         {
             return Err("invalid peer process observation memory".into());
         }
@@ -38,6 +52,7 @@ pub struct Snapshot {
     pub actor: AgentId,
     pub policy: Policy,
     pub evidence: Vec<Evidence>,
+    pub ballots: Vec<elections::Evidence>,
 }
 impl Snapshot {
     pub fn observe(w: &World, s: &State, actor: AgentId, policy: Policy) -> Result<Self, String> {
@@ -47,10 +62,14 @@ impl Snapshot {
             actor,
             policy,
             evidence: vec![],
+            ballots: vec![],
         };
-        let Policy::RecentSuccessfulStarts { memory_months } = policy else {
+        let Some(memory_months) = policy.memory() else {
             return Ok(result);
         };
+        if matches!(policy, Policy::RecentSuccessfulStartsAndBallots { .. }) {
+            result.ballots = elections::observe(w, s, actor, memory_months);
+        }
         for (&peer, controller) in &w.agency {
             if peer == actor {
                 continue;
@@ -125,7 +144,7 @@ impl Snapshot {
         if w.agency.values().any(|c| c.autonomous) {
             return Err("peer hypotheses require frozen forecast controllers".into());
         }
-        let Policy::RecentSuccessfulStarts { memory_months } = self.policy else {
+        let Some(memory_months) = self.policy.memory() else {
             return Ok(vec![]);
         };
         if s.phase != Phase::Open || s.month <= self.as_of {
@@ -188,4 +207,24 @@ pub struct Attempt {
     pub definition: DefinitionId,
     pub month: u32,
     pub completed: bool,
+}
+
+impl Snapshot {
+    pub fn apply_ballots(
+        &self,
+        w: &mut World,
+        s: &State,
+    ) -> Result<Vec<elections::Attempt>, String> {
+        self.policy.validate()?;
+        if w.agency.values().any(|c| c.autonomous) {
+            return Err("peer hypotheses require frozen forecast controllers".into());
+        }
+        let Policy::RecentSuccessfulStartsAndBallots { memory_months } = self.policy else {
+            return Ok(vec![]);
+        };
+        if s.phase != Phase::Open || s.month <= self.as_of {
+            return Ok(vec![]);
+        }
+        elections::apply(self, w, s, memory_months)
+    }
 }
