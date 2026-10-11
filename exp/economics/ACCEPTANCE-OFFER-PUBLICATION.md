@@ -55,3 +55,9 @@ controller continues to retain its plan on equal forecasts.
    The initial forecasts contain no hypothetical peer work. Later forecasts still
    use the existing observed-process/state-ballot recurrence model; this experiment
    does not remove that assumption.
+
+6. **Governance timing and sealed configuration.** Two execution tests verify
+   that the new choice obeys three-month review dates and six-month minimum tenure,
+   and that changing its sealed mandate after first Open fails without changing
+   state or decision history. A publication accepted in month 1 still becomes
+   effective in month 2; no extra policy review or early execution is introduced.
