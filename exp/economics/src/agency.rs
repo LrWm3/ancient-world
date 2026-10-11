@@ -3,6 +3,7 @@
 use crate::{activities::WorkOrder, model::*, simulation::Simulation};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod completions;
 pub mod discovery;
 pub mod discovery_sales;
 pub mod expectations;
