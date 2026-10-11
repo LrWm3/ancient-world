@@ -3,6 +3,8 @@
 use super::organization::Agreement;
 use crate::{marketplace::MarketId, model::*};
 
+pub mod assessment;
+
 const MAX_PROPOSALS: usize = 64;
 const MIN_DELIVERY_MONTHS: u32 = 3;
 const MAX_DELIVERY_MONTHS: u32 = 12;
