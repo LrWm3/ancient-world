@@ -16,3 +16,9 @@ consent, prices, employment and physical endowments remain supplied.
    buys are excluded. Two atomic validation/routing tests and nine existing
    authority, discovery and execution tests pass. This adapter still requires an
    enabled peer-stock book; it is not universal market authority.
+
+2. **Dated execution and access.** A signed combined ore-purchase/metal-sale
+   program is selected through ordinary forecasts, becomes effective at the next
+   Open, and produces real sales on both reference and CPU. A matched legal-access
+   revocation suppresses sales while retaining accepted history, installed quotes
+   and employment obligations. In-memory reconstruction preserves the boundary.
