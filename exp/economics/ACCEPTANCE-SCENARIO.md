@@ -54,3 +54,18 @@ both refining and minting. Workshop cash returns to eight, but this is **not
 profitability**: the supplied metal price covers wages and consumes the opening ore
 endowment without replacing its carrying value. Financial sustainability remains a
 separate acceptance gate.
+
+## Pass 3 — municipal treasury and competing employment
+
+A distinct municipal type owns the plot and receives its existing one-coin annual
+lease payment. It has ten opening coins, no endowed hours, and an accepted contract
+for one smith-hour each month to collect one unit of retained municipal fuel.
+The workshop's employment rank precedes the municipality's rank. Both requests use
+the same ordinary employment reservation boundary; timing is unchanged.
+
+The first four months leave no town hours because the workshop buys both available
+smith-hours. After its four-month contract expires, the town can buy one hour per
+month. This is an operating mandate and real treasury, asset and output accounting,
+not a municipality with implemented founding, elections or autonomous spending.
+Retained fuel is not yet distributed public benefit, and annual rent does not cover
+recurring payroll. Neither this treasury nor the workshop receives synthetic labor.

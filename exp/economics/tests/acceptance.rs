@@ -30,9 +30,9 @@ fn workshop_requires_real_inputs_and_hours_to_supply_the_state() {
     let e = run.evidence().unwrap();
     assert_eq!(e.workshop_batches, 4);
     assert_eq!(e.workshop_wages_paid, 8);
-    assert_eq!(run.sim.state.balance(SMITH, COIN), 8);
+    assert_eq!(run.sim.state.balance(SMITH, COIN), 18);
     assert_eq!(run.sim.state.balance(WORKSHOP, COIN), 8);
-    assert_eq!(e.reconciled_agents, 8);
+    assert_eq!(e.reconciled_agents, 9);
     for missing_labor in [false, true] {
         let (mut w, mut s) = (w.clone(), s.clone());
         if missing_labor {
@@ -51,5 +51,48 @@ fn workshop_requires_real_inputs_and_hours_to_supply_the_state() {
         assert_eq!(c.workshop_batches, 0);
         assert_eq!(c.completed_mints, 0);
         assert_eq!(c.issuance, 0);
+    }
+}
+
+#[test]
+fn municipality_uses_only_residual_worker_hours_and_receives_real_land_dues() {
+    use economics_compute_smoke::{
+        acceptance::{SMITH, TOWN, TOWN_EMPLOYMENT, WORKSHOP_EMPLOYMENT},
+        agency::integration,
+        minting::{COIN, FIREWOOD},
+    };
+    let (w, s) = acceptance::scenario().unwrap();
+    assert_eq!(
+        w.assets
+            .iter()
+            .find(|a| a.id == integration::PLOT)
+            .unwrap()
+            .owner,
+        TOWN
+    );
+    let mut run = Run::new(w, s, Backend::Reference).unwrap();
+    run.through(4).unwrap();
+    assert_eq!(run.evidence().unwrap().municipal_batches, 0);
+    assert_eq!(run.sim.state.balance(TOWN, COIN), 10);
+    run.through(acceptance::RUN_MONTHS).unwrap();
+    let e = run.evidence().unwrap();
+    assert_eq!(e.municipal_batches, 10);
+    assert_eq!(e.municipal_wages_paid, 10);
+    assert_eq!(e.municipal_cash, 1);
+    assert_eq!(run.sim.state.balance(TOWN, FIREWOOD), 10);
+    assert_eq!(run.sim.state.balance(SMITH, COIN), 18);
+    for month in 1..=acceptance::RUN_MONTHS {
+        let delivered: i32 = run
+            .sim
+            .state
+            .employment
+            .earned
+            .iter()
+            .filter(|((id, m), _)| {
+                *m == month && [WORKSHOP_EMPLOYMENT, TOWN_EMPLOYMENT].contains(id)
+            })
+            .map(|(_, e)| e.delivered)
+            .sum();
+        assert!(delivered <= 2, "duplicated worker hours in month {month}");
     }
 }
