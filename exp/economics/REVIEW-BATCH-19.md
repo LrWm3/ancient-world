@@ -153,3 +153,15 @@ Independent review passed after correcting the fixture's storage budget. The
 focused audited CPU/reference test rejects immature admission and missing consent
 atomically, accepts unanimous maturity-boundary accession, rejects forged founding
 and join history, and preserves financial/state results through continuation.
+
+## 13. Observe completed population stocks and support flows
+
+External Close metrics distinguish the registered birth cohort's living children,
+living adults and terminal people, with parent-or-child filters. Initial founders
+are excluded explicitly. Support totals label birth buffers; metric sampling and
+log limits remain independent.
+
+Independent review caught incomplete monthly receipts after a mid-month restart.
+`flows_complete` now marks coverage and incomplete flow fields are null. Two
+focused CPU observer tests check maturity timing, filtering, sampling, noninterference,
+receipt totals, terminal counts and partial-history checkpoints.

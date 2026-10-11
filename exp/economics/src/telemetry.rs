@@ -295,6 +295,9 @@ impl<W: Write> Observer<W> {
             )?;
         }
         if sim.state.month > month && self.metric(month) {
+            if let Some(row) = population::closing(&self.config, sim, month) {
+                self.write(row)?;
+            }
             for ((month, agent, resource), (credits, debits)) in std::mem::take(&mut self.flows) {
                 self.write(json!({"kind":"account_flow","month":month,"agent":agent,
                     "resource":resource,"credits":credits,"debits":debits}))?;

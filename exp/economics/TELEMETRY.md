@@ -413,3 +413,16 @@ accepted settled lots. A later claim or loss of permission can therefore explain
 why an Open authorization never becomes an order. Public supply may be capped by
 submitted demand. Neither record recomputes projections, and observers attached
 later export only newly committed boundaries.
+
+### Population metrics
+
+With demography configured, sampled Close boundaries emit `population` for the
+**registered birth cohort**, excluding initial founders and unrelated agents.
+Agent filters select either the parent or child. Counts distinguish living
+dependents, living matured descendants and terminal descendants at the completed
+month, before the following Open's maturity work. Birth, maturity and support
+flows use committed receipts; support totals explicitly include birth buffers.
+`flows_complete` requires that month's Open receipt in the retained ledger. A
+mid-month checkpoint with no earlier receipts still reports complete cohort
+counts, but flow fields are null. These metrics do not require settlement logs
+and are unaffected by log limits.

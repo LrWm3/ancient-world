@@ -1492,3 +1492,121 @@ fn household_accession_requires_adulthood_at_the_recorded_date() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn population_metrics_use_completed_month_and_work_without_logs() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    use serde_json::Value;
+    for selected in [None, Some(PERSON), Some(FIRST_CHILD)] {
+        let (mut w, s) = scenario(true, false);
+        w.demography.as_mut().unwrap().max_births = 2;
+        let mut sim = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+        let mut plain = sim.clone();
+        let mut a = audit(&w, &s);
+        let mut pa = a.clone();
+        let config = Config {
+            logs: false,
+            settlement: false,
+            log_limit: 0,
+            agents: selected.into_iter().collect(),
+            first_month: 2,
+            metric_every: 2,
+            ..Config::default()
+        };
+        let mut observer = Observer::new(vec![], "population", config).unwrap();
+        while sim.state.month <= 8 {
+            observer.step_audited(&mut sim, &mut a).unwrap();
+            pa.step(&mut plain).unwrap();
+        }
+        assert_eq!(
+            (&sim.state, &sim.ledger, &a),
+            (&plain.state, &plain.ledger, &pa)
+        );
+        let rows: Vec<Value> = String::from_utf8(observer.finish().unwrap())
+            .unwrap()
+            .lines()
+            .map(|r| serde_json::from_str(r).unwrap())
+            .filter(|r: &Value| r["kind"] == "population")
+            .collect();
+        assert_eq!(
+            rows.iter()
+                .map(|r| r["month"].as_u64().unwrap())
+                .collect::<Vec<_>>(),
+            vec![2, 4, 6, 8]
+        );
+        let count = if selected.is_none() { 2 } else { 1 };
+        for r in &rows {
+            assert_eq!(r["registered"], count);
+            assert_eq!(r["scope"], "registered_birth_cohort");
+        }
+        assert_eq!(rows[2]["living_dependents"], count);
+        assert_eq!(rows[2]["living_adults"], 0);
+        assert_eq!(rows[3]["living_dependents"], 0);
+        assert_eq!(rows[3]["living_adults"], count);
+        for r in rows {
+            let month = r["month"].as_u64().unwrap() as u32;
+            let receipts = sim
+                .ledger
+                .iter()
+                .filter(|b| b.month == month)
+                .filter_map(|b| b.demography.as_ref())
+                .flat_map(|d| &d.support)
+                .filter(|r| selected.is_none_or(|id| id == r.parent || id == r.child));
+            let (requested, delivered) = receipts.fold((0i64, 0i64), |(q, d), r| {
+                (q + i64::from(r.requested), d + i64::from(r.delivered))
+            });
+            assert_eq!(r["support_requested_including_birth_buffers"], requested);
+            assert_eq!(r["support_delivered_including_birth_buffers"], delivered);
+        }
+    }
+}
+
+#[test]
+fn population_metrics_mark_partial_flow_coverage_and_count_terminal_children() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    use serde_json::Value;
+    let (w, s) = scenario(true, true);
+    let mut sim = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+    sim.run_months(35).unwrap();
+    sim.step().unwrap();
+    let mut sim = Simulation::new(sim.world, sim.state, Backend::CubeCpu).unwrap();
+    let mut observer = Observer::new(
+        vec![],
+        "resumed",
+        Config {
+            logs: false,
+            settlement: false,
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    while sim.state.month <= 36 {
+        observer.step(&mut sim).unwrap();
+    }
+    let rows: Vec<Value> = String::from_utf8(observer.finish().unwrap())
+        .unwrap()
+        .lines()
+        .map(|r| serde_json::from_str(r).unwrap())
+        .filter(|r: &Value| r["kind"] == "population")
+        .collect();
+    let r = &rows[0];
+    assert_eq!(r["month"], 36);
+    assert_eq!(r["flows_complete"], false);
+    assert!(r["births"].is_null());
+    assert!(r["support_shortfall"].is_null());
+    let deaths = sim
+        .state
+        .demography
+        .births
+        .keys()
+        .filter(|id| sim.state.terminal.contains_key(id))
+        .count();
+    assert!(deaths > 0);
+    assert_eq!(r["terminal"], deaths);
+    assert_eq!(
+        r["registered"].as_u64().unwrap(),
+        r["terminal"].as_u64().unwrap()
+            + r["living_adults"].as_u64().unwrap()
+            + r["living_dependents"].as_u64().unwrap()
+    );
+}
