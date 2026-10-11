@@ -11,6 +11,7 @@ fn controller_config(
         horizon,
         review_every: REVIEW_MONTHS,
         peer_expectations: Default::default(),
+        publication: Default::default(),
         minimum_tenure: MINIMUM_TENURE_MONTHS,
         emergency: None,
         objectives,

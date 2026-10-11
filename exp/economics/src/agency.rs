@@ -10,6 +10,7 @@ pub mod integration;
 pub mod markets;
 pub mod objectives;
 pub mod organization;
+pub mod publication;
 pub mod scenario;
 use objectives::{Objective, measure};
 
@@ -38,6 +39,7 @@ pub struct Program {
 pub struct Config {
     pub horizon: u32,
     pub peer_expectations: expectations::Policy,
+    pub publication: publication::Policy,
     pub review_every: u32,
     pub minimum_tenure: u32,
     /// Optional observed objective index and loss ceiling permitting early review.
@@ -767,7 +769,23 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
                 .collect();
             decision.peer_expectations = Some(peers);
             let preference = authority.filter(|id| c.config.preferences.contains_key(id));
-            let selected = best(&decision.alternatives, preference);
+            let mut selected = best(&decision.alternatives, preference);
+            let publication = if let Some(retain) = selected.filter(|a| a.program.is_none()) {
+                publication::select(
+                    &opening,
+                    s,
+                    agent,
+                    &config,
+                    preference,
+                    retain,
+                    &decision.alternatives,
+                )?
+            } else {
+                None
+            };
+            if let Some(id) = publication {
+                selected = decision.alternatives.iter().find(|a| a.program == Some(id));
+            }
             let last = c.history.iter().rev().find(|d| d.chosen.is_some());
             let held = last.is_some_and(|last| s.month - last.month < c.config.minimum_tenure);
             if !due && !emergency {
@@ -778,7 +796,9 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
                 decision.reason = "retained within minimum tenure".into();
             } else if let Some(selected) = selected {
                 decision.chosen = selected.program;
-                decision.reason = if selected.program.is_some() {
+                decision.reason = if publication.is_some() {
+                    "publish stocked sale offers on equal projection"
+                } else if selected.program.is_some() {
                     "improves projected objectives"
                 } else {
                     "retain on equal or better projection"
