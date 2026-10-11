@@ -90,6 +90,14 @@ or guaranteed demand. Prices, employment, initial consent and secondary inventor
 goals remain supplied. Run
 `cargo +1.92.0 run --locked --release --example acceptance -- --expected-peers`.
 
+The [sale-linked discovery follow-up](ACCEPTANCE-SALE-DISCOVERY.md) removes those
+secondary inventory objectives: signed stock-sale options now expose productive
+programs to cash-only organizations. With finite opening metal/ore inventory,
+posted asks and monthly reviews, the 48-month scenario sustains production and
+passes readiness. Cold start and partial supply-chain startups still fail; initial
+market publication and coordination remain open. Run
+`cargo +1.92.0 run --locked --release --example acceptance -- --sale-discovery`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

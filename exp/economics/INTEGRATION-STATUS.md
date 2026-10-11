@@ -68,7 +68,16 @@ CPU/reference, every-phase reconstruction, dated replay, independent catalog
 reordering and observer controls pass. Missing supply, access, margin and timely
 payroll still fail readiness. Defaults are unchanged; this is a calibrated
 full-information expectation policy, not general peer optimization or cash-only
-production discovery.
+production discovery in that fixture.
+
+The [sale-linked discovery variant](ACCEPTANCE-SALE-DISCOVERY.md) derives bounded
+productive buffers from signed stock-sale options and payment objectives. It
+supports organizational stock asks in the issuer input book as well as the peer
+book. Cash-only workshop/town objectives sustain 48 months with finite opening
+metal/ore inventories, initial asks and monthly reviews. The cold-start and partial
+startup controls fail. Signed prices, lot ceilings, employment, consent and initial
+market publication remain supplied; this does not establish autonomous startup or
+optimal inventory management.
 
 The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
 households, governance selections, leases, loans, forwards, quotes or dated work.

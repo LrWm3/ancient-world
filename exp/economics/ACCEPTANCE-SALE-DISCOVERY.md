@@ -81,3 +81,103 @@ consent, prices, employment and physical endowments remain supplied.
    the existing failure and interruption checks for earlier variants. This is
    in-memory reconstruction and dated-context replay, not a durable checkpoint or
    proof that ledger records alone reconstruct governance.
+
+9. **Failure controls against the successful startup.** Absent, satisfied and
+   non-crossing issuer buyers must not become recurring demand hypotheses or
+   produce later sales. Missing ore supply, replacement orders, metal access,
+   operating margin and timely payroll remain readiness failures. These controls
+   use the same finite opening inventories and quotes as the positive treatment;
+   they do not merely compare already-failing cold-start economies. Reference and
+   CPU world/state/ledger/accounting/readiness are compared for all eight controls.
+   All eight controls fail readiness with matching CPU/reference results. The
+   late-payroll case ends with zero arrears and no food deficits, but still fails
+   specifically because wages entered arrears: later payment does not erase it.
+
+10. **Runnable comparison and scope documentation.** The acceptance example adds
+    `--sale-discovery`, its existing `--continuation-matrix` combination, and
+    `--sale-startup-matrix`. README, integration status, operating authority and
+    forecast documentation distinguish the successful bounded treatment from
+    cold startup. The standalone 48-month CubeCL CPU treatment passes. Existing
+    default scenarios and `AcceptedOnly` expectations remain unchanged.
+
+## Startup results
+
+All counts cover 48 months. These are reference runs; the successful treatment
+also passes the standalone CPU run and CPU/reference continuation checks.
+
+| Initial treatment | Mints | Workshop batches | Town batches | Food deficit | Ending wage arrears | Ready |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Cold, no initial workshop metal ask, annual reviews | 0 | 0 | 0 | 67 | 2 | No |
+| Metal ask, monthly reviews | 1 | 0 | 0 | 61 | 2 | No |
+| Metal ask + four workshop metal units, monthly reviews | 4 | 2 | 0 | 37 | 2 | No |
+| Both asks + four workshop metal/four town ore units, monthly reviews | 44 | 43 | 40 | 0 | 0 | Yes |
+
+The successful fixture retains four initial workshop ore units from the existing
+baseline. The listed metal/ore stocks are opening endowments, booked at setup;
+they are never replenished by the fixture during execution. Initially posted
+quotes respect signed lot caps: one metal lot and two ore lots per boundary.
+Tests pin the sole organizational COIN-reserve objective, absence of preference
+overrides, discovery mode, empty supplied program menus and no initial workshop
+or town work targets.
+
+In each complete post-startup year, workshop and town complete 12 batches each,
+24 ore units are delivered, and each employer pays 12 wage coins. Workshop net
+income is 12 coins/year; town income is 13. Their closing cash grows from 18/8 at
+month 12 to 54/47 at month 48. The first selected work/trade programs become
+effective in months 6 and 9 respectively. Both existing household delivery units
+settle on time, the state loan is repaid, and nine separate books reconcile.
+
+## What remains open
+
+A signed sale opportunity establishes an admissible alternative, not a buyer.
+The cold case exposes the remaining coordination gap: conservative cash forecasts
+can reject every new productive commitment before demand history exists. Supplying
+only a metal outlet, or working inventory at only that stage, does not sustain the
+whole chain. The successful result establishes recurrence after a finite startup;
+it does not solve endogenous outlet publication or startup finance.
+
+Prices, market lots, stock floors, purchase targets, employment, consent,
+organization identity and existing household/state policies are still supplied.
+The production target is a bounded buffer derived from signed sale terms; it is
+not optimized inventory management or a rule that stops at cash-goal satisfaction.
+Town ore production uses the existing abstract recipe. Full-world information,
+12/4-month horizons and bounded observed peer process/state-ballot recurrence
+remain explicit forecast assumptions. There is no new price learning, hiring,
+formation, self-directed personal policy change, durable restart, unforeseen-shock
+recovery claim, or evidence of persistence beyond the measured 48 months.
+
+The next useful increment is voluntary initial offer publication and bounded
+startup coordination, preserving refusal, funding limits and ordinary settlement.
+It should be compared against these cold and partial-startup failures, rather than
+silently supplying more future demand or weakening readiness.
+
+## Run
+
+From `exp/economics`:
+
+```sh
+cargo +1.92.0 run --locked --release --example acceptance -- --sale-discovery
+cargo +1.92.0 run --locked --release --example acceptance -- --sale-startup-matrix
+cargo +1.92.0 run --locked --release --example acceptance -- --sale-discovery --continuation-matrix
+cargo +1.92.0 test --locked --release -j8 \
+  --test governed_input_sales --test sale_discovery --test acceptance_sales \
+  --test sale_startup_comparison --test acceptance_sale_controls \
+  --test sale_telemetry --test acceptance_continuation
+```
+
+## Verification
+
+**161 targeted tests passed**: 20 library tests and 141 integration tests across
+29 suites. This includes the three startup assertions, eight CPU/reference failure
+cases grouped into two tests, all nine continuation tests, the twelve observer
+checks, and regressions for authority, discovery, organizational programs, markets,
+forecasting, state/household integration and prior acceptance variants. The sale
+observer's exact receipt tuple was also rerun after strengthening its assertion.
+The standalone CubeCL CPU positive scenario passed. All-target release Clippy with
+warnings denied, formatting and repository artifact checks passed. Generated logs
+remain under ignored `output/`; no binary or raw run data is committed.
+
+Independent review found no blocking issue. Its requested cash-only/no-supplied-work
+assertions and explicit startup/forecast qualifications are included. These checks
+establish this bounded integration, not all repository tests or all future agent
+and market combinations.

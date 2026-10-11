@@ -1,15 +1,56 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
+    let sale_discovery = std::env::args().any(|a| a == "--sale-discovery");
+    if std::env::args().any(|a| a == "--sale-startup-matrix") {
+        use acceptance::{
+            continuation as c,
+            sales::{self, Startup},
+        };
+        println!("startup,ready,mints,workshop_batches,town_batches,food_deficit,wage_arrears");
+        for startup in [
+            Startup::Cold,
+            Startup::PostedMetal,
+            Startup::MetalInventory,
+            Startup::SupplyChainInventory,
+        ] {
+            let (w, s) = sales::with_startup(c::Case::Baseline, startup)?;
+            let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
+            run.through(c::MONTHS)?;
+            let e = run.evidence()?;
+            let report = acceptance::governed::check(&run)?;
+            println!(
+                "{startup:?},{},{},{},{},{},{}",
+                report.ready(),
+                e.completed_mints,
+                e.workshop_batches,
+                e.municipal_batches,
+                e.people_food_deficit,
+                e.wage_arrears
+            );
+            if report.ready() != (startup == Startup::SupplyChainInventory) {
+                return Err(format!(
+                    "unexpected startup verdict: {startup:?}: {:?}",
+                    report.failures
+                ));
+            }
+        }
+        return Ok(());
+    }
     let expected_peers = std::env::args().any(|a| a == "--expected-peers");
-    let governed = expected_peers || std::env::args().any(|a| a == "--governed");
+    let governed = sale_discovery || expected_peers || std::env::args().any(|a| a == "--governed");
     if std::env::args().any(|a| a == "--continuation-matrix") {
         use acceptance::continuation as c;
         println!(
             "case,ready,food_deficit,wage_arrears,last_year_workshop_income,last_year_town_income"
         );
         for case in c::Case::ALL {
-            let (w, s) = if expected_peers {
+            let (w, s) = if sale_discovery {
+                acceptance::sales::with_startup(
+                    case,
+                    acceptance::sales::Startup::SupplyChainInventory,
+                )?
+            } else if expected_peers {
                 acceptance::expectations::scenario(case)?
             } else if governed {
                 acceptance::governed::scenario(case)?
@@ -51,7 +92,12 @@ fn main() -> Result<(), String> {
         )
     }) {
         use acceptance::continuation as c;
-        let (w, s) = if expected_peers {
+        let (w, s) = if sale_discovery {
+            acceptance::sales::with_startup(
+                c::Case::Baseline,
+                acceptance::sales::Startup::SupplyChainInventory,
+            )?
+        } else if expected_peers {
             acceptance::expectations::scenario(c::Case::Baseline)?
         } else if governed {
             acceptance::governed::scenario(c::Case::Baseline)?

@@ -94,3 +94,11 @@ The [peer-expectation acceptance report](ACCEPTANCE-PEER-EXPECTATIONS.md) record
 the comparison and current verification. Observation still uses full information,
 including accepted ballots and incumbent preferences. It does not infer secret
 ballots or simulate a peer's future political/economic optimization.
+
+Organization-decision observations now include signed sale opportunities and
+accepted sale receipts from each private projection: date, market, buyer, resource,
+quantity, payment resource and value. Receipts come from the existing mint/peer
+market settlement batches; they do not cover every financial arrangement. They
+explain a hypothetical forecast rather than promising demand or recording real
+revenue. Observer-on/off comparisons preserve live state, history and accounting;
+see [sale-linked discovery](ACCEPTANCE-SALE-DISCOVERY.md).

@@ -33,7 +33,7 @@ fn issuer_stock_sale_options_route_and_stop_without_touching_unmanaged_quotes() 
         holding: 0,
         max_lots: Some(1),
     };
-    apply(&mut w, WORKSHOP, &[q.clone()]).unwrap();
+    apply(&mut w, WORKSHOP, std::slice::from_ref(&q)).unwrap();
     let p = w.minting.as_ref().unwrap().order_policy.as_ref().unwrap();
     assert!(p.quotes.contains(&q));
     assert!(

@@ -123,8 +123,10 @@ Evidence is frozen at each real decision, expires without renewal from imagined
 outcomes and applies only at future Open boundaries. Household voting and
 multi-period process recurrence are not projected. The acceptance variant still
 supplies identities, consent, employment, prices, endowments and goals. Cash-first
-retains secondary metal/ore objectives for candidate discovery: cash-only,
-sale-linked production discovery remains open. The 24-month memory and twelve-month
+retains secondary metal/ore objectives for candidate discovery. The subsequent
+[sale-linked discovery experiment](ACCEPTANCE-SALE-DISCOVERY.md) removes them in
+a separate cash-only fixture; it needs finite working inventory and posted asks,
+while its cold-start control still fails. The 24-month memory and twelve-month
 horizon are a measured calibration, not a universal improvement. The old
 `AcceptedOnly` default is unchanged; no personal self-directed policy changes or
 new organization formation are introduced.

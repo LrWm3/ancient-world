@@ -48,9 +48,14 @@ Discovery enumerates bounded portfolios (including stopping all or some markets)
 and production/procurement combinations. Oversized catalogs are rejected, not
 truncated. Choices depend on forecasts; the catalog depends only on static terms.
 
-`PeerStockQuotes` replaces only the organization's peer-stock quotes next Open.
-It preserves other agents' quotes and the common claim horizon. Constitutional authority
-never grants legal or venue eligibility. Law loss suppresses subsequent execution
+`PeerStockQuotes` replaces the organization's peer-stock portfolio next Open and
+its issuer-input quotes in slots covered by the signed agreement. An issuer-input
+slot supports stock sales only and uses the existing conditional procurement book;
+it does not grant permission to buy inputs for the issuer or sell capacity. An
+enabled peer-stock book is still required by this bounded adapter. Unmanaged
+legacy input quotes, other agents' quotes and the common claim horizon remain.
+Stopping a signed slot removes its quote through the same dated execution.
+Constitutional authority never grants legal or venue eligibility. Law loss suppresses subsequent execution
 without erasing accepted history; stopping purchases does not cancel employment.
 Complete programs share the activity validator and publish atomically, so a later
 failed command cannot leave an earlier schedule behind.
@@ -65,6 +70,22 @@ The [governed acceptance report](ACCEPTANCE-GOVERNED-MARKETS.md) records ten
 implementation iterations and the working-capital objective calibration. It does
 not establish general price discovery, unrestricted portfolio search, endogenous
 employment or self-changing constitutions.
+
+## Sale-linked productive alternatives
+
+A signed stock-sale option can also root productive discovery when its payment
+resource serves an organizational reserve or funding-gap objective. The catalog
+uses the static union of collective objectives and supplied governor preferences.
+A directly matching signed productive recipe receives a buffer target equal to the
+sale floor plus the authorized number of lots times listing quantity. Arithmetic
+and catalog bounds are checked; existing explicit inventory objectives keep their
+own targets. Current stocks, mutable quotes and imagined demand never change the
+catalog. Ordinary forecasts choose whether an alternative helps.
+
+This is a persistent buffer, not an optimal production quantity, guaranteed sale
+or automatic stop at cash satisfaction. The [acceptance experiment](ACCEPTANCE-SALE-DISCOVERY.md)
+compares cold start with finite opening stock and quotes. It does not introduce
+negotiated initial terms, unbounded supply-chain search or new legal authority.
 
 ## Explicit counterparty expectations
 
