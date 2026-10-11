@@ -2042,3 +2042,125 @@ fn worker_protection_includes_members_needs_after_reserved_household_contributio
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn optional_worker_protection_composes_with_repeated_food_sales_and_market_interruption() {
+    use economics_compute_smoke::{
+        employment::supply::Policy,
+        scenario::{GRAIN, NUTRITION},
+    };
+    for shock in [false, true] {
+        for protected in [false, true] {
+            let (mut w, mut s) = trading();
+            w.employment_offers.insert(1);
+            s.balances.insert((WORKER, GRAIN), 2);
+            if protected {
+                w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+            }
+            let run = |backend| {
+                let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+                let mut a = Audit::with_opening(
+                    &w,
+                    &s,
+                    TOKEN,
+                    Opening {
+                        services: Some(Default::default()),
+                        processes: Some(Default::default()),
+                        inventory: [((WORKER, GRAIN), 2)].into(),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                let mut checkpoint = None;
+                while sim.state.month <= 8 {
+                    let month = sim.state.month;
+                    market_window(&mut sim.world, month, shock);
+                    a.step(&mut sim).unwrap();
+                    if sim.state.month == 4 && sim.state.phase == Phase::Open {
+                        checkpoint = Some((sim.clone(), a.clone()));
+                    }
+                }
+                let hours: Vec<_> = (1..=8)
+                    .map(|m| {
+                        sim.state
+                            .employment
+                            .earned
+                            .get(&(1, m))
+                            .map_or(0, |e| e.delivered)
+                    })
+                    .collect();
+                let deficits: Vec<_> = sim
+                    .reports
+                    .iter()
+                    .filter(|r| r.agent == WORKER)
+                    .map(|r| r.deficit(NUTRITION))
+                    .collect();
+                let expected_hours = if !shock {
+                    vec![2; 8]
+                } else if protected {
+                    vec![2, 2, 0, 2, 0, 2, 0, 0]
+                } else {
+                    vec![2, 2, 2, 0, 2, 0, 0, 0]
+                };
+                assert_eq!(hours, expected_hours);
+                let mut expected_deficits = vec![0; 8];
+                if shock && !protected {
+                    expected_deficits[2] = 2;
+                }
+                assert_eq!(deficits, expected_deficits);
+                let volume: i32 = sim
+                    .state
+                    .town_market
+                    .history
+                    .iter()
+                    .flat_map(|r| r.markets.values())
+                    .map(|m| m.volume)
+                    .sum();
+                assert_eq!(volume, if shock { 4 } else { 14 });
+                let sales: usize = sim
+                    .state
+                    .town_market
+                    .history
+                    .iter()
+                    .map(|r| r.transactions.len())
+                    .sum();
+                assert_eq!(sales, if shock { 2 } else { 7 });
+                let wages: i32 = sim
+                    .state
+                    .employment
+                    .earned
+                    .values()
+                    .map(|e| e.claim.settled)
+                    .sum();
+                assert_eq!(wages, if shock { 8 } else { 16 });
+                assert_eq!(sim.state.balance(HOME, TOKEN), if shock { 0 } else { 2 });
+                assert!(
+                    sim.state
+                        .employment
+                        .earned
+                        .values()
+                        .all(|e| e.claim.outstanding() == 0)
+                );
+                assert_eq!(
+                    sim.state.balance(HOME, TOKEN) + sim.state.balance(WORKER, TOKEN),
+                    4
+                );
+                for agent in [HOME, PERSON, WORKER] {
+                    let r = a.book().statements(agent, 1, 8).unwrap();
+                    assert_eq!(r.assets, r.liabilities + r.equity);
+                }
+                let (mut resumed, mut ra) = checkpoint.unwrap();
+                while resumed.state.month <= 8 {
+                    let month = resumed.state.month;
+                    market_window(&mut resumed.world, month, shock);
+                    ra.step(&mut resumed).unwrap();
+                }
+                assert_eq!(sim.state, resumed.state);
+                assert_eq!(sim.ledger, resumed.ledger);
+                assert_eq!(a, ra);
+                (sim.state, sim.ledger, sim.reports, a)
+            };
+            assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+        }
+    }
+}

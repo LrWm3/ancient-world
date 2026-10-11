@@ -127,3 +127,23 @@ hours prevents completing both three-hour food processes: supplied consent leave
 one unit unmet, while the protected policy declines and feeds the member. Reserved
 contributions and sold hours remain separately bounded. Both audited CPU/reference
 controls pass; independent review found no blocker.
+
+## 14. Exercise repeated hiring, food sales and interruption together
+
+The eight-month town-market control has a preformed household, supplied job/work
+terms, four circulating coins, two opening worker grain and a two-grain lot priced
+at two coins. Optional jobs are identical with and without worker protection.
+
+| Market / worker policy | Hours delivered, months 1–8 | Food sales | Paid wages | Worker food deficit |
+| --- | --- | --- | --- | --- |
+| Open / supplied consent | 2,2,2,2,2,2,2,2 | 7 trades / 14 grain | 16 coins | 0 |
+| Open / protected | 2,2,2,2,2,2,2,2 | 7 trades / 14 grain | 16 coins | 0 |
+| Closed month 3 / supplied consent | 2,2,2,0,2,0,0,0 | 2 trades / 4 grain | 8 coins | 2 in month 3 |
+| Closed month 3 / protected | 2,2,0,2,0,2,0,0 | 2 trades / 4 grain | 8 coins | 0 |
+
+Protection preserves self-provisioning during the interruption. Both interrupted
+cases end with zero employer cash and no late hiring; protection does not restore
+the circulation loop. Audited Reference/CPU states, ledgers, reports and month-four
+continuations agree. All 31 hiring tests pass. Independent review found no blocker.
+These are supplied jobs on the town market, not a resolution of the original
+forty-month discovered-income gap or discovered-land/hiring composition.
