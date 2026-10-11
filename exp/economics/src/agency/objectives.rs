@@ -65,7 +65,13 @@ pub fn validate(w: &World, objectives: &[Objective]) -> Result<(), String> {
 }
 
 pub fn members(w: &World, s: &State, organization: AgentId) -> BTreeSet<AgentId> {
-    if let Some(h) = w.households.iter().find(|h| h.agent == organization) {
+    if let Some(a) = w
+        .agency
+        .get(&organization)
+        .and_then(|c| c.operating_agreement())
+    {
+        a.members.clone()
+    } else if let Some(h) = w.households.iter().find(|h| h.agent == organization) {
         crate::households::membership::roster_at(h, s.month)
             .into_iter()
             .collect()

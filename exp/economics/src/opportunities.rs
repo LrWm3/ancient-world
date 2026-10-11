@@ -24,6 +24,8 @@ pub enum Action {
     Lend,
     Guarantee,
     FoundHousehold,
+    /// Consent to a static operating constitution for this organization type.
+    GovernOrganization(AgentType),
 }
 
 /// A state's explicit allow-list. Unclassified types and unlisted actions are denied.

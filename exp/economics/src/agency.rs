@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub mod discovery;
 pub mod integration;
 pub mod objectives;
+pub mod organization;
 pub mod scenario;
 use objectives::{Objective, measure};
 
@@ -53,8 +54,13 @@ pub struct Controller {
     pub applied_through: u32,
     /// Static operating mandate sealed at the first live opening.
     mandate: Option<(Config, bool)>,
+    organization: Option<organization::Agreement>,
 }
 impl Controller {
+    pub fn operating_agreement(&self) -> Option<&organization::Agreement> {
+        self.organization.as_ref()
+    }
+
     pub fn discovering(mut config: Config) -> Self {
         config.programs.clear();
         Self {
@@ -70,6 +76,7 @@ impl Controller {
             history: vec![],
             applied_through: 0,
             mandate: None,
+            organization: None,
         }
     }
 }
@@ -103,6 +110,9 @@ pub struct Decision {
 }
 
 pub fn governor(w: &World, s: &State, agent: AgentId) -> Option<AgentId> {
+    if let Some(a) = w.agency.get(&agent).and_then(|c| c.organization.as_ref()) {
+        return organization::current(w, s, a);
+    }
     if w.state_governance
         .as_ref()
         .is_some_and(|g| g.state == agent)
@@ -117,6 +127,9 @@ pub fn governor(w: &World, s: &State, agent: AgentId) -> Option<AgentId> {
 pub fn validate(w: &World) -> Result<(), String> {
     for (&agent, controller) in &w.agency {
         let c = &controller.config;
+        if let Some(a) = &controller.organization {
+            organization::validate(w, agent, a)?;
+        }
         if !w.agents.iter().any(|a| a.id == agent)
             || !(1..=MAX_HORIZON_MONTHS).contains(&c.horizon)
             || c.review_every == 0
@@ -131,7 +144,8 @@ pub fn validate(w: &World) -> Result<(), String> {
                 .is_some_and(|m| m != &(c.clone(), controller.discover_programs))
             || (controller.discover_programs && !c.programs.is_empty())
             || (w.state_governance.as_ref().is_none_or(|g| g.state != agent)
-                && !w.households.iter().any(|h| h.agent == agent))
+                && !w.households.iter().any(|h| h.agent == agent)
+                && controller.organization.is_none())
         {
             return Err("invalid organization decision configuration".into());
         }
@@ -171,17 +185,26 @@ pub fn validate(w: &World) -> Result<(), String> {
                     }
                     Command::WorkTargets(orders) => {
                         if orders.iter().any(|o| {
-                            o.agent != agent || !w.definitions.iter().any(|d| d.id == o.definition)
+                            o.agent != agent
+                                || !w.definitions.iter().any(|d| d.id == o.definition)
+                                || controller
+                                    .organization
+                                    .as_ref()
+                                    .is_some_and(|a| !a.processes.contains(&o.definition))
                         }) {
                             return Err("program may direct only its own work".into());
                         }
                         2
                     }
                     Command::StartProcess(id) => {
-                        if !w
-                            .definitions
-                            .iter()
-                            .any(|d| d.id == *id && d.execution == Execution::Productive)
+                        if controller
+                            .organization
+                            .as_ref()
+                            .is_some_and(|a| !a.processes.contains(id))
+                            || !w
+                                .definitions
+                                .iter()
+                                .any(|d| d.id == *id && d.execution == Execution::Productive)
                         {
                             return Err("unknown productive program".into());
                         }
@@ -209,15 +232,16 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
         };
         let mut previous = 0;
         for d in &c.history {
-            let authority =
-                if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
-                    crate::state_governance::governor_at_open(w, s, g, d.month)
-                } else {
-                    w.households
-                        .iter()
-                        .find(|h| h.agent == agent)
-                        .and_then(|h| crate::household_governance::leader_at_open(h, s, d.month))
-                };
+            let authority = if let Some(a) = &c.organization {
+                organization::at_open(w, s, a, d.month)
+            } else if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
+                crate::state_governance::governor_at_open(w, s, g, d.month)
+            } else {
+                w.households
+                    .iter()
+                    .find(|h| h.agent == agent)
+                    .and_then(|h| crate::household_governance::leader_at_open(h, s, d.month))
+            };
             if d.month <= previous
                 || d.month > s.month
                 || d.month.checked_add(1) != Some(d.effective_month)

@@ -55,7 +55,16 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
             break;
         }
     }
-    commands.extend(processes.into_iter().map(Command::StartProcess));
+    commands.extend(
+        processes
+            .into_iter()
+            .filter(|id| {
+                w.agency[&agent]
+                    .operating_agreement()
+                    .is_none_or(|a| a.processes.contains(id))
+            })
+            .map(Command::StartProcess),
+    );
     if commands.len() > MAX_PROGRAMS {
         return Err("discovered program catalog exceeds bounded search".into());
     }
