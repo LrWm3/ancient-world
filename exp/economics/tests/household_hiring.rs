@@ -1488,3 +1488,101 @@ fn later_forward_catchup_does_not_erase_worker_deadline_loss() {
         0
     );
 }
+
+#[test]
+fn worker_supply_protects_accepted_loan_payments_in_their_own_denomination() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        credit::{Advance, LoanOffer},
+        employment::supply::Policy,
+        scenario::GRAIN,
+    };
+    for (funded, protected, expected) in [(true, true, 0), (true, false, 2), (false, true, 2)] {
+        let (mut w, mut s) = production(6);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .extend([(PERSON_TYPE, Action::Borrow), (PERSON_TYPE, Action::Lend)]);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        if protected {
+            w.employment_supply.insert(WORKER, Policy { horizon: 2 });
+        }
+        w.activities.orders.push(WorkOrder {
+            agent: WORKER,
+            definition: MAKE,
+            priority: 0,
+            target: Target::Stock(Amount::new(GRAIN, 4)),
+        });
+        s.balances.insert((92, GRAIN), if funded { 1 } else { 0 });
+        w.lending.push(Advance {
+            id: 70002,
+            debtor: WORKER,
+            terms: LoanOffer {
+                creditor: 92,
+                denomination: GRAIN,
+                max_principal: 1,
+                monthly_rate_bps: 10000,
+                term_months: 1,
+                grace_months: 0,
+            },
+            principal: 1,
+            month: 1,
+            collateral: None,
+            priority: 0,
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = Audit::with_opening(
+                &w,
+                &s,
+                TOKEN,
+                Opening {
+                    inventory: if funded {
+                        [((92, GRAIN), 1)].into()
+                    } else {
+                        Default::default()
+                    },
+                    exchange_values: [(GRAIN, 1)].into(),
+                    services: Some(Default::default()),
+                    processes: Some(Default::default()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            through(&mut a, &mut sim, 2);
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .get(&(1, 1))
+                    .map_or(0, |e| e.delivered),
+                expected
+            );
+            let missed = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.credit.as_ref())
+                .flat_map(|b| &b.events)
+                .any(|e| {
+                    matches!(
+                        e,
+                        economics_compute_smoke::credit::Event::Arrears { loan: 70002, .. }
+                    )
+                });
+            assert_eq!(missed, funded && !protected);
+            if protected {
+                let d = &sim
+                    .ledger
+                    .iter()
+                    .find_map(|b| b.employment.as_ref().filter(|e| !e.supply.is_empty()))
+                    .unwrap()
+                    .supply[0];
+                assert_eq!(d.loans.len(), usize::from(funded));
+            }
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

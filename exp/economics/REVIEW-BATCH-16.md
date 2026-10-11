@@ -74,3 +74,12 @@ Separate reader tests cover opening write-offs/extensions versus later relief:
 accepted opening changes alter the duty; later changes cannot count as performance
 or rewrite the frozen deadline. These reader fixtures do not claim to exercise
 recovery settlement. Both tests pass; independent review found no blocker.
+
+## 8. Protect accepted loan performance in its own denomination
+
+The optional worker policy freezes scoped accepted loan IDs and compares worst
+recorded arrears separately per loan. Event evidence survives enforcement and is
+not confused with a cleared ending balance. A grain loan and coin wage test checks
+protected payment, missed payment under supplied consent, and an unfunded proposal;
+all three audited CPU/reference controls pass. Independent review found no blocker.
+This measures worst arrears within the horizon, not a complete credit-risk model.

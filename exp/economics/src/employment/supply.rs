@@ -23,7 +23,8 @@ pub struct Decision {
     pub maximum: i32,
     pub searched_maximum: i32,
     pub objectives: Vec<crate::agency::objectives::Objective>,
-    /// Appended after the ordinary objective losses, one entry per frozen delivery.
+    /// Loss order: ordinary objectives, delivery shortfalls, then per-loan worst arrears.
+    pub loans: Vec<super::performance::Loan>,
     pub deliveries: Vec<super::performance::Delivery>,
     pub baseline: Vec<i128>,
     pub alternatives: Vec<Alternative>,
@@ -53,6 +54,7 @@ pub(super) fn quantity(
     world.employment_supply.clear();
     let goals = crate::discovery::supply::objectives(&world, &state, terms.worker);
     let deliveries = super::performance::deliveries(&world, &state, terms.worker, policy.horizon);
+    let loans = super::performance::loans(&world, &state, terms.worker);
     let project = |hours: i32| -> Result<Vec<i128>, String> {
         let (world, mut state) = crate::forecast::ForecastContext::new(&world, &state).into_parts();
         let held = state
@@ -80,6 +82,7 @@ pub(super) fn quantity(
             &goals,
         )?;
         losses.extend(delivery_losses.into_iter().map(|v| v.unwrap_or(0)));
+        losses.extend(super::performance::arrears(&loans, &sim.ledger));
         Ok(losses)
     };
     let baseline = project(0)?;
@@ -92,6 +95,7 @@ pub(super) fn quantity(
         searched_maximum: maximum.min(MAX_HOURS),
         objectives: goals.clone(),
         deliveries: deliveries.clone(),
+        loans: loans.clone(),
         baseline,
         alternatives: vec![],
         selected: 0,

@@ -9,15 +9,18 @@ pub struct Delivery {
     pub performed: i32,
     pub remaining: i32,
 }
-pub(super) fn deliveries(w: &World, s: &State, worker: AgentId, horizon: u32) -> Vec<Delivery> {
-    let scope: std::collections::BTreeSet<_> = crate::households::parent(w, s, worker)
+fn scope(w: &World, s: &State, worker: AgentId) -> std::collections::BTreeSet<AgentId> {
+    crate::households::parent(w, s, worker)
         .and_then(|id| w.households.iter().find(|h| h.agent == id))
         .map(|h| {
             crate::households::members(h, s)
                 .chain(std::iter::once(h.agent))
                 .collect()
         })
-        .unwrap_or_else(|| [worker].into());
+        .unwrap_or_else(|| [worker].into())
+}
+pub(super) fn deliveries(w: &World, s: &State, worker: AgentId, horizon: u32) -> Vec<Delivery> {
+    let scope = scope(w, s, worker);
     s.exchange
         .forwards
         .values()
@@ -52,6 +55,45 @@ pub(super) fn observe(
             *loss = Some(i128::from((t.remaining - (performed - t.performed)).max(0)));
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Loan {
+    pub id: u32,
+    pub debtor: AgentId,
+    pub denomination: ResourceId,
+}
+pub(super) fn loans(w: &World, s: &State, worker: AgentId) -> Vec<Loan> {
+    let scope = scope(w, s, worker);
+    s.credit
+        .loans
+        .values()
+        .filter(|l| scope.contains(&l.debtor))
+        .map(|l| Loan {
+            id: l.id,
+            debtor: l.debtor,
+            denomination: l.denomination,
+        })
+        .collect()
+}
+pub(super) fn arrears(targets: &[Loan], ledger: &[Batch]) -> Vec<i128> {
+    targets
+        .iter()
+        .map(|t| {
+            ledger
+                .iter()
+                .filter_map(|b| b.credit.as_ref())
+                .flat_map(|b| &b.events)
+                .filter_map(|e| match e {
+                    crate::credit::Event::Arrears { loan, amount, .. } if *loan == t.id => {
+                        Some(i128::from(*amount))
+                    }
+                    _ => None,
+                })
+                .max()
+                .unwrap_or(0)
+        })
+        .collect()
 }
 
 #[cfg(test)]
