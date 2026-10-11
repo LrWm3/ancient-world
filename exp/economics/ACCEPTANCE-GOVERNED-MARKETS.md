@@ -21,3 +21,9 @@ Validation results and the remaining iterations are recorded here as completed.
    remain live checks. Empty quotes explicitly stop discretionary trading.
    Existing counterparties and the common claim-protection horizon are preserved.
    Five organizational tests cover consent and invalid/cross-agent commands.
+
+3. **Atomic compound admission.** Programs reuse the live activity target
+   validator before issuing any commands. Issuance stages a candidate world;
+   a later prohibited trade cannot leave an earlier process start scheduled.
+   The regression exercises that exact late-law failure and malformed/duplicate
+   commands. Library, shared-agency and program regressions pass.

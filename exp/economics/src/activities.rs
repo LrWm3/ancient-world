@@ -311,8 +311,44 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             return Err("invalid shared site use".into());
         }
     }
+    validate_orders(world, &world.activities.orders)?;
+    for (&agreement, p) in &world.activities.coin_payments {
+        if p.coins_per_unit <= 0
+            || !stock(p.resource)
+            || *world.storage.weights.get(&p.resource).unwrap_or(&0) != 0
+            || !world
+                .agreements
+                .iter()
+                .chain(&world.access_offers)
+                .any(|a| a.id == agreement && a.payment.resource != p.resource)
+        {
+            return Err("invalid coin payment alternative".into());
+        }
+    }
+    if world.activities.perishable.iter().any(|r| !stock(*r)) {
+        return Err("invalid expiring service ticket".into());
+    }
+    for a in state.equipment.values() {
+        if let Some(spec) = world.activities.kinds.get(&a.kind) {
+            if a.remaining_uses > spec.lifetime || spec.attached != a.attached_to.is_some() {
+                return Err("invalid durable condition or attachment".into());
+            }
+        } else if a.attached_to.is_some() {
+            return Err("attachment requires a durable specification".into());
+        }
+        if a.attached_to
+            .is_some_and(|id| !world.assets.iter().any(|s| s.id == id))
+        {
+            return Err("unknown attachment plot".into());
+        }
+    }
+    Ok(())
+}
+
+/// Shared validation for live work and proposed organizational programs.
+pub(crate) fn validate_orders(world: &World, proposed: &[WorkOrder]) -> Result<(), String> {
     let mut orders = BTreeSet::new();
-    for o in &world.activities.orders {
+    for o in proposed {
         let d = world
             .definitions
             .iter()
@@ -343,36 +379,6 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         };
         if !valid {
             return Err("work target differs from process outcome".into());
-        }
-    }
-    for (&agreement, p) in &world.activities.coin_payments {
-        if p.coins_per_unit <= 0
-            || !stock(p.resource)
-            || *world.storage.weights.get(&p.resource).unwrap_or(&0) != 0
-            || !world
-                .agreements
-                .iter()
-                .chain(&world.access_offers)
-                .any(|a| a.id == agreement && a.payment.resource != p.resource)
-        {
-            return Err("invalid coin payment alternative".into());
-        }
-    }
-    if world.activities.perishable.iter().any(|r| !stock(*r)) {
-        return Err("invalid expiring service ticket".into());
-    }
-    for a in state.equipment.values() {
-        if let Some(spec) = world.activities.kinds.get(&a.kind) {
-            if a.remaining_uses > spec.lifetime || spec.attached != a.attached_to.is_some() {
-                return Err("invalid durable condition or attachment".into());
-            }
-        } else if a.attached_to.is_some() {
-            return Err("attachment requires a durable specification".into());
-        }
-        if a.attached_to
-            .is_some_and(|id| !world.assets.iter().any(|s| s.id == id))
-        {
-            return Err("unknown attachment plot".into());
         }
     }
     Ok(())

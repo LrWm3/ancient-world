@@ -163,65 +163,76 @@ pub fn validate(w: &World) -> Result<(), String> {
             objectives::validate(w, objectives)?;
         }
         for p in c.programs.values() {
-            if p.name.trim().is_empty() || p.commands.is_empty() {
-                return Err("empty organization program".into());
+            validate_program(w, agent, p)?;
+        }
+    }
+    Ok(())
+}
+
+/// Validate a complete proposed program before publishing any commands.
+pub fn validate_program(w: &World, agent: AgentId, p: &Program) -> Result<(), String> {
+    if !w.agency.contains_key(&agent) {
+        return Err("missing organization controller".into());
+    }
+    if p.name.trim().is_empty() || p.commands.is_empty() {
+        return Err("empty organization program".into());
+    }
+    let mut kinds = BTreeSet::new();
+    for command in &p.commands {
+        let kind = match command {
+            Command::StatePolicy(id) => {
+                if !w
+                    .state_governance
+                    .as_ref()
+                    .is_some_and(|g| g.state == agent && g.constitution.policies.contains_key(id))
+                {
+                    return Err("program is outside state constitution".into());
+                }
+                0
             }
-            let mut kinds = BTreeSet::new();
-            for command in &p.commands {
-                let kind = match command {
-                    Command::StatePolicy(id) => {
-                        if !w.state_governance.as_ref().is_some_and(|g| {
-                            g.state == agent && g.constitution.policies.contains_key(id)
-                        }) {
-                            return Err("program is outside state constitution".into());
-                        }
-                        0
-                    }
-                    Command::HouseholdPolicy(id) => {
-                        if !w.households.iter().any(|h| {
-                            h.agent == agent
-                                && h.governance.constitution.permitted_policies.contains(id)
-                        }) {
-                            return Err("program is outside household constitution".into());
-                        }
-                        1
-                    }
-                    Command::WorkTargets(orders) => {
-                        if orders.iter().any(|o| {
-                            o.agent != agent
-                                || !w.definitions.iter().any(|d| d.id == o.definition)
-                                || controller
-                                    .organization
-                                    .as_ref()
-                                    .is_some_and(|a| !a.processes.contains(&o.definition))
-                        }) {
-                            return Err("program may direct only its own work".into());
-                        }
-                        2
-                    }
-                    Command::PeerStockQuotes(quotes) => {
-                        markets::validate_quotes(w, agent, quotes)?;
-                        4
-                    }
-                    Command::StartProcess(id) => {
-                        if controller
+            Command::HouseholdPolicy(id) => {
+                if !w.households.iter().any(|h| {
+                    h.agent == agent && h.governance.constitution.permitted_policies.contains(id)
+                }) {
+                    return Err("program is outside household constitution".into());
+                }
+                1
+            }
+            Command::WorkTargets(orders) => {
+                crate::activities::validate_orders(w, orders)?;
+                if orders.iter().any(|o| {
+                    o.agent != agent
+                        || !w.definitions.iter().any(|d| d.id == o.definition)
+                        || w.agency[&agent]
                             .organization
                             .as_ref()
-                            .is_some_and(|a| !a.processes.contains(id))
-                            || !w
-                                .definitions
-                                .iter()
-                                .any(|d| d.id == *id && d.execution == Execution::Productive)
-                        {
-                            return Err("unknown productive program".into());
-                        }
-                        3
-                    }
-                };
-                if !kinds.insert(kind) {
-                    return Err("duplicate program command kind".into());
+                            .is_some_and(|a| !a.processes.contains(&o.definition))
+                }) {
+                    return Err("program may direct only its own work".into());
                 }
+                2
             }
+            Command::PeerStockQuotes(quotes) => {
+                markets::validate_quotes(w, agent, quotes)?;
+                4
+            }
+            Command::StartProcess(id) => {
+                if w.agency[&agent]
+                    .organization
+                    .as_ref()
+                    .is_some_and(|a| !a.processes.contains(id))
+                    || !w
+                        .definitions
+                        .iter()
+                        .any(|d| d.id == *id && d.execution == Execution::Productive)
+                {
+                    return Err("unknown productive program".into());
+                }
+                3
+            }
+        };
+        if !kinds.insert(kind) {
+            return Err("duplicate program command kind".into());
         }
     }
     Ok(())
@@ -266,6 +277,14 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
 }
 
 fn issue(w: &mut World, s: &State, agent: AgentId, p: &Program) -> Result<(), String> {
+    validate_program(w, agent, p)?;
+    let mut candidate = w.clone();
+    issue_commands(&mut candidate, s, agent, p)?;
+    *w = candidate;
+    Ok(())
+}
+
+fn issue_commands(w: &mut World, s: &State, agent: AgentId, p: &Program) -> Result<(), String> {
     let authorized_by = governor(w, s, agent).ok_or("organization office is vacant")?;
     let month = s.month.checked_add(1).ok_or("decision month overflow")?;
     for command in &p.commands {
@@ -651,4 +670,79 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
         w.agency.get_mut(&agent).unwrap().history.push(decision);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod atomic_program_tests {
+    use super::*;
+    #[test]
+    fn later_command_failure_cannot_leave_an_earlier_scheduled_start() {
+        use crate::{
+            acceptance::{WORKSHOP, WORKSHOP_TYPE, continuation as c},
+            minting::REFINE,
+            opportunities::Action,
+        };
+        let (mut w, s) = c::spot_scenario(c::Case::Baseline).unwrap();
+        let previous = w.agency.remove(&WORKSHOP).unwrap();
+        let mut agreement = previous.operating_agreement().unwrap().clone();
+        agreement.stock_markets.insert(
+            crate::minting::ORE,
+            markets::Options {
+                side: crate::marketplace::Side::Buy,
+                limits: [2].into(),
+                holdings: [4].into(),
+                max_lots: 2,
+            },
+        );
+        organization::install_initial(
+            &mut w,
+            &s,
+            agreement.clone(),
+            &agreement.members,
+            previous.config,
+        )
+        .unwrap();
+        let old = w.agency[&WORKSHOP].config.programs[&1].clone();
+        let mut p = Program {
+            name: "compound".into(),
+            commands: vec![
+                Command::StartProcess(REFINE),
+                Command::PeerStockQuotes(vec![crate::minting::orders::Quote {
+                    agent: WORKSHOP,
+                    market: crate::minting::ORE,
+                    side: crate::marketplace::Side::Buy,
+                    limit: 2,
+                    holding: 4,
+                    max_lots: Some(2),
+                }]),
+            ],
+        };
+        // First command schedules legal work; the later trade command lacks law.
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .remove(&(WORKSHOP_TYPE, Action::StockTrade));
+        let before = w.clone();
+        assert_eq!(
+            issue(&mut w, &s, WORKSHOP, &p).unwrap_err(),
+            "organization stock trading is prohibited"
+        );
+        assert_eq!(w, before);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((WORKSHOP_TYPE, Action::StockTrade));
+        let mut malformed = old;
+        let Command::WorkTargets(orders) = &mut malformed.commands[0] else {
+            panic!()
+        };
+        orders[0].target = crate::activities::Target::Stock(Amount::new(crate::minting::METAL, 0));
+        assert!(validate_program(&w, WORKSHOP, &malformed).is_err());
+        p.commands.push(Command::StartProcess(REFINE));
+        let before = w.clone();
+        assert!(issue(&mut w, &s, WORKSHOP, &p).is_err());
+        assert_eq!(w, before);
+    }
 }
