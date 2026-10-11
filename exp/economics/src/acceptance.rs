@@ -17,6 +17,7 @@ use crate::{
 
 pub mod continuation;
 pub mod expectations;
+pub mod financing;
 pub mod governed;
 pub mod publication;
 pub mod sales;

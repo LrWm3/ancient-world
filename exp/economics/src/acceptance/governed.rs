@@ -87,17 +87,15 @@ pub fn check(run: &Run) -> Result<c::Readiness, String> {
                 .push(format!("organization {agent} has no operating controller"));
             continue;
         };
-        if !controller.history.iter().any(|d| d.accepted.as_ref().is_some_and(|p| p.commands.iter().any(|c| matches!(c, agency::Command::WorkTargets(orders) if orders.iter().any(|o| o.agent == agent))))) {
+        if !agency::accepted_programs(&run.sim.world, agent).any(|p| p.commands.iter().any(|c| matches!(c, agency::Command::WorkTargets(orders) if orders.iter().any(|o| o.agent == agent)))) {
             result.failures.push(format!("organization {agent} did not choose production targets"));
         }
         if !controller.discover_programs
             || !controller.config.programs.is_empty()
-            || !controller.history.iter().any(|d| {
-                d.accepted.as_ref().is_some_and(|p| {
-                    p.commands
-                        .iter()
-                        .any(|c| matches!(c, agency::Command::PeerStockQuotes(q) if !q.is_empty()))
-                })
+            || !agency::accepted_programs(&run.sim.world, agent).any(|p| {
+                p.commands
+                    .iter()
+                    .any(|c| matches!(c, agency::Command::PeerStockQuotes(q) if !q.is_empty()))
             })
         {
             result.failures.push(format!(

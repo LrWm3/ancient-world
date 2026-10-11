@@ -475,9 +475,9 @@ pub fn check(run: &Run) -> Result<Readiness, String> {
         require(
             run.sim.world.agency.get(&agent).is_some_and(|c| {
                 c.operating_agreement().is_some()
-                    && c.history
-                        .iter()
-                        .any(|d| d.chosen.is_some() && d.authorized_by.is_some())
+                    && agency::accepted_programs(&run.sim.world, agent)
+                        .next()
+                        .is_some()
             }),
             "no authorized organization work choice",
         );

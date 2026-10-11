@@ -61,6 +61,7 @@ pub struct Controller {
     pub discover_programs: bool,
     pub history: Vec<Decision>,
     pub applied_through: u32,
+    pub forward_reviews: Vec<forwards::review::Attempt>,
     pub startup_forwards: Vec<forwards::execution::Agreement>,
     /// Static operating mandate sealed at the first live opening.
     mandate: Option<(Config, bool)>,
@@ -86,6 +87,7 @@ impl Controller {
             history: vec![],
             applied_through: 0,
             startup_forwards: vec![],
+            forward_reviews: vec![],
             mandate: None,
             organization: None,
         }
@@ -156,6 +158,27 @@ pub fn governor(w: &World, s: &State, agent: AgentId) -> Option<AgentId> {
         let h = w.households.iter().find(|h| h.agent == agent)?;
         crate::household_governance::authority(h, s).leader
     }
+}
+
+/// Authorized operating choices from ordinary reviews or activated bilateral
+/// startup agreements. Pending/rejected proposals are not completed choices.
+pub fn accepted_programs(w: &World, agent: AgentId) -> impl Iterator<Item = &Program> {
+    w.agency
+        .get(&agent)
+        .into_iter()
+        .flat_map(|c| &c.history)
+        .filter(|d| d.authorized_by.is_some())
+        .filter_map(|d| d.accepted.as_ref())
+        .chain(
+            w.agency
+                .values()
+                .flat_map(|c| &c.startup_forwards)
+                .filter(move |a| {
+                    matches!(a.status, forwards::execution::Status::Activated(_))
+                        && a.governors.contains_key(&agent)
+                })
+                .filter_map(move |a| a.programs.get(&agent)),
+        )
 }
 
 pub fn validate(w: &World) -> Result<(), String> {
@@ -841,6 +864,7 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
         }
         w.agency.get_mut(&agent).unwrap().history.push(decision);
     }
+    forwards::review::open(w, s)?;
     Ok(())
 }
 
