@@ -24,7 +24,7 @@ pub enum Command {
     WorkTargets(Vec<WorkOrder>),
     /// One dated attempt. Ordinary acquisition, rights and resource checks apply.
     StartProcess(DefinitionId),
-    /// Replace only the issuing organization's peer-stock quotes next Open.
+    /// Replace this organization's peer portfolio and signed issuer-input slots next Open.
     PeerStockQuotes(Vec<crate::minting::orders::Quote>),
 }
 
@@ -88,7 +88,20 @@ impl Controller {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ProjectedSale {
+    pub month: u32,
+    pub market: crate::marketplace::MarketId,
+    pub buyer: AgentId,
+    pub resource: ResourceId,
+    pub quantity: i32,
+    pub payment: ResourceId,
+    pub value: i32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Projection {
+    /// Settled sales in this private branch, never receipts promised to live agents.
+    pub sales: Vec<ProjectedSale>,
     pub closing_stocks: BTreeMap<ResourceId, i32>,
     pub peer_attempts: Vec<expectations::Attempt>,
     pub peer_ballots: Vec<expectations::elections::Attempt>,
@@ -118,6 +131,7 @@ pub struct Decision {
     pub catalog: BTreeMap<u32, Program>,
     pub alternatives: Vec<Alternative>,
     pub peer_expectations: Option<expectations::Snapshot>,
+    pub sale_opportunities: Vec<discovery_sales::Opportunity>,
     /// Current stocks/claims/history; need fulfillment is the preceding month.
     pub observed: Vec<i128>,
     pub reason: String,
@@ -465,6 +479,7 @@ fn forecast(
                     catalog: c.programs.clone(),
                     alternatives: vec![],
                     peer_expectations: None,
+                    sale_opportunities: vec![],
                     observed: vec![],
                     reason: "hypothesis".into(),
                     ballots: vec![],
@@ -484,7 +499,37 @@ fn forecast(
             }
             sim.step()?;
         }
+        let mut sales = vec![];
+        if let Some(mint) = &sim.world.minting {
+            let venue = crate::marketplace::venue(&sim.world, mint.venue)
+                .ok_or("missing forecast venue")?;
+            for batch in sim.ledger.iter().filter_map(|b| b.minting.as_ref()) {
+                for d in batch.deals.iter().filter(|d| {
+                    d.seller == agent
+                        && batch
+                            .receipts
+                            .iter()
+                            .any(|r| r.accepted && r.deals.contains(&d.id))
+                }) {
+                    let m = venue
+                        .markets
+                        .iter()
+                        .find(|m| m.id == d.market)
+                        .ok_or("missing forecast listing")?;
+                    sales.push(ProjectedSale {
+                        month: d.month,
+                        market: d.market,
+                        buyer: d.buyer,
+                        resource: m.goods.resource,
+                        quantity: m.goods.quantity,
+                        payment: m.payment,
+                        value: d.price,
+                    });
+                }
+            }
+        }
         let projection = Projection {
+            sales,
             peer_ballots,
             closing_stocks: sim
                 .world
@@ -700,6 +745,11 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
             catalog: config.programs.clone(),
             alternatives: vec![],
             peer_expectations: None,
+            sale_opportunities: if c.discover_programs {
+                discovery_sales::opportunities(&opening, agent)?
+            } else {
+                vec![]
+            },
             observed,
             reason: "waiting for review".into(),
             ballots: vec![],

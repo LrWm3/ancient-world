@@ -60,3 +60,14 @@ consent, prices, employment and physical endowments remain supplied.
    quotes, not supplied work targets or future purchase decisions. The cash-only
    cold fixture retains annual reviews; all posted-startup comparisons use monthly
    reviews, with workshop/town forecast horizons still 12/4 months.
+
+7. **Sale provenance in decision observations.** Discovered decisions record the
+   signed market/recipe/lot terms behind productive alternatives. Each private
+   projection records only accepted market sales, with month, buyer, resource,
+   quantity, payment and value. Existing organization observers serialize these
+   records without injecting telemetry into economic execution. A filtered month-5
+   observer pins the two-metal/four-coin sale tuple, hypothetical peer work/ballots,
+   forecast dates and identical live world/state/ledger/accounting. That test and
+   eleven existing expectation/telemetry controls pass. These are private forecast
+   receipts from the current mint/peer market batches, not promised live income or
+   coverage of every financial arrangement.
