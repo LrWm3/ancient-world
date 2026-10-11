@@ -59,6 +59,15 @@ connects known-child support to production, purchases, household governance and
 worker consent, with explicit adulthood admission and population telemetry.
 Self-starting institutional discovery with a changing dependent roster remains excluded.
 
+The [mixed-organization acceptance scenario](ACCEPTANCE-SCENARIO.md) adds an employed
+workshop and municipal treasury to the state/household economy: nine agents run
+for fourteen months, with zero nutrition deficits in the calibrated default,
+timely forward delivery, loan repayment and annual rent. Twelve cases (baseline plus eleven controls)
+exercise missing inputs, permission, payroll and storage constraints with audited
+CPU/reference outcomes. Workshop and town operating mandates remain supplied;
+the workshop loses money and municipal payroll depletes its opening reserve.
+This is bounded interaction coverage, not arbitrary self-sustaining organizations.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

@@ -49,6 +49,7 @@ const ACCEPTANCE_HARVEST_HOURS: i32 = 4;
 const COMMERCIAL_GRAIN_TARGET: i32 = 12;
 const PRIVATE_FOOD_RESERVE: i32 = 2;
 const BOUNDED_PRIVATE_FUEL_TARGET: i32 = 4;
+const CROWDED_PRIVATE_FUEL_TARGET: i32 = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Case {
@@ -56,7 +57,7 @@ pub enum Case {
     TightFood,
     NoSalesTarget,
     NoPrivateAsks,
-    BoundedWood,
+    CrowdedWood,
     NoOre,
     NoSmithHours,
     WorkshopExcluded,
@@ -71,7 +72,7 @@ impl Case {
         Self::TightFood,
         Self::NoSalesTarget,
         Self::NoPrivateAsks,
-        Self::BoundedWood,
+        Self::CrowdedWood,
         Self::NoOre,
         Self::NoSmithHours,
         Self::WorkshopExcluded,
@@ -118,6 +119,12 @@ pub fn scenario_for(case: Case) -> Result<(World, State), String> {
             target: Target::Stock(Amount::new(WHEAT, COMMERCIAL_GRAIN_TARGET)),
         });
     }
+    w.activities
+        .orders
+        .iter_mut()
+        .find(|o| o.agent == SUPPLIER && o.definition == GATHER)
+        .unwrap()
+        .target = Target::Stock(Amount::new(FIREWOOD, BOUNDED_PRIVATE_FUEL_TARGET));
     match case {
         Case::NoPrivateAsks => w
             .minting
@@ -128,13 +135,13 @@ pub fn scenario_for(case: Case) -> Result<(World, State), String> {
             .unwrap()
             .quotes
             .retain(|q| ![integration::HOUSEHOLD, integration::GROWER].contains(&q.agent)),
-        Case::BoundedWood => {
+        Case::CrowdedWood => {
             w.activities
                 .orders
                 .iter_mut()
                 .find(|o| o.agent == SUPPLIER && o.definition == GATHER)
                 .unwrap()
-                .target = Target::Stock(Amount::new(FIREWOOD, BOUNDED_PRIVATE_FUEL_TARGET))
+                .target = Target::Stock(Amount::new(FIREWOOD, CROWDED_PRIVATE_FUEL_TARGET))
         }
         Case::NoOre => {
             s.balances.insert((WORKSHOP, ORE), 0);
@@ -431,6 +438,12 @@ fn coins(s: &State) -> i128 {
 
 impl Run {
     pub fn new(w: World, s: State, backend: Backend) -> Result<Self, String> {
+        if s.month != 1 || s.phase != Phase::Open {
+            return Err(
+                "acceptance runner needs its month-one opening; preserve Run when restarting"
+                    .into(),
+            );
+        }
         let audit = integration::audit(&w, &s)?;
         let opening_coins = coins(&s);
         Ok(Self {

@@ -117,7 +117,7 @@ fn worker_wages_purchase_market_food_and_missing_asks_expose_shortages() {
     let e = run.evidence().unwrap();
     assert!(e.household_food_sales > 0);
     assert!(e.smith_food_purchases > 0);
-    assert_eq!(e.smith_food_deficit, 4);
+    assert_eq!(e.smith_food_deficit, 0);
     assert!(acceptance::accepted_deals(&run.sim).any(|d| {
         [integration::HOUSEHOLD, integration::GROWER].contains(&d.seller)
             && d.buyer == acceptance::SMITH
@@ -221,11 +221,113 @@ fn supply_controls_distinguish_private_offers_production_and_storage() {
     let closed = run(Case::NoPrivateAsks);
     assert_eq!(closed.household_food_sales + closed.grower_food_sales, 0);
     assert!(closed.people_food_deficit > base.people_food_deficit);
-    let wood = run(Case::BoundedWood);
-    assert!(wood.grower_storage_rejections < base.grower_storage_rejections);
-    assert_eq!(wood.people_food_deficit, 0);
+    let wood = run(Case::CrowdedWood);
+    assert!(wood.grower_storage_rejections > base.grower_storage_rejections);
+    assert!(wood.people_food_deficit > base.people_food_deficit);
+    assert_eq!(base.people_food_deficit, 0);
     let food = run(Case::TightFood);
     assert!(food.people_food_deficit > base.people_food_deficit);
     let needs_only = run(Case::NoSalesTarget);
     assert!(needs_only.people_food_deficit >= base.people_food_deficit);
+}
+
+#[test]
+fn all_acceptance_cases_match_cpu_with_reconstruction_at_every_phase() {
+    use economics_compute_smoke::simulation::Simulation;
+    for case in acceptance::Case::ALL {
+        let (w, s) = acceptance::scenario_for(case).unwrap();
+        let mut reference = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+        reference.through(acceptance::RUN_MONTHS).unwrap();
+        let mut cpu = Run::new(w, s, Backend::CubeCpu).unwrap();
+        while cpu.sim.state.month <= acceptance::RUN_MONTHS {
+            cpu.audit.step(&mut cpu.sim).unwrap();
+            let mut next = Simulation::new(
+                cpu.sim.world.clone(),
+                cpu.sim.state.clone(),
+                Backend::CubeCpu,
+            )
+            .unwrap();
+            next.ledger = cpu.sim.ledger;
+            next.reports = cpu.sim.reports;
+            next.effect_limit = cpu.sim.effect_limit;
+            cpu.sim = next;
+        }
+        assert_eq!(cpu.sim.world, reference.sim.world, "{case:?}");
+        assert_eq!(cpu.sim.state, reference.sim.state, "{case:?}");
+        assert_eq!(cpu.sim.ledger, reference.sim.ledger, "{case:?}");
+        assert_eq!(cpu.sim.reports, reference.sim.reports, "{case:?}");
+        assert_eq!(cpu.audit, reference.audit, "{case:?}");
+        assert_eq!(
+            cpu.evidence().unwrap(),
+            reference.evidence().unwrap(),
+            "{case:?}"
+        );
+    }
+}
+
+#[test]
+fn mixed_economy_replays_with_dated_governance_context_and_survives_catalog_reordering() {
+    use economics_compute_smoke::{demography, model::Phase, settlement::DEFAULT_EFFECT_LIMIT};
+    let (w, s) = acceptance::scenario().unwrap();
+    let mut baseline = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
+    let mut replay_state = s.clone();
+    let mut replay_audit = baseline.audit.clone();
+    while baseline.sim.state.month <= acceptance::RUN_MONTHS {
+        baseline.audit.step(&mut baseline.sim).unwrap();
+        let batch = baseline.sim.ledger.last().unwrap();
+        // Governance lives in World and may change during Open. These dated
+        // contexts are required inputs, not reconstructed from ledger alone.
+        let mut context = baseline.sim.world.clone();
+        let before = replay_state.clone();
+        demography::replay(
+            &mut context,
+            &mut replay_state,
+            batch,
+            Backend::Reference,
+            DEFAULT_EFFECT_LIMIT,
+        )
+        .unwrap();
+        replay_audit
+            .record(&context, &before, batch, &replay_state)
+            .unwrap();
+        assert_eq!(replay_state, baseline.sim.state);
+    }
+    assert_eq!(replay_audit, baseline.audit);
+    let mut reordered = w;
+    reordered.agents.reverse();
+    reordered.participants.reverse();
+    reordered.definitions.reverse();
+    reordered.resources.reverse();
+    reordered.employment.reverse();
+    let mut monthly = Run::new(reordered, s, Backend::CubeCpu).unwrap();
+    for month in 1..=acceptance::RUN_MONTHS {
+        monthly.through(month).unwrap();
+    }
+    assert_eq!(monthly.sim.world.agency, baseline.sim.world.agency);
+    assert_eq!(
+        monthly.sim.world.state_governance,
+        baseline.sim.world.state_governance
+    );
+    assert_eq!(monthly.sim.world.households, baseline.sim.world.households);
+    assert_eq!(monthly.sim.state, baseline.sim.state);
+    assert_eq!(monthly.sim.ledger, baseline.sim.ledger);
+    assert_eq!(monthly.sim.reports, baseline.sim.reports);
+    assert_eq!(monthly.audit, baseline.audit);
+    assert_eq!(monthly.evidence().unwrap(), baseline.evidence().unwrap());
+    assert_eq!(baseline.sim.state.phase, Phase::Open);
+    assert_eq!(baseline.evidence().unwrap().people_food_deficit, 0);
+    // Completed production first becomes tradeable at a subsequent Acquire.
+    assert!(
+        acceptance::accepted_deals(&baseline.sim)
+            .filter(|d| d.seller == acceptance::WORKSHOP)
+            .all(|d| d.month > 1)
+    );
+    assert!(
+        Run::new(
+            baseline.sim.world.clone(),
+            baseline.sim.state.clone(),
+            Backend::Reference
+        )
+        .is_err()
+    );
 }
