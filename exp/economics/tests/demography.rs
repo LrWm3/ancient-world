@@ -1610,3 +1610,88 @@ fn population_metrics_mark_partial_flow_coverage_and_count_terminal_children() {
             + r["living_dependents"].as_u64().unwrap()
     );
 }
+
+fn donating_family(enabled: bool, food: i32) -> (World, State) {
+    use economics_compute_smoke::{
+        household_governance::Policy,
+        households::{self, support},
+    };
+    let (mut w, mut s) = family_household(enabled, 0);
+    for p in &mut w.participants {
+        p.needs[0].quantity = 0;
+    }
+    w.condition_rules.clear();
+    s.balances.insert((PERSON + 1, GRAIN), food);
+    let mut h = w.households.remove(0);
+    w.agents.retain(|a| a.id != h.agent);
+    h.adults = vec![PERSON, PERSON + 1];
+    h.governance.charter.initial_policy = Policy::NeedsFirst;
+    households::form(&mut w, &s, h).unwrap();
+    support::authorize(
+        &mut w,
+        &s,
+        10000,
+        PERSON + 1,
+        support::Mandate {
+            member: PERSON + 1,
+            resource: GRAIN,
+            from: 2,
+            through: 2,
+            revoked_from: None,
+            reserve_months: 1,
+            private_reserve: 0,
+            household_target: 1,
+            monthly_limit: 1,
+        },
+    )
+    .unwrap();
+    (w, s)
+}
+
+#[test]
+fn voluntary_surplus_can_be_accepted_for_a_household_child() {
+    let run = |backend, enabled, food| {
+        let (w, s) = donating_family(enabled, food);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let fed = enabled && food > 0;
+        let donation = sim
+            .ledger
+            .iter()
+            .filter(|b| b.month == 2)
+            .filter_map(|b| b.household.as_ref())
+            .flat_map(|h| &h.support)
+            .next()
+            .unwrap();
+        assert_eq!(donation.accepted, i32::from(fed));
+        assert_eq!(sim.state.balance(PERSON + 1, GRAIN), food - i32::from(fed));
+        assert_eq!(
+            sim.reports
+                .iter()
+                .find(|r| r.agent == FIRST_CHILD && r.month == 2)
+                .unwrap()
+                .deficit(NUTRITION),
+            i32::from(!fed)
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .filter(|b| b.month == 2)
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.before)
+                .any(|e| e.account == (FIRST_CHILD, GRAIN) && e.delta > 0)
+                == fed
+        );
+        assert!(!sim.world.households[0].adults.contains(&FIRST_CHILD));
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, food) in [(true, 3), (false, 3), (true, 0)] {
+        assert_eq!(
+            run(Backend::Reference, enabled, food),
+            run(Backend::CubeCpu, enabled, food)
+        );
+    }
+}

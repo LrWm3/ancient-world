@@ -165,3 +165,13 @@ Independent review caught incomplete monthly receipts after a mid-month restart.
 `flows_complete` now marks coverage and incomplete flow fields are null. Two
 focused CPU observer tests check maturity timing, filtering, sampling, noninterference,
 receipt totals, terminal counts and partial-history checkpoints.
+
+## 14. Accept voluntary food support for household dependents
+
+The ordinary voluntary-surplus comparison now values all charter-authorized need
+recipients. Adult-only consent, private stock protection and productive rights are
+unchanged. A child need can justify accepting a willing adult's food donation.
+
+Independent review corrected the test's receipt channel. The audited CPU/reference
+regression checks the actual household-to-child transfer and meal, donor stock,
+charter-off and no-surplus controls, without making the child an adult member.

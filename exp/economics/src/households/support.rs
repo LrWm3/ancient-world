@@ -303,7 +303,7 @@ pub(super) fn prepare(
                 }
                 let proposed = transfer(member, h.agent, m.resource, feasible);
                 let baseline = probe(world, &staged)?;
-                let people: BTreeSet<_> = members(h, &staged).collect();
+                let people: BTreeSet<_> = need_recipients(h, &staged).into_iter().collect();
                 let base_needs = needs::project(world, &staged, &baseline, &people)?;
                 let base_private = needs::project(world, &staged, &baseline, &[member].into())?;
                 let monetary = h.governance.policy(staged.month) == Policy::NeedsThenIncome;
