@@ -147,3 +147,27 @@ the circulation loop. Audited Reference/CPU states, ledgers, reports and month-f
 continuations agree. All 31 hiring tests pass. Independent review found no blocker.
 These are supplied jobs on the town market, not a resolution of the original
 forty-month discovered-income gap or discovered-land/hiring composition.
+
+## 15. Verify the integrated crate
+
+At code/test revision `cad8448`, the complete release suite passes **1,243 tests,
+zero failed, one ignored** across 146 result targets (including empty targets).
+The ignored 32-person annual accounting integration passes separately; its result
+is reported separately from the normal suite count. Earlier focused tests overlap
+the full suite. Strict all-target release Clippy, formatting,
+repository artifact checks and diff checks pass. Independent review found the
+verification coverage sufficient and no new source blocker.
+
+Reproduction from `exp/economics`:
+
+```sh
+cargo +1.92.0 test --locked --release -j 8
+cargo +1.92.0 test --locked --release --test household_accounting specialist_households_reconcile_production_trading_and_annual_dues -- --ignored --exact
+cargo +1.92.0 clippy --locked --release --all-targets -j 8 -- -D warnings
+cargo +1.92.0 fmt --check
+```
+
+Run `python3 scripts/check_repository_artifacts.py` from the repository root.
+Raw local logs remain under ignored `output/batch16-*.log`. Cargo reported an
+unrelated cache-cleanup permission warning; all commands completed successfully.
+These checks verify CPU/reference behavior, not CUDA or general economic viability.
