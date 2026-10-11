@@ -2,12 +2,36 @@
 use super::{TOWN, WORKSHOP, continuation as c, publication, sales::Startup};
 use crate::{
     agency::{forwards::Options, organization, publication::Policy},
-    minting::ORE,
+    minting::{METAL, ORE},
     model::*,
 };
 
 const STARTUP_PREPAYMENT: i32 = 2;
 const DELIVERY_MONTHS: u32 = 3;
+
+/// Matched ablations of the retained workshop stocks; never adds inventory.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stocks {
+    Both,
+    OreOnly,
+    MetalOnly,
+    Neither,
+}
+impl Stocks {
+    pub const ALL: [Self; 4] = [Self::Both, Self::OreOnly, Self::MetalOnly, Self::Neither];
+}
+
+pub fn with_stocks(case: c::Case, enabled: bool, stocks: Stocks) -> Result<(World, State), String> {
+    let (w, mut s) = with_authority(case, enabled)?;
+    if matches!(stocks, Stocks::MetalOnly | Stocks::Neither) {
+        s.balances.insert((WORKSHOP, ORE), 0);
+    }
+    if matches!(stocks, Stocks::OreOnly | Stocks::Neither) {
+        s.balances.insert((WORKSHOP, METAL), 0);
+    }
+    crate::settlement::validate_world(&w, &s)?;
+    Ok((w, s))
+}
 
 pub fn scenario(case: c::Case) -> Result<(World, State), String> {
     with_authority(case, true)
