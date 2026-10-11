@@ -958,7 +958,7 @@ impl Simulation {
         deficit
     }
 
-    fn support_process(&self, participant: &Participant) -> Option<DefinitionId> {
+    pub(crate) fn support_process(&self, participant: &Participant) -> Option<DefinitionId> {
         let c = self.world.demography.as_ref()?;
         if !c.plan_support || self.state.terminal.contains_key(&participant.agent) {
             return None;

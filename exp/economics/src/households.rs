@@ -479,6 +479,9 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
                         definitions.insert(id);
                     }
                 }
+                if let Some(id) = planner.as_ref().unwrap().support_process(p) {
+                    definitions.insert(id);
+                }
                 for order in world
                     .activities
                     .orders

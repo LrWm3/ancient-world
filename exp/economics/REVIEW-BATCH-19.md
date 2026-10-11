@@ -119,3 +119,14 @@ Independent review passed. Twenty-three reproduction and twenty-four household
 income tests pass. Audited CPU/reference controls distinguish needs-first from
 net-output policy, disabled dependent support and unavailable food production;
 they check actual child deprivation and adult-only donor receipts.
+
+## 10. Fund support-only production from household inputs
+
+Household productive input requests now discover the same support-only candidate
+as the individual planner. Ordinary input reservations and process settlement
+remain authoritative; dependent recipients still cannot request productive inputs.
+
+Independent review passed. A focused audited CPU/reference integration test shows
+household seed reaching a parent with no personal food demand, production with no
+invented personal need goal, and actual support at the following Open. Missing
+seed or disabled support planning prevents that chain.

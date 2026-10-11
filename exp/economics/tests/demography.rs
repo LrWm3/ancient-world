@@ -1240,3 +1240,87 @@ fn household_governance_can_prioritize_child_food_over_more_output() {
         );
     }
 }
+
+#[test]
+fn household_inputs_can_fund_support_only_production() {
+    use economics_compute_smoke::{households::Purpose, scenario::SEED};
+    let run = |backend, planning, seed| {
+        let (mut w, mut s) = family_household(true, 0);
+        w.demography.as_mut().unwrap().plan_support = planning;
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == PERSON)
+            .unwrap()
+            .needs[0]
+            .quantity = 0;
+        w.condition_rules.retain(|r| r.subject != PERSON);
+        let food = w.definitions.iter_mut().find(|d| d.id == FORAGE).unwrap();
+        food.enabled = true;
+        food.stages[0].entry_inputs.push(Amount::new(SEED, 1));
+        s.balances.insert((PERSON, SEED), 0);
+        s.balances.insert((10000, SEED), seed);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let productive = sim
+            .ledger
+            .iter()
+            .find(|b| b.month == 1 && b.phase == Phase::Productive)
+            .unwrap();
+        let supplied = planning && seed > 0;
+        assert_eq!(
+            productive
+                .household
+                .as_ref()
+                .unwrap()
+                .reservations
+                .iter()
+                .any(|r| r.request.member == PERSON
+                    && r.request.resource == SEED
+                    && r.request.purpose == Purpose::Input(FORAGE)
+                    && r.allocated == 1),
+            supplied
+        );
+        assert_eq!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.operator == PERSON && p.definition == FORAGE && p.goal.is_none()),
+            supplied
+        );
+        let opening = sim
+            .ledger
+            .iter()
+            .find(|b| b.month == 2 && b.phase == Phase::Open)
+            .unwrap();
+        assert_eq!(
+            opening
+                .demography
+                .as_ref()
+                .unwrap()
+                .support
+                .iter()
+                .find(|r| r.child == FIRST_CHILD)
+                .unwrap()
+                .delivered,
+            if supplied { 1 } else { 0 }
+        );
+        assert_eq!(
+            sim.reports
+                .iter()
+                .find(|r| r.month == 2 && r.agent == FIRST_CHILD)
+                .unwrap()
+                .deficit(NUTRITION),
+            if supplied { 0 } else { 1 }
+        );
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (planning, seed) in [(true, 1), (true, 0), (false, 1)] {
+        assert_eq!(
+            run(Backend::Reference, planning, seed),
+            run(Backend::CubeCpu, planning, seed)
+        );
+    }
+}
