@@ -6,7 +6,10 @@ stock ablations, and controls for competing delivery claims and leadership turno
 It also extends the startup-forward continuation check to the full 48-month window.
 Monthly exposure passes readiness without workshop opening ore when metal remains;
 it is not uniformly better and remains opt-in. Removing opening metal still stalls
-these fixtures. Private forecast diagnostic copying remains a performance gap.
+these fixtures. The [independent-preference follow-up](LIQUIDITY-PREFERENCES.md)
+separates workshop and town choices and removes old diagnostic payloads from
+private forecasts after the initial clone. Live history and accepted commitments
+remain intact; initial cloning and growing live history still have a cost.
 
 The opt-in [startup-forward acceptance experiment](STARTUP-FORWARD-PROPOSALS.md)
 connects signed organizational authority, independent objective comparisons,

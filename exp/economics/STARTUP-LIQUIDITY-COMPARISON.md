@@ -5,6 +5,10 @@ questions: which supplied working stocks the acceptance economy still needs, and
 whether each governor can distinguish plans that exhaust cash at different times.
 It does not add money, resources, prices, employment, or automatic loan approval.
 
+The [independent-preference follow-up](LIQUIDITY-PREFERENCES.md) now separates the
+two governors and implements the private diagnostic-copy optimization proposed
+below. This report records the earlier symmetric comparison.
+
 ## Ten iterations
 
 1. Matched workshop stock controls: retain ore and metal, either alone, or neither.

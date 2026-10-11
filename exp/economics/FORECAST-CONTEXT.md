@@ -16,6 +16,7 @@ neither advances time nor accrues, pays, reserves or publishes anything.
 | Information | Treatment |
 | --- | --- |
 | Current balances, capacity, conditions, ownership and process progress | Preserve committed state |
+| Historical diagnostic payloads | Strip alternative projections and forward-review details from private copies; retain live diagnostics, decision rows, accepted commands, catalogs, scalar scores, ballots, authority and pending agreements |
 | Accepted loans, land agreements, obligations and dated reserved work | Preserve, including known future due dates |
 | Catalogs, rates, process recipes, rights and configured application | Preserve as known scenario terms/plans |
 | Capacity override fixtures | Preserve only the current override after Open; hide unopened/future overrides |
@@ -102,3 +103,9 @@ market settlement batches; they do not cover every financial arrangement. They
 explain a hypothetical forecast rather than promising demand or recording real
 revenue. Observer-on/off comparisons preserve live state, history and accounting;
 see [sale-linked discovery](ACCEPTANCE-SALE-DISCOVERY.md).
+
+The [independent liquidity comparison](LIQUIDITY-PREFERENCES.md) verifies the private
+diagnostic trim against rehydrated histories, including pending forward activation,
+actual delivery, accepted non-mint starts and nonempty peer observations. The first
+World clone still copies the payloads before trimming; subsequent private phase
+copies avoid them. Live history retention remains unbounded with run length.

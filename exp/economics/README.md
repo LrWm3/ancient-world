@@ -124,6 +124,14 @@ Monthly exposure sustains the metal-only stock variant, but loses one readiness
 gate with both stocks; neither preference sustains the variants without metal.
 Run `cargo +1.92.0 run --locked --release --example acceptance -- --startup-liquidity --workshop-stocks=both --monthly-exposure`.
 
+The [independent liquidity preferences comparison](LIQUIDITY-PREFERENCES.md)
+isolates the workshop as the driver of both results: changing only the town leaves
+these outcomes unchanged. The both-stock loss occurs during later replenishment
+choices, despite identical startup dates. Private forecasts now discard old
+diagnostic payloads while retaining commitments and live history; CPU/reference
+and replay controls cover successful and failing preference variants.
+Run `cargo +1.92.0 run --locked --release --example liquidity_preferences -- metal exposure terminal`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.
