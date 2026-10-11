@@ -23,6 +23,12 @@ pub(crate) fn validate_options(
     if options.is_empty() {
         return Ok(());
     }
+    let combinations = options.values().try_fold(0_usize, |n, o| {
+        n.checked_add(o.limits.len().checked_mul(o.holdings.len())?)
+    });
+    if combinations.is_none_or(|n| n > super::MAX_PROGRAMS) {
+        return Err("stock authority exceeds bounded search".into());
+    }
     let c = w
         .minting
         .as_ref()
@@ -68,5 +74,47 @@ pub(crate) fn validate_options(
             }
         }
     }
+    Ok(())
+}
+
+/// Structural and constitutional validation. Legal eligibility is checked when
+/// issuing a choice and again by normal market execution, not granted here.
+pub fn validate_quotes(w: &World, agent: AgentId, quotes: &[Quote]) -> Result<(), String> {
+    let a = w
+        .agency
+        .get(&agent)
+        .and_then(|c| c.operating_agreement())
+        .ok_or("stock program requires a signed operating agreement")?;
+    if a.stock_markets.is_empty()
+        || quotes.iter().any(|q| {
+            q.agent != agent
+                || a.stock_markets.get(&q.market).is_none_or(|o| {
+                    q.side != o.side
+                        || !o.limits.contains(&q.limit)
+                        || !o.holdings.contains(&q.holding)
+                        || q.max_lots.is_none_or(|n| n <= 0 || n > o.max_lots)
+                })
+        })
+    {
+        return Err("stock program exceeds signed authority".into());
+    }
+    candidate(w, agent, quotes).map(|_| ())
+}
+
+fn candidate(w: &World, agent: AgentId, quotes: &[Quote]) -> Result<orders::Policy, String> {
+    let c = w.minting.as_ref().ok_or("missing stock market engine")?;
+    let mut p = c.order_policy.clone().ok_or("missing stock order policy")?;
+    let peer = p.peer_stocks.as_mut().ok_or("missing peer stock book")?;
+    peer.quotes.retain(|q| q.agent != agent);
+    peer.quotes.extend_from_slice(quotes);
+    peer.quotes.sort_by_key(|q| (q.market, q.agent));
+    orders::validate(w, c, &p)?;
+    Ok(p)
+}
+
+pub(crate) fn apply(w: &mut World, agent: AgentId, quotes: &[Quote]) -> Result<(), String> {
+    validate_quotes(w, agent, quotes)?;
+    let p = candidate(w, agent, quotes)?;
+    w.minting.as_mut().unwrap().order_policy = Some(p);
     Ok(())
 }

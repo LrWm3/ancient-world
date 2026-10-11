@@ -22,6 +22,8 @@ pub enum Command {
     WorkTargets(Vec<WorkOrder>),
     /// One dated attempt. Ordinary acquisition, rights and resource checks apply.
     StartProcess(DefinitionId),
+    /// Replace only the issuing organization's peer-stock quotes next Open.
+    PeerStockQuotes(Vec<crate::minting::orders::Quote>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -197,6 +199,10 @@ pub fn validate(w: &World) -> Result<(), String> {
                         }
                         2
                     }
+                    Command::PeerStockQuotes(quotes) => {
+                        markets::validate_quotes(w, agent, quotes)?;
+                        4
+                    }
                     Command::StartProcess(id) => {
                         if controller
                             .organization
@@ -295,6 +301,13 @@ fn issue(w: &mut World, s: &State, agent: AgentId, p: &Program) -> Result<(), St
                     return Err("organization work is prohibited".into());
                 }
             }
+            Command::PeerStockQuotes(quotes) => {
+                markets::validate_quotes(w, agent, quotes)?;
+                let venue = w.minting.as_ref().unwrap().venue;
+                if !quotes.is_empty() && !crate::marketplace::eligible(w, s, venue, agent) {
+                    return Err("organization stock trading is prohibited".into());
+                }
+            }
             Command::StartProcess(definition) => {
                 if !crate::opportunities::permits(
                     w,
@@ -352,7 +365,7 @@ pub(crate) fn accepted_start(w: &World, start: &ScheduledStart) -> bool {
     })
 }
 
-fn apply_due(w: &mut World, s: &State) {
+fn apply_due(w: &mut World, s: &State) -> Result<(), String> {
     let agents: Vec<_> = w.agency.keys().copied().collect();
     for agent in agents {
         let c = &w.agency[&agent];
@@ -367,13 +380,18 @@ fn apply_due(w: &mut World, s: &State) {
             .flat_map(|p| p.commands.clone())
             .collect();
         for command in commands {
-            if let Command::WorkTargets(orders) = command {
-                w.activities.orders.retain(|o| o.agent != agent);
-                w.activities.orders.extend(orders);
+            match command {
+                Command::WorkTargets(orders) => {
+                    w.activities.orders.retain(|o| o.agent != agent);
+                    w.activities.orders.extend(orders);
+                }
+                Command::PeerStockQuotes(quotes) => markets::apply(w, agent, &quotes)?,
+                _ => {}
             }
         }
         w.agency.get_mut(&agent).unwrap().applied_through = s.month;
     }
+    Ok(())
 }
 
 fn forecast(w: &World, s: &State, agent: AgentId, c: &Config, choice: Option<u32>) -> Alternative {
@@ -565,7 +583,7 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
         c.mandate
             .get_or_insert_with(|| (c.config.clone(), c.discover_programs));
     }
-    apply_due(w, s);
+    apply_due(w, s)?;
     let opening = w.clone();
     let actors: Vec<_> = w
         .agency

@@ -217,3 +217,66 @@ fn stock_authority_is_signed_static_and_validated_against_market_units() {
         }
     }
 }
+
+#[test]
+fn stock_program_cannot_change_peers_side_units_or_unsigned_terms() {
+    use economics_compute_smoke::{
+        acceptance::continuation as c,
+        agency::markets::{self, Options},
+        marketplace::Side,
+        minting::{ORE, orders::Quote},
+    };
+    let (mut w, s) = c::spot_scenario(c::Case::Baseline).unwrap();
+    let old = w.agency.remove(&WORKSHOP).unwrap();
+    let mut a = old.operating_agreement().unwrap().clone();
+    a.stock_markets.insert(
+        ORE,
+        Options {
+            side: Side::Buy,
+            limits: [2].into(),
+            holdings: [4].into(),
+            max_lots: 2,
+        },
+    );
+    organization::install_initial(&mut w, &s, a.clone(), &a.members, old.config).unwrap();
+    let q = Quote {
+        agent: WORKSHOP,
+        market: ORE,
+        side: Side::Buy,
+        limit: 2,
+        holding: 4,
+        max_lots: Some(2),
+    };
+    markets::validate_quotes(&w, WORKSHOP, &[q.clone()]).unwrap();
+    markets::validate_quotes(&w, WORKSHOP, &[]).unwrap();
+    for bad in [
+        Quote {
+            agent: SUPPLIER,
+            ..q.clone()
+        },
+        Quote {
+            side: Side::Sell,
+            ..q.clone()
+        },
+        Quote {
+            limit: 3,
+            ..q.clone()
+        },
+        Quote {
+            holding: 5,
+            ..q.clone()
+        },
+        Quote {
+            max_lots: None,
+            ..q.clone()
+        },
+        Quote {
+            max_lots: Some(3),
+            ..q.clone()
+        },
+    ] {
+        assert!(markets::validate_quotes(&w, WORKSHOP, &[bad]).is_err());
+    }
+    assert!(markets::validate_quotes(&w, WORKSHOP, &[q.clone(), q]).is_err());
+    assert!(markets::validate_quotes(&w, SUPPLIER, &[]).is_err());
+}

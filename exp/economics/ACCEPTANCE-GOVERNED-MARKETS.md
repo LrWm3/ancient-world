@@ -14,3 +14,10 @@ institution formation or price discovery.
    alone publishes no orders and grants no legal or venue access.
 
 Validation results and the remaining iterations are recorded here as completed.
+
+2. **Own quote programs.** `PeerStockQuotes` replaces only the issuing
+   organization's independent stock quotes at the following Open. Signed bounds,
+   lot units and whole-book compatibility are validated; law and venue eligibility
+   remain live checks. Empty quotes explicitly stop discretionary trading.
+   Existing counterparties and the common claim-protection horizon are preserved.
+   Five organizational tests cover consent and invalid/cross-agent commands.
