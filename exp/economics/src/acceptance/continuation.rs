@@ -158,6 +158,7 @@ pub fn scenario(case: Case) -> Result<(World, State), String> {
             leadership,
             term_months: CYCLE_MONTHS,
             processes: [definition].into(),
+            stock_markets: Default::default(),
         };
         let mut config = agency::scenario::config(
             vec![Objective {

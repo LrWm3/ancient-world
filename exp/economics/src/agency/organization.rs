@@ -6,7 +6,7 @@ use crate::{
     model::*,
     opportunities::{self, Action, PERSON_TYPE},
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Agreement {
@@ -17,6 +17,8 @@ pub struct Agreement {
     pub term_months: u32,
     /// Constitutional bounds on the operating programs, additional to state law.
     pub processes: BTreeSet<DefinitionId>,
+    /// Static, signed choices; these confer no marketplace or legal eligibility.
+    pub stock_markets: BTreeMap<crate::marketplace::MarketId, super::markets::Options>,
 }
 
 /// Unanimous consent is supplied explicitly; an employee or owner does not
@@ -88,6 +90,7 @@ pub(crate) fn validate(w: &World, agent: AgentId, a: &Agreement) -> Result<(), S
     {
         return Err("invalid static operating agreement".into());
     }
+    super::markets::validate_options(w, agent, &a.stock_markets)?;
     Ok(())
 }
 

@@ -31,6 +31,7 @@ fn fixture() -> (World, State, Agreement, agency::Config) {
         leadership: Leadership::Rotating,
         term_months: 2,
         processes: [REFINE].into(),
+        stock_markets: Default::default(),
     };
     let c = agency::scenario::config(
         vec![Objective {
@@ -185,4 +186,34 @@ fn elected_adapters_are_unchanged_and_operating_authority_rotates_without_rewrit
         },
     );
     agency::validate_history(&sim.world, &sim.state).unwrap();
+}
+
+#[test]
+fn stock_authority_is_signed_static_and_validated_against_market_units() {
+    use economics_compute_smoke::{
+        acceptance::continuation as c, agency::markets::Options, marketplace::Side, minting::ORE,
+    };
+    for invalid in [false, true] {
+        let (mut w, s) = c::spot_scenario(c::Case::Baseline).unwrap();
+        let old = w.agency.remove(&WORKSHOP).unwrap();
+        let mut a = old.operating_agreement().unwrap().clone();
+        a.stock_markets.insert(
+            ORE,
+            Options {
+                side: Side::Buy,
+                limits: [if invalid { 0 } else { 2 }].into(),
+                holdings: [4].into(),
+                max_lots: 2,
+            },
+        );
+        let before = w.clone();
+        let result = organization::install_initial(&mut w, &s, a.clone(), &a.members, old.config);
+        assert_eq!(result.is_err(), invalid);
+        if invalid {
+            assert_eq!(w, before);
+        } else {
+            assert_eq!(w.agency[&WORKSHOP].operating_agreement(), Some(&a));
+            assert_eq!(w.minting, before.minting, "signing does not publish quotes");
+        }
+    }
 }

@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod discovery;
 pub mod integration;
+pub mod markets;
 pub mod objectives;
 pub mod organization;
 pub mod scenario;
