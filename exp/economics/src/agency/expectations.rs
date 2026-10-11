@@ -112,3 +112,71 @@ impl Snapshot {
         Ok(result)
     }
 }
+
+impl Snapshot {
+    /// Apply to a sanitized, isolated forecast only. Does not add decisions,
+    /// claims or balances; returns the hypothetical starts for inspection.
+    pub fn apply_hypotheses(
+        &self,
+        w: &mut World,
+        s: &State,
+    ) -> Result<Vec<ScheduledStart>, String> {
+        self.policy.validate()?;
+        if w.agency.values().any(|c| c.autonomous) {
+            return Err("peer hypotheses require frozen forecast controllers".into());
+        }
+        let Policy::RecentSuccessfulStarts { memory_months } = self.policy else {
+            return Ok(vec![]);
+        };
+        if s.phase != Phase::Open || s.month <= self.as_of {
+            return Ok(vec![]);
+        }
+        let mut starts = vec![];
+        for e in &self.evidence {
+            if e.agent == self.actor
+                || e.latest >= self.as_of
+                || e.previous >= e.latest
+                || e.interval != e.latest - e.previous
+                || s.month - e.latest > memory_months
+                || !(s.month - e.latest).is_multiple_of(e.interval)
+            {
+                continue;
+            }
+            let Some(c) = w.agency.get(&e.agent) else {
+                continue;
+            };
+            let Some(d) = w
+                .definitions
+                .iter()
+                .find(|d| d.id == e.definition && d.enabled && d.duration() == 1)
+            else {
+                continue;
+            };
+            if super::governor(w, s, e.agent).is_none()
+                || !crate::opportunities::permits(
+                    w,
+                    s,
+                    e.agent,
+                    crate::opportunities::Action::Process(e.definition),
+                )
+            {
+                continue;
+            }
+            let needed = c.config.objectives.iter().any(|o| o.scope == super::objectives::Scope::Organization && matches!(o.metric, super::objectives::Metric::Reserve { resource, target } if d.outputs.iter().any(|a| a.resource == resource && a.quantity > 0) && s.balance(e.agent, resource) < target));
+            if !needed
+                || w.scheduled_starts.iter().any(|a| {
+                    a.month == s.month && a.agent == e.agent && a.definition == e.definition
+                })
+            {
+                continue;
+            }
+            super::schedule_start(w, e.agent, e.definition, s.month)?;
+            starts.push(ScheduledStart {
+                month: s.month,
+                agent: e.agent,
+                definition: e.definition,
+            });
+        }
+        Ok(starts)
+    }
+}

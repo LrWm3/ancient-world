@@ -339,37 +339,49 @@ fn issue_commands(w: &mut World, s: &State, agent: AgentId, p: &Program) -> Resu
                 ) {
                     return Err("organization process is prohibited".into());
                 }
-                if !w
-                    .scheduled_starts
-                    .iter()
-                    .any(|a| a.agent == agent && a.month == month && a.definition == *definition)
-                {
-                    w.scheduled_starts.push(ScheduledStart {
-                        month,
-                        agent,
-                        definition: *definition,
-                    });
-                }
-                if let Some(c) = w
-                    .minting
-                    .as_mut()
-                    .filter(|c| c.issuer == agent && c.definition == *definition)
-                {
-                    let policy = c
-                        .order_policy
-                        .as_mut()
-                        .ok_or("agentic minting requires generated market orders")?;
-                    if policy.month == 0 {
-                        policy.month = month;
-                    } else if month < policy.month {
-                        policy.additional_months.insert(policy.month);
-                        policy.month = month;
-                    } else if month > policy.month {
-                        policy.additional_months.insert(month);
-                    }
-                }
+                schedule_start(w, agent, *definition, month)?;
             }
         }
+    }
+    Ok(())
+}
+
+/// Shared dated intent plumbing; authority belongs to the caller. No resources
+/// are granted here, and every start still uses ordinary acquisition/execution.
+pub(crate) fn schedule_start(
+    w: &mut World,
+    agent: AgentId,
+    definition: DefinitionId,
+    month: u32,
+) -> Result<(), String> {
+    if let Some(c) = w
+        .minting
+        .as_mut()
+        .filter(|c| c.issuer == agent && c.definition == definition)
+    {
+        let policy = c
+            .order_policy
+            .as_mut()
+            .ok_or("agentic minting requires generated market orders")?;
+        if policy.month == 0 {
+            policy.month = month;
+        } else if month < policy.month {
+            policy.additional_months.insert(policy.month);
+            policy.month = month;
+        } else if month > policy.month {
+            policy.additional_months.insert(month);
+        }
+    }
+    if !w
+        .scheduled_starts
+        .iter()
+        .any(|a| a.agent == agent && a.month == month && a.definition == definition)
+    {
+        w.scheduled_starts.push(ScheduledStart {
+            month,
+            agent,
+            definition,
+        });
     }
     Ok(())
 }

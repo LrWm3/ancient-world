@@ -14,3 +14,11 @@ activity is not a financial claim or counterparty consent.
    the memory window (1–24 months). It excludes the observing actor, unfinished or
    failed latest work, unpublished starts and longer processes. The interval is
    observed rather than assumed monthly. This step adds observations only.
+
+2. **Isolated future attempts.** Real issuance and hypotheses share dated-start
+   plumbing. Applying evidence is allowed only with frozen controllers at a future
+   Open, at the observed cadence and before expiry. Existing starts are retained
+   without duplication. Current authority, enabled recipes, process permission and
+   an unmet own output-reserve goal are necessary; normal execution still decides
+   resource availability. Hypotheses add no decisions, cash or claims. Tests cover
+   isolation, deduplication, satisfied goals and expiry.
