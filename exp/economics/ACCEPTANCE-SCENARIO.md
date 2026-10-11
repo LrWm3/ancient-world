@@ -69,3 +69,34 @@ month. This is an operating mandate and real treasury, asset and output accounti
 not a municipality with implemented founding, elections or autonomous spending.
 Retained fuel is not yet distributed public benefit, and annual rent does not cover
 recurring payroll. Neither this treasury nor the workshop receives synthetic labor.
+
+## Pass 4 — paid people must also eat
+
+The smith and existing mint worker each require one wheat per month, start with
+one wheat, and retain their own accounts. The smith starts with one coin; employment
+income arrives through normal wage settlement. Wheat quotes use three-unit lots at
+three coins. Public sales and explicitly authorized household/grower surplus asks
+share the existing mint venue. The grower retains two private wheat; household
+membership does not authorize sale of private inventory. Sale/claim protection
+uses one month. Quote limits and stock targets are supplied, not ZIP learning.
+
+Calibration is explicit: the broad fixture uses six wheat and two seed per harvest,
+four hours, and a private grain work target of twelve. The original integrated
+fixture remains unchanged. `TightFood` changes only the broad fixture's wheat yield
+to four; `NoSalesTarget` removes only its commercial work target. Neither the work
+target nor the quotes are autonomously discovered business plans.
+
+The diagnostic run found that increasing yield alone did not feed the smith.
+Storage blocked repeated harvests, and private wheat was not on the market. Adding
+a protected private ask reduces the full-run food deficit to five (four for the
+smith) and creates four household food sales and three smith purchases. This is
+still a **failed full-nutrition gate**, not sustainable autonomous coordination.
+Each sale/purchase count is a completed whole-lot deal, not a wheat-unit count.
+The two-wheat forward delivers by month four, the state loan is actually accepted
+and repaid, and annual rent is paid. Missing loans report `None`, not zero debt.
+
+The household and grower feed different buyers: aggregate household sales do not
+prove household-to-smith exchange. The test checks a committed private-seller route
+to the smith explicitly. Crop accounting retains the inherited 4:2 wheat/seed cost
+weights as a supplied carrying-cost policy; those weights are not output quantities
+or market valuations for the calibrated 6:2 recipe.

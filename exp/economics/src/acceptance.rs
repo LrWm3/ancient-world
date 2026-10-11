@@ -6,9 +6,11 @@ use crate::{
     employment,
     financial_reporting::Audit,
     marketplace::Side,
-    minting::{COIN, FIREWOOD, HOURS, ISSUER, METAL, MINT, NUTRITION, ORE, REFINE, SUPPLIER},
+    minting::{
+        COIN, FIREWOOD, HOURS, ISSUER, METAL, MINT, NUTRITION, ORE, REFINE, SUPPLIER, WHEAT, WORKER,
+    },
     model::*,
-    opportunities::{Action, AgentType, PERSON_TYPE},
+    opportunities::{Action, AgentType, HOUSEHOLD_TYPE, PERSON_TYPE},
     simulation::Simulation,
 };
 
@@ -34,11 +36,61 @@ const MUNICIPAL_HOURS: i32 = 1;
 const MUNICIPAL_OUTPUT: i32 = 1;
 const MUNICIPAL_STOCK_TARGET: i32 = 14;
 const TOWN_STORAGE: i32 = 32;
+const FOOD_PER_MONTH: i32 = 1;
+const OPENING_WORKER_FOOD: i32 = 1;
+const OPENING_SMITH_COINS: i32 = 1;
+const FOOD_QUOTE_TARGET: i32 = 3;
+const FOOD_LOT_PRICE: i32 = 3;
+const SALE_PROTECTION_MONTHS: u32 = 1;
+const ACCEPTANCE_HARVEST_WHEAT: i32 = 6;
+const TIGHT_HARVEST_WHEAT: i32 = 4;
+const ACCEPTANCE_HARVEST_HOURS: i32 = 4;
+const COMMERCIAL_GRAIN_TARGET: i32 = 12;
+const PRIVATE_FOOD_RESERVE: i32 = 2;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Case {
+    Baseline,
+    TightFood,
+    NoSalesTarget,
+}
 
 pub fn scenario() -> Result<(World, State), String> {
+    scenario_for(Case::Baseline)
+}
+
+pub fn scenario_for(case: Case) -> Result<(World, State), String> {
     let (mut w, mut s) = integration::commitment_scenario()?;
     workshop(&mut w, &mut s);
     municipality(&mut w, &mut s);
+    worker_consumption(&mut w, &mut s);
+    w.definitions
+        .iter_mut()
+        .find(|d| d.id == integration::GROW)
+        .unwrap()
+        .outputs
+        .iter_mut()
+        .find(|a| a.resource == WHEAT)
+        .unwrap()
+        .quantity = match case {
+        Case::Baseline | Case::NoSalesTarget => ACCEPTANCE_HARVEST_WHEAT,
+        Case::TightFood => TIGHT_HARVEST_WHEAT,
+    };
+    let crop = w
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == integration::GROW)
+        .unwrap();
+    crop.name = "market-oriented plot work".into();
+    crop.stages[0].monthly_services[0].quantity = ACCEPTANCE_HARVEST_HOURS;
+    if case != Case::NoSalesTarget {
+        w.activities.orders.push(WorkOrder {
+            agent: integration::GROWER,
+            definition: integration::GROW,
+            priority: 0,
+            target: Target::Stock(Amount::new(WHEAT, COMMERCIAL_GRAIN_TARGET)),
+        });
+    }
     Ok((w, s))
 }
 
@@ -187,6 +239,69 @@ fn municipality(w: &mut World, s: &mut State) {
     });
 }
 
+fn worker_consumption(w: &mut World, s: &mut State) {
+    for id in [SMITH, WORKER] {
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == id)
+            .unwrap()
+            .needs = vec![Requirement {
+            resource: NUTRITION,
+            quantity: FOOD_PER_MONTH,
+            priority: 0,
+        }];
+        s.balances.insert((id, WHEAT), OPENING_WORKER_FOOD);
+    }
+    s.balances.insert((SMITH, COIN), OPENING_SMITH_COINS);
+    w.marketplaces[0].allowed_types.insert(HOUSEHOLD_TYPE);
+    let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+    p.private_sales = Some(SALE_PROTECTION_MONTHS);
+    p.public_sale = Some(crate::minting::orders::StockSales {
+        reserve: 0,
+        claim_months: SALE_PROTECTION_MONTHS,
+    });
+    p.quotes.extend([
+        crate::minting::orders::Quote {
+            agent: integration::GROWER,
+            market: WHEAT,
+            side: Side::Sell,
+            limit: FOOD_LOT_PRICE,
+            holding: PRIVATE_FOOD_RESERVE,
+            max_lots: None,
+        },
+        crate::minting::orders::Quote {
+            agent: SMITH,
+            market: WHEAT,
+            side: Side::Buy,
+            limit: FOOD_LOT_PRICE,
+            holding: FOOD_QUOTE_TARGET,
+            max_lots: None,
+        },
+        crate::minting::orders::Quote {
+            agent: integration::HOUSEHOLD,
+            market: WHEAT,
+            side: Side::Sell,
+            limit: FOOD_LOT_PRICE,
+            holding: 0,
+            max_lots: None,
+        },
+    ]);
+}
+
+/// Only deals whose entire package actually committed count as exchange evidence.
+pub fn accepted_deals(sim: &Simulation) -> impl Iterator<Item = &crate::minting::Deal> {
+    sim.ledger
+        .iter()
+        .filter_map(|b| b.minting.as_ref())
+        .flat_map(|b| {
+            b.deals.iter().filter(|d| {
+                b.receipts
+                    .iter()
+                    .any(|r| r.accepted && r.deals.contains(&d.id))
+            })
+        })
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Evidence {
     pub months: u32,
@@ -201,6 +316,13 @@ pub struct Evidence {
     pub municipal_batches: usize,
     pub municipal_wages_paid: i32,
     pub municipal_cash: i32,
+    pub smith_food_deficit: i32,
+    pub household_food_sales: usize,
+    pub smith_food_purchases: usize,
+    pub workshop_metal_sales: usize,
+    pub household_on_time_delivery: i32,
+    pub state_loan_outstanding: Option<i32>,
+    pub state_loan_repaid: bool,
 }
 
 pub struct Run {
@@ -295,6 +417,41 @@ impl Run {
                 .map(|(_, e)| e.claim.settled)
                 .sum(),
             municipal_cash: sim.state.balance(TOWN, COIN),
+            smith_food_deficit: sim
+                .reports
+                .iter()
+                .filter(|r| r.agent == SMITH)
+                .map(|r| r.deficit(NUTRITION))
+                .sum(),
+            household_food_sales: accepted_deals(sim)
+                .filter(|d| d.seller == integration::HOUSEHOLD && d.market == WHEAT)
+                .count(),
+            smith_food_purchases: accepted_deals(sim)
+                .filter(|d| d.buyer == SMITH && d.market == WHEAT)
+                .count(),
+            workshop_metal_sales: accepted_deals(sim)
+                .filter(|d| d.seller == WORKSHOP && d.buyer == ISSUER && d.market == METAL)
+                .count(),
+            household_on_time_delivery: sim
+                .ledger
+                .iter()
+                .filter(|b| b.month <= 4)
+                .flat_map(|b| &b.transactions)
+                .filter_map(|t| match t.forward {
+                    Some(crate::forward::Event::Delivery {
+                        contract: 20,
+                        quantity,
+                    }) => Some(quantity),
+                    _ => None,
+                })
+                .sum(),
+            state_loan_repaid: sim
+                .state
+                .credit
+                .loans
+                .get(&10)
+                .is_some_and(|l| l.status == crate::credit::Status::Repaid),
+            state_loan_outstanding: sim.state.credit.loans.get(&10).map(|l| l.principal),
             workshop_batches: sim
                 .state
                 .processes
