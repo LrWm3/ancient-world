@@ -117,7 +117,13 @@ pub fn validate(w: &World, s: &State) -> Result<(), String> {
         || c.receipts.iter().any(|r| r.month == 0 || r.month > s.month)
         || w.participants.len() > MAX_PARTICIPANTS
         || w.competition.is_some()
-        || !w.employment.is_empty()
+        // Optional posted hires compose first; land-aware previews and general
+        // preaccepted staffing need explicit commitment adapters.
+        || (!w.employment.is_empty()
+            && (c.land.is_some()
+                || w.employment
+                    .iter()
+                    .any(|t| !w.employment_offers.contains(&t.id))))
         || w.priority == Priority::ConsequenceAware
         || c.land.as_ref().is_some_and(|l| {
             l.duration <= crate::commitments::MONTHS_PER_YEAR || l.annual_payment.quantity <= 0

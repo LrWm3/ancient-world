@@ -1060,3 +1060,86 @@ fn hiring_preview_includes_collective_input_allocation_before_work_feasibility()
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn bounded_discovery_composes_with_posted_hiring_without_discovered_land() {
+    for case in [
+        "useful",
+        "no work",
+        "no money",
+        "no capacity",
+        "expensive",
+        "disabled",
+    ] {
+        let (mut w, mut s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        let mut c = economics_compute_smoke::discovery::scenario::circulation()
+            .unwrap()
+            .0
+            .discovery
+            .unwrap();
+        c.state = None;
+        c.enabled = case != "disabled";
+        w.discovery = Some(c);
+        match case {
+            "no work" => w.activities.orders.clear(),
+            "no money" => {
+                s.balances.insert((HOME, TOKEN), 0);
+            }
+            "no capacity" => {
+                w.participants
+                    .iter_mut()
+                    .find(|p| p.agent == WORKER)
+                    .unwrap()
+                    .capacity
+                    .quantity = 0
+            }
+            "expensive" => w.employment[0].wage_per_unit.quantity = 3,
+            _ => {}
+        }
+        let run = |backend| {
+            let mut a = audit(&w, &s);
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            while sim.state.month == 1 {
+                a.step(&mut sim).unwrap();
+                if matches!(backend, Backend::CubeCpu) {
+                    let mut resumed =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    resumed.ledger = sim.ledger;
+                    resumed.reports = sim.reports;
+                    sim = resumed;
+                }
+            }
+            let expected = if ["useful", "disabled"].contains(&case) {
+                2
+            } else {
+                0
+            };
+            assert_eq!(sim.state.balance(WORKER, TOKEN), expected, "{case}");
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .values()
+                    .map(|e| e.delivered)
+                    .sum::<i32>(),
+                expected
+            );
+            assert!(
+                sim.state
+                    .employment
+                    .earned
+                    .values()
+                    .all(|e| e.claim.outstanding() == 0)
+            );
+            assert_eq!(
+                sim.state
+                    .balance(HOME, economics_compute_smoke::scenario::GRAIN),
+                expected
+            );
+            (sim.world, sim.state, sim.ledger, sim.reports, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
