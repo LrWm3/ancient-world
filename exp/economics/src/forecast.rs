@@ -19,6 +19,18 @@ impl ForecastContext {
             c.enabled = false;
         }
         crate::state_governance::preserve_history(&mut world, state);
+        // Rollouts execute accepted history, not old explanations of alternatives.
+        // Keep commands, catalogs, authority, dates and scalar scores intact.
+        // Trimming this private copy prevents repeated phase clones from copying
+        // every previous monthly path; the live world's evidence remains intact.
+        for controller in world.agency.values_mut() {
+            for decision in &mut controller.history {
+                for alternative in &mut decision.alternatives {
+                    alternative.projection = None;
+                }
+            }
+            controller.forward_reviews.clear();
+        }
         // After Open, the current own endowment is observed independently of
         // unspent or purchased hours. Household shares still need that input.
         // Future overrides (and unopened current ones) remain fixture events.
