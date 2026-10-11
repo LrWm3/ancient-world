@@ -161,9 +161,12 @@ one-unit prepaid deliveries. It is not underwriting for arbitrary projects,
 mortgages, employment or recovery deals. Price limits and unit valuations are rules,
 not ZIP discovery. Quote generation uses the existing mint venue's listings and
 person counterparties; it is not universal asset, rights or membership trading.
-The adapter excludes employment contracts and competing composition planners rather
-than promising their claims the same capacity. Other driver combinations need their
-own integration controls.
+The adapter now composes with supplied posted household jobs when land discovery
+is disabled; [optional worker assessment](HOUSEHOLD-HIRING-OFFERS.md) can protect
+needs, active work and scoped commitments before hours are sold. Preaccepted
+employment, discovered land with hiring and competing composition planners remain
+excluded. Jobs and wage terms are not discovered. Other driver combinations need
+their own integration controls.
 
 Private projections freeze future offer generation, formation and peer organization
 policy decisions, while retaining published offers and ordinary acceptance/work.

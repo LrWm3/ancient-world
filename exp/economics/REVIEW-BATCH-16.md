@@ -30,7 +30,7 @@ handoff before optional employment can safely compose with them.
 
 ## 3. Optional worker-side opportunity-cost protection
 
-Added a per-person, opt-in bounded assessment for posted jobs, sharing the real
+Added a per-participant, opt-in bounded assessment for posted jobs, sharing the real
 post-Acquire preview with the employer. It protects survival, needs and failed
 processes without hypothetical wage purchases. Both sides must approve the exact
 final hours, including after discrete trimming. Supplied consent and preaccepted
@@ -171,3 +171,20 @@ Run `python3 scripts/check_repository_artifacts.py` from the repository root.
 Raw local logs remain under ignored `output/batch16-*.log`. Cargo reported an
 unrelated cache-cleanup permission warning; all commands completed successfully.
 These checks verify CPU/reference behavior, not CUDA or general economic viability.
+
+
+## 16. Consolidate current status and remaining boundaries
+
+Updated README, goals, the integration matrix, discovery limits and household
+hiring documentation to match this batch. Removed stale blanket employment
+exclusions, distinguished optional assessment from default supplied consent, and
+linked the verified comparisons. Independent documentation review corrected the
+interruption wording: hiring resumes briefly but is not sustained.
+
+All sixteen iterations are complete, with one commit per iteration. The next
+boundaries are discovered-land reservation handoff, autonomous job posting/terms,
+broader obligation performance objectives and sustainable recovery after income
+interruptions. The original forty-month discovered-income gap remains unresolved.
+Supplied terms, static constitutional/charter choices and the deferral of person
+self-directed policy changes remain explicit. This batch does not mark the broader
+roadmap complete or change the historical bounded v1 release.

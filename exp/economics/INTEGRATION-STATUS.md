@@ -41,8 +41,9 @@ Its Open discovery and Acquire joint admission reuse these execution boundaries.
 A 14-month CPU/reference run and a 40-month renewal control exercise the resulting
 agreements. A surplus control discovers and delivers forwards. Term/valuation rules,
 legal and constitutional templates, objectives and physical endowments remain
-supplied. This adapter excludes employment and competing composition planners;
-other driver combinations are not implied by this coverage.
+supplied. Posted household hiring can compose when land discovery is disabled;
+preaccepted employment, discovered land with hiring and competing composition
+planners remain excluded. Other driver combinations are not implied by this coverage.
 
 [Discovered supply](DISCOVERED-SUPPLY.md) now evaluates cumulative outgoing
 portfolios against private/member needs and active work, with explicit order
@@ -87,7 +88,7 @@ prove that every combination of those systems works together.
 | Composition + conditional reciprocal spot offers | Public intentions, independent private-score consent, exact two-delivery atomic clearing, ordinary accounting and fresh work reservations | Two people/listings and monthly review; stable single proposer; extra searches; future renewal assumed, not contracted. More trade does not establish survival; dated deliveries are a separate adapter below |
 | Composition + dated delivery agreements | Independent consent and own-work search; shared dated execution, cancel-remainder consequence, persistent common exchange views; matched 24-month survival, CPU/checkpoint/separate-book controls | Two people/listings, one fixed six-month menu, monthly review, conditional peer-performance forecasts and extra searches; no residual spot clearing, general schedule optimization or finance composition; ongoing terms remain at the cutoff |
 | Experimental plan continuation | Isolated crop/household scopes compare monthly search, retain/repair and horizon reviews; fresh dated work, observation-triggered reconsideration, CPU/reference/accounting and cloned checkpoint checks | All household participants must consent. Exact full-context deviation detection; retained market plans, optimized local repair and durable controller serialization remain absent; monthly active exchange is covered separately above |
-| Household + employment | External member wages, household/member employers, budgeted acceptance of useful posted labor, costed hour allocation, wage support and arrears | No internal household employment or general negotiated wage matching |
+| Household + employment | External member wages, household/member employers, budgeted useful posted labor, optional worker protection of member needs/active work/forward deadlines/loan arrears, costed hours, wage support and arrears | Supplied terms, bounded forecasts; no internal household employment, discovered-land/hiring handoff or general negotiated wage matching |
 | Environmental collection + finance | Direct loans, forwards, household labor/hiring, native guarantees, financed purchases and coin recovery have mixed controls | Specialized mortgage stock-sale planning is outside this collection adapter |
 | Physical minting + finance | Finite coin/input/hour reservations compose with loans, prepayments, dues, employment, households and authorized recovery; optional state controller chooses additional mint attempts toward a reserve | Quotes and mint recipes remain supplied; autonomous loan/forward underwriting and general fiscal optimization remain open |
 | Due claims + creditor allocation | Ranked or opt-in proportional loan/land allocation, accepted coin tender, whole conversion lots and single-resource indivisible claims | Forward collection retains Acquire timing; joint multi-resource minima and further tender routes remain open |
@@ -172,6 +173,25 @@ legacy guards remain intentional:
 Removing these guards is not integration. A mixed regression must first preserve
 shared labor, storage, opening money, rights, dated commitments and separate books.
 
+## Optional household hiring and worker protection
+
+The [sixteen-iteration review](REVIEW-BATCH-16.md) adds discovery composition with
+posted household jobs when discovered land is disabled. Shared post-Acquire staging
+makes validated membership/access and prior hires visible to productive forecasts;
+opening permissions still govern employment. Existing dated plans remain binding.
+
+An optional participant policy compares keeping versus selling hours, protecting
+current household members, process completion, accepted delivery deadlines and
+per-loan worst arrears. Employer and worker must approve the exact same quantity.
+Defaults and preaccepted jobs are unchanged; terms remain supplied. Competing
+employers share actual remaining hours under explicit rank priority.
+
+Eight-month audited CPU/reference controls retain normal wage/food circulation and
+avoid the worker's interruption-induced shortage, but do not restore sustained hiring.
+Discovered-land reservations, autonomous job posting/pricing and broader duty
+coverage remain open. This does not resolve the original forty-month discovered
+income gap. Full configuration and limits: [household hiring](HOUSEHOLD-HIRING-OFFERS.md).
+
 ## Standardized planning contracts
 
 `ForecastContext` remains the shared observation constructor. `forecast::needs`
@@ -218,6 +238,7 @@ and outstanding valuation/coverage work.
 
 | Recorded boundary | Result | Scope |
 | --- | --- | --- |
+| Sixteen-iteration follow-up `cad8448` | 1,243 passed, zero failed, one ignored; annual population test passed explicitly | Full release suite, strict all-target release Clippy, format and artifact gates; [review record](REVIEW-BATCH-16.md) |
 | V1 candidate `a1b99fa` | 1,033 passed, zero failed, one ignored; ignored population test passed explicitly | Six release families, full suite, strict Clippy, format and artifact gates; [results](V1-RESULTS.md) |
 | Full crate snapshot `30870e5`, batch 89 through item 84 | 1,023 passed, zero failed, one ignored | 123 Cargo result targets, including empty unit/doc targets |
 | Items 85–88 | Separate affected-suite gates passed | Tests/documentation added after that snapshot; details in the batch record |

@@ -38,7 +38,7 @@ of future sales or solvency. Execution rechecks its real Productive boundary.
 
 Accepted work uses the existing capacity transfer, payroll, arrears, pooling,
 service-cost and financial-statement paths. Rejections and trimmed offers are
-visible in employment receipts (`NoUsefulWork`, `UsefulWorkLimit`, or the existing
+visible in employment receipts (`NoUsefulWork`, `UsefulWorkLimit`, `WorkerProtection`, or the existing
 budget/permission/unavailability reasons). No second wage or accounting book exists.
 
 ## Evidence and limits
@@ -53,7 +53,8 @@ The adapter supports plain or town acquisition, direct loans, direct
 prepaid deliveries and physical minting. Mint input packages reserve worker hours
 before optional household hiring; an unfunded package leaves those hours available. It does not add ZIP wage negotiation, universal labor-market
 participation, multi-month staffing optimization or internal member employment.
-Worker consent and offered terms are supplied; household acceptance is agentic.
+Offered terms remain supplied. Worker consent is supplied by default; the opt-in
+assessment below can restrict hours. Household acceptance is agentic.
 Person self-directed policy changes remain deferred.
 
 Integration follow-up also checks prepayment at month one, affordable hiring at
@@ -69,7 +70,7 @@ liquidity is finite; this does not establish indefinite economic sustainability.
 participant. For that participant's posted jobs, acceptance must also preserve projected
 survival, need satisfaction and process completion for the worker and current
 household members. Keeping the hours is compared with consuming them; hypothetical
-wages and employer outputs are not credited. The search considers at most 64 whole
+wages and employer outputs are not credited. The approved quantity is capped at 64 whole
 hours. Each final quantity must pass both worker and employer comparisons. This is
 conservative opportunity-cost protection, not wage bargaining or a claim that the
 best-paid job is selected. Accepted forward deliveries and loan arrears are also compared in their own units.
@@ -83,3 +84,26 @@ still govern employment. A binding dated production plan prevents optional hirin
 this slice does not amend committed plans. Discovery can compose with posted hires
 when discovered land is disabled. Land's prerequisite reservations still need a
 handoff before that restriction can be lifted.
+
+## Repeated circulation and remaining work
+
+The [sixteen-iteration review](REVIEW-BATCH-16.md) checks competing employers,
+other household members, active processes, accepted delivery deadlines and loan
+arrears, with CPU/reference and continuation controls. Planning observers expose
+`worker_supply` comparisons without rerunning the forecast; final delivered hours
+remain distinct from an assessment's approved quantity.
+
+In its eight-month town-market comparison, both worker policies sustain 16 coins
+of paid wages and 14 grain of sales with no food deficit. Closing the market in
+month three causes a two-unit deficit under supplied consent; protected workers
+retain hours for food and avoid it. Both interrupted cases still end with no
+employer cash or sustained later hiring. This control has a preformed household,
+supplied jobs, fixed prices and a two-grain opening food buffer. It does not resolve
+the [forty-month discovered-income shortfall](PRIVATE-CIRCULATION.md).
+
+Next integration boundaries are explicit discovered-land reservation handoff,
+autonomous job posting/terms, and broader obligation performance coverage (including
+land dues, wages and guarantees). Current objectives compare cumulative needs and
+worst recorded loan arrears within a bounded horizon; they do not prove that every
+future need or payment will be met. Person self-directed policy changes remain
+deferred.

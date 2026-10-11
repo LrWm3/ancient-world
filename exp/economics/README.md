@@ -105,6 +105,11 @@ accounting test passed separately, as did strict Clippy, formatting and artifact
 checks. Its forty-month private-food comparison exposes a remaining worker-income
 constraint despite successful lease renewal, dues and loan repayment.
 
+The [sixteen-iteration follow-up](REVIEW-BATCH-16.md) verifies code/test revision
+`cad8448`: **1,243 passed, zero failed, one ignored**, with the annual accounting
+test passed separately. Strict all-target release Clippy, formatting and artifact
+checks pass. These follow-up results do not replace the historical v1 release scope.
+
 The opt-in [self-starting economy](ENDOGENOUS-DISCOVERY.md) now removes initial
 citizenships, household/land/finance agreements, counterparty quotes and operational
 program menus in a bounded three-person control. It discovers a household and
@@ -140,6 +145,17 @@ measures actual peer sales under scarce public stocks. This remains one configur
 food listing with explicit household admission and supplied price limits; sustained
 worker income in this control, broader market discovery and voluntary land benefit
 comparisons remain open.
+
+The [sixteen-iteration hiring follow-up](REVIEW-BATCH-16.md) adds optional worker
+assessment alongside household acceptance of supplied jobs. The same final hours
+must satisfy both parties; worker comparisons protect household needs, active work,
+accepted forward deadlines and loan arrears. External planning observers expose
+the decisions. Discovery can compose with posted hiring when land discovery is
+disabled. In an eight-month town-market control, protection retains normal wages
+and food sales and avoids a shortage during a temporary closure, but does not
+restore sustained hiring afterward. Autonomous job terms, discovered-land/hiring
+composition and the forty-month income gap remain open. See
+[the hiring contract and limits](HOUSEHOLD-HIRING-OFFERS.md).
 
 ## Purpose and existing scenarios
 

@@ -9,7 +9,7 @@ that release is done. The ambitions below remain broader than v1.
 
 ## Current position
 
-The [README progress summary](README.md#current-progress--2026-10-01) separates
+The [README progress summary](README.md#current-progress--2026-10-10) separates
 implemented behavior from these longer-term goals. The initial bounded
 person–household loop is complete. Later household/finance composition is recorded
 in [Fibonacci integration](FIBONACCI-INTEGRATION.md), through completed batch 89.
@@ -40,6 +40,16 @@ and cancellation while each person independently selects work. Both survive its
 24-month controls; contract-menu search and calibrated counterparty performance
 remain open. Multi-household and financial composition remain outside this adapter.
 This does not change the verified v1 scope.
+
+The [sixteen-iteration hiring follow-up](REVIEW-BATCH-16.md) connects posted
+household jobs to discovery with land discovery disabled and adds opt-in worker
+opportunity-cost protection. Employer and worker must approve the same hours;
+worker forecasts include current household members, ongoing work, accepted forward
+deadlines and loan arrears. A matched eight-month town-market control preserves
+normal wage/food circulation and avoids an interruption-induced food shortage.
+It does not restore sustained later hiring or solve the longer discovered-income
+gap. Job creation, negotiated wages, discovered-land reservation handoff and broader
+obligation coverage remain goals; terms are still supplied and defaults unchanged.
 
 ## Purpose and consistency
 
