@@ -142,3 +142,14 @@ Independent review requested adjacent-month order checks. All twenty-five
 reproduction tests pass, including audited CPU/reference/replay comparisons on
 identical opening claims, alternate months, stocked children and full child
 storage. These tests show who receives scarce food, not a survival advantage.
+
+## 12. Validate household adulthood at the agreement date
+
+Founding and accession history now compare each registered person's maturity date
+to the historical agreement date. Becoming an adult later cannot legitimize a
+backdated childhood signature. Exact-maturity Open admission remains possible.
+
+Independent review passed after correcting the fixture's storage budget. The
+focused audited CPU/reference test rejects immature admission and missing consent
+atomically, accepts unanimous maturity-boundary accession, rejects forged founding
+and join history, and preserves financial/state results through continuation.

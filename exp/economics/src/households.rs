@@ -253,6 +253,13 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || !agents.insert(a.agent)
             || a.adults.is_empty()
             || a.adults.len() > FOUNDING_ADULT_LIMIT
+            || a.adults.iter().any(|id| {
+                state
+                    .demography
+                    .births
+                    .get(id)
+                    .is_some_and(|b| b.adult_at > a.formed)
+            })
             || a.formed == 0
             || a.formed > state.month
             || !world.agents.iter().any(|x| x.id == a.agent)

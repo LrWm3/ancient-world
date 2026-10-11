@@ -187,6 +187,11 @@ pub(super) fn validate(world: &World, state: &State) -> Result<(), String> {
                     if winding.is_some()
                         || expected.is_empty()
                         || roster.contains(person)
+                        || state
+                            .demography
+                            .births
+                            .get(person)
+                            .is_some_and(|b| b.adult_at > c.month)
                         || !living(person)
                         || !world.participants.iter().any(|p| p.agent == *person)
                     {

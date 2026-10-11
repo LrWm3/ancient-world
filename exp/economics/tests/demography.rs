@@ -1412,3 +1412,83 @@ fn scarce_parental_support_uses_explicit_dated_priority() {
         );
     }
 }
+
+#[test]
+fn household_accession_requires_adulthood_at_the_recorded_date() {
+    use economics_compute_smoke::households::{self, membership};
+    let run = |backend| {
+        let (mut w, s) = family_household(true, 4);
+        w.demography.as_mut().unwrap().maturity_months = 2;
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month < 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let unchanged = sim.world.clone();
+        assert!(
+            membership::join(
+                &mut sim.world,
+                &sim.state,
+                10000,
+                FIRST_CHILD,
+                vec![PERSON, FIRST_CHILD]
+            )
+            .is_err()
+        );
+        assert_eq!(sim.world, unchanged);
+        assert_eq!(
+            households::parent(&sim.world, &sim.state, FIRST_CHILD),
+            None
+        );
+        while sim.state.month < 3 {
+            a.step(&mut sim).unwrap();
+        }
+        let unchanged = sim.world.clone();
+        assert!(
+            membership::join(&mut sim.world, &sim.state, 10000, FIRST_CHILD, vec![PERSON]).is_err()
+        );
+        assert_eq!(sim.world, unchanged);
+        membership::join(
+            &mut sim.world,
+            &sim.state,
+            10000,
+            FIRST_CHILD,
+            vec![PERSON, FIRST_CHILD],
+        )
+        .unwrap();
+        assert!(!sim.state.demography.matured.contains(&FIRST_CHILD));
+        while sim.state.month < 4 {
+            a.step(&mut sim).unwrap();
+        }
+        assert!(sim.state.demography.matured.contains(&FIRST_CHILD));
+        assert_eq!(
+            households::parent(&sim.world, &sim.state, FIRST_CHILD),
+            Some(10000)
+        );
+        let mut forged = sim.world.clone();
+        let change = &mut forged.households[0].membership[0];
+        change.month = 2;
+        if let membership::Action::Join { admission, .. } = &mut change.action {
+            admission.month = 2;
+        }
+        assert!(Simulation::new(forged, sim.state.clone(), backend).is_err());
+        let mut forged = sim.world.clone();
+        forged.households[0].membership.clear();
+        forged.households[0].adults.push(FIRST_CHILD);
+        let admission = forged.households[0].admission.as_mut().unwrap();
+        admission
+            .founders
+            .push((FIRST_CHILD, admission.founders[0].1.clone()));
+        assert!(Simulation::new(forged, sim.state.clone(), backend).is_err());
+        let mut resumed = Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        let mut resumed_a = a.clone();
+        while sim.state.month < 5 {
+            a.step(&mut sim).unwrap();
+            resumed_a.step(&mut resumed).unwrap();
+        }
+        assert_eq!(sim.state, resumed.state);
+        assert_eq!(a, resumed_a);
+        (sim.world, sim.state, sim.ledger, sim.reports, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
