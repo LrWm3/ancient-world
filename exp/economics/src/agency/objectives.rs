@@ -17,6 +17,12 @@ pub enum Metric {
         resource: ResourceId,
         target: i32,
     },
+    /// Sum of each completed month's stock shortfall, in resource-unit months.
+    /// Instantaneous observations return one boundary's shortfall.
+    ReserveExposure {
+        resource: ResourceId,
+        target: i32,
+    },
     Debt(ResourceId),
     /// Same-denomination accepted claims lacking stock cover; forecasts are not assets.
     FundingGap {
@@ -40,7 +46,7 @@ pub fn validate(w: &World, objectives: &[Objective]) -> Result<(), String> {
         }
         let resource = match o.metric {
             Metric::NeedDeficit(r) => Some((r, ResourceKind::Fulfillment)),
-            Metric::Reserve { resource, target } => {
+            Metric::Reserve { resource, target } | Metric::ReserveExposure { resource, target } => {
                 if target < 0 {
                     return Err("negative reserve target".into());
                 }
@@ -158,7 +164,8 @@ pub fn measure(
                     .values()
                     .filter(|p| scope.contains(&p.operator) && p.status == Status::Aborted)
                     .count() as i128,
-                Metric::Reserve { resource, target } => scope
+                Metric::Reserve { resource, target }
+                | Metric::ReserveExposure { resource, target } => scope
                     .iter()
                     .map(|id| i128::from((target - s.balance(*id, resource)).max(0)))
                     .sum(),
@@ -184,4 +191,40 @@ pub fn measure(
             })
         })
         .collect()
+}
+
+/// Existing metrics retain terminal semantics. Only explicitly chosen exposure
+/// goals integrate completed-month samples; unlike resources remain separate.
+pub fn measure_projection(
+    w: &World,
+    s: &State,
+    reports: &[MonthReport],
+    organization: AgentId,
+    objectives: &[Objective],
+    path: &super::path::Path,
+) -> Result<Vec<i128>, String> {
+    let mut losses = measure(w, s, reports, organization, objectives)?;
+    for (i, o) in objectives.iter().enumerate() {
+        if let Metric::ReserveExposure { resource, target } = o.metric {
+            let scope = match &o.scope {
+                Scope::Organization => [organization].into(),
+                Scope::Agents(ids) => ids.clone(),
+                Scope::Members => return Err("projection beneficiaries must be frozen".into()),
+            };
+            if path.closes.is_empty() || path.closes.last().is_none_or(|c| c.month + 1 != s.month) {
+                return Err("exposure goal requires completed projection months".into());
+            }
+            losses[i] = path
+                .closes
+                .iter()
+                .map(|c| {
+                    scope
+                        .iter()
+                        .map(|a| (i128::from(target) - i128::from(c.balance(*a, resource))).max(0))
+                        .sum::<i128>()
+                })
+                .sum();
+        }
+    }
+    Ok(losses)
 }

@@ -11,6 +11,7 @@ pub mod integration;
 pub mod markets;
 pub mod objectives;
 pub mod organization;
+pub mod path;
 pub mod publication;
 pub mod scenario;
 use objectives::{Objective, measure};
@@ -107,6 +108,7 @@ pub struct ProjectedSale {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Projection {
+    pub path: path::Path,
     /// Settled sales in this private branch, never receipts promised to live agents.
     pub sales: Vec<ProjectedSale>,
     pub closing_stocks: BTreeMap<ResourceId, i32>,
@@ -523,12 +525,16 @@ fn forecast(
             .ok_or("forecast month overflow")?;
         let mut starts = vec![];
         let mut peer_ballots = vec![];
+        let mut path = path::Path::new(s.month);
         while sim.state.month < end {
             if sim.state.phase == Phase::Open {
                 peer_ballots.extend(peers.apply_ballots(&mut sim.world, &sim.state)?);
                 starts.extend(peers.apply_hypotheses(&mut sim.world, &sim.state)?);
             }
             sim.step()?;
+            if sim.state.phase == Phase::Open {
+                path.record(&sim.world, &sim.state)?;
+            }
         }
         let mut sales = vec![];
         if let Some(mint) = &sim.world.minting {
@@ -560,6 +566,7 @@ fn forecast(
             }
         }
         let projection = Projection {
+            path,
             sales,
             peer_ballots,
             closing_stocks: sim
@@ -585,24 +592,26 @@ fn forecast(
                 .collect(),
         };
         Ok((
-            measure(
+            objectives::measure_projection(
                 &sim.world,
                 &sim.state,
                 &sim.reports,
                 agent,
                 &objectives::freeze(w, s, agent, &c.objectives),
+                &projection.path,
             )?,
             c.preferences
                 .iter()
                 .map(|(&p, objectives)| {
                     Ok((
                         p,
-                        measure(
+                        objectives::measure_projection(
                             &sim.world,
                             &sim.state,
                             &sim.reports,
                             agent,
                             &objectives::freeze(w, s, agent, objectives),
+                            &projection.path,
                         )?,
                     ))
                 })
