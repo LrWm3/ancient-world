@@ -78,3 +78,12 @@ controller continues to retain its plan on equal forecasts.
    later productive choices and leadership rotation still satisfy the unchanged
    governed-readiness check. This is in-memory reconstruction, not a new durable
    checkpoint format, and tests three complete post-startup operating years.
+
+9. **Buyer and economic failure controls.** Eight controls compare complete CPU
+   and reference world/state/ledger/accounting/readiness results: absent, satisfied
+   or non-crossing issuer demand; unavailable ore production, replacement orders
+   or metal-market access; inadequate sale margin; and late payroll. All fail
+   readiness as intended. The three demand controls generate no hypothetical peer
+   work or late issuer purchases. The payroll control recovers to zero arrears and
+   zero food deficit, but still fails because wages entered arrears; later recovery
+   does not erase the historical failure.
