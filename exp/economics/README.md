@@ -132,6 +132,14 @@ diagnostic payloads while retaining commitments and live history; CPU/reference
 and replay controls cover successful and failing preference variants.
 Run `cargo +1.92.0 run --locked --release --example liquidity_preferences -- metal exposure terminal`.
 
+The [input-buffer follow-up](INPUT-BUFFER-PREFERENCES.md) adds dated process
+completion evidence to ordinary and bilateral forecasts, and compares a one-recipe
+input buffer before or after cash goals. Input-first scoring improves one fixed
+replenishment comparison but harms startup when applied from founding; it remains
+an opt-in experiment. Resource, permission and finance controls retain the ordinary
+execution and readiness checks.
+Run `cargo +1.92.0 run --locked --release --example input_buffers -- both inputs`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

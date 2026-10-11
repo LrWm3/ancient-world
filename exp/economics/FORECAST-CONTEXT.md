@@ -109,3 +109,20 @@ diagnostic trim against rehydrated histories, including pending forward activati
 actual delivery, accepted non-mint starts and nonempty peer observations. The first
 World clone still copies the payloads before trimming; subsequent private phase
 copies avoid them. Live history retention remains unbounded with run length.
+
+## Process completion diagnostics
+
+Ordinary organization projections retain dated completions for their own operator.
+Bilateral forward reviews retain each party's baseline and proposed completions.
+`agency::completions::observe` reads only committed transactions in the requested
+inclusive month interval, including employment adapter transactions. Nested
+production plans, aborted/active work and repeated completed-state changes do not
+count. The operator may differ from the output beneficiary. All process types are
+included; use definition IDs to distinguish productive and consumption work.
+
+Historical completed state does not create new forecast completions, and forecasts
+carry no actual entitlements. These rows help distinguish forgone production from
+failed processes; they do not change loss vectors. Existing private-history trimming
+removes old completion diagnostics along with their enclosing projections/reviews.
+See [input-buffer comparisons](INPUT-BUFFER-PREFERENCES.md) for a shared-opening
+example where score priorities change but projected process flows remain identical.

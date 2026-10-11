@@ -11,6 +11,13 @@ separates workshop and town choices and removes old diagnostic payloads from
 private forecasts after the initial clone. Live history and accepted commitments
 remain intact; initial cloning and growing live history still have a cost.
 
+The [input-buffer comparison](INPUT-BUFFER-PREFERENCES.md) adds committed process
+completion evidence to ordinary and bilateral forecasts and tests explicit input
+exposure before/after cash preferences. Improving a ranking at a mature snapshot
+does not establish a sustainable founding preference: input-first stalls workshop
+startup in the both-stock and metal-only fixtures. These goals grant no resources
+or rights, and the default remains unchanged.
+
 The opt-in [startup-forward acceptance experiment](STARTUP-FORWARD-PROPOSALS.md)
 connects signed organizational authority, independent objective comparisons,
 ordinary prepaid delivery admission, conditional productive programs, spot
