@@ -69,7 +69,8 @@ pub(crate) fn consume(
     stocks: &mut BTreeMap<ResourceId, i128>,
     protect_partial: bool,
 ) -> Result<BTreeMap<ResourceId, i64>, String> {
-    let people: BTreeSet<_> = members(h, state).collect();
+    let adults: BTreeSet<_> = members(h, state).collect();
+    let opening_people: BTreeSet<_> = need_recipients(h, state).into_iter().collect();
     let mut preview = state.clone();
     preview.phase = Phase::Consumption;
     let mut w = world.clone();
@@ -77,11 +78,11 @@ pub(crate) fn consume(
     // checks real storage; an unaffordable/unstorable useful order retains a receipt.
     w.storage.capacities.clear();
     for p in &mut w.participants {
-        if !people.contains(&p.agent) {
+        if !opening_people.contains(&p.agent) {
             p.needs.clear();
         }
     }
-    for member in &people {
+    for member in &opening_people {
         for (r, q) in need_orders::claims(world, state, *member, months)? {
             let held = preview.balance(*member, r);
             preview
@@ -91,6 +92,24 @@ pub(crate) fn consume(
     }
     let mut deficits = BTreeMap::<ResourceId, i64>::new();
     for month in 0..months {
+        // Freeze opening adult membership/permissions, but stop dependent demand
+        // at its known maturity. Do not activate unrelated future policy changes.
+        let people: BTreeSet<_> = opening_people
+            .iter()
+            .copied()
+            .filter(|id| {
+                adults.contains(id)
+                    || state.demography.births.get(id).is_some_and(|b| {
+                        u64::from(state.month) + u64::from(month) < u64::from(b.adult_at)
+                    })
+            })
+            .collect();
+        for p in &mut w.participants {
+            if !people.contains(&p.agent) {
+                p.needs.clear();
+            }
+        }
+
         for r in w.resources.iter().filter(|r| r.kind == ResourceKind::Stock) {
             preview.balances.insert(
                 (h.agent, r.id),
@@ -218,4 +237,39 @@ pub fn scenario() -> Result<(World, State), String> {
     w.town_market = Some(c);
     crate::settlement::validate_world(&w, &s)?;
     Ok((w, s))
+}
+
+#[cfg(test)]
+mod dependent_forecasts {
+    use super::*;
+    #[test]
+    fn collective_consumption_stops_child_demand_at_maturity() {
+        use crate::scenario::{GRAIN, NUTRITION, PERSON};
+        let (mut w, mut s) = scenario().unwrap();
+        let (d, _) = crate::demography::scenario::scenario(true, false);
+        let mut c = d.demography.unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.maturity_months = 2;
+        w.demography = Some(c);
+        w.households[0].governance.charter.support_dependents = true;
+        for p in &mut w.participants {
+            if [PERSON, 91].contains(&p.agent) {
+                p.needs[0].quantity = 0;
+            }
+        }
+        s.balances.insert((PERSON, GRAIN), 2);
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.step().unwrap();
+        let h = &sim.world.households[0];
+        let project =
+            |w: &World, s: &State| consume(w, s, h, 4, &mut BTreeMap::new(), false).unwrap();
+        assert_eq!(project(&sim.world, &sim.state)[&NUTRITION], 1);
+        let mut stocked = sim.state.clone();
+        stocked
+            .balances
+            .insert((crate::demography::scenario::FIRST_CHILD, GRAIN), 2);
+        assert_eq!(project(&sim.world, &stocked)[&NUTRITION], 0);
+    }
 }

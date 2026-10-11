@@ -93,3 +93,17 @@ adult order is now retained, with sorted children appended. Twenty-one reproduct
 and twelve household-integration tests pass, including audited CPU/reference
 feeding with policy on/off and empty stocks, full child storage, unchanged adult
 membership, forged request rejection and reversed-adult-order scarce food.
+
+## 8. Include dependents in collective market demand
+
+Collective consumption projections include charter-supported children and their
+private stocks. Their demand ends at the known maturity boundary, while the
+opening adult roster and permission/policy context remain frozen. The projection
+assumes neither new births nor future parental transfers.
+
+Independent review checked the maturity boundary and requested direct trade
+evidence. Twenty-two reproduction, twelve household-market and one forecast
+boundary test pass. CPU/reference audited controls show an actual collective coin
+payment and food purchase feeds a child when adults have no food demand; disabled
+support or absent cash does not. Stocked-child and cross-maturity forecasts avoid
+charging the same child food twice or after dependent eligibility ends.

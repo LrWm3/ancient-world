@@ -1085,3 +1085,66 @@ fn dependent_support_preserves_existing_adult_reservation_order() {
         1
     );
 }
+
+#[test]
+fn collective_market_bids_can_feed_a_child_with_no_adult_food_demand() {
+    use economics_compute_smoke::households::{self, market::EXAMPLE_HOUSEHOLD as HOME};
+    let run = |backend, enabled: bool, funded: bool| {
+        let (mut w, mut s) = households::market::scenario().unwrap();
+        let (d, _) = scenario(true, false);
+        let mut c = d.demography.unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        w.demography = Some(c);
+        w.households[0].governance.charter.support_dependents = enabled;
+        for p in &mut w.participants {
+            if [PERSON, 91].contains(&p.agent) {
+                p.needs[0].quantity = 0;
+            }
+        }
+        s.balances.insert((PERSON, GRAIN), 2);
+        s.balances.insert((HOME, GRAIN), 0);
+        w.activities.orders.clear();
+        if !funded {
+            s.balances.insert((HOME, TOKEN), 0);
+        }
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(
+            sim.reports
+                .iter()
+                .filter(|r| r.agent == FIRST_CHILD)
+                .map(|r| r.deficit(NUTRITION))
+                .sum::<i32>(),
+            if enabled && funded { 0 } else { 1 }
+        );
+        let bought = sim
+            .ledger
+            .iter()
+            .flat_map(|b| b.all_transactions())
+            .any(|t| {
+                t.effects
+                    .iter()
+                    .any(|e| e.account == (HOME, TOKEN) && e.delta < 0)
+                    && t.effects
+                        .iter()
+                        .any(|e| e.account == (HOME, GRAIN) && e.delta > 0)
+            });
+        assert_eq!(bought, enabled && funded);
+        assert_eq!(
+            households::parent(&sim.world, &sim.state, FIRST_CHILD),
+            None
+        );
+        (sim.world, sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, funded) in [(true, true), (false, true), (true, false)] {
+        assert_eq!(
+            run(Backend::Reference, enabled, funded),
+            run(Backend::CubeCpu, enabled, funded)
+        );
+    }
+}
