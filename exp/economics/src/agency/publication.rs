@@ -95,13 +95,12 @@ fn eligible(
         return Ok(false);
     }
     let venue = crate::marketplace::venue(w, mint.venue).ok_or("missing publication venue")?;
-    let protected = if w.households.iter().any(|h| h.agent == agent)
-        || w.participants.iter().any(|p| p.agent == agent)
-    {
-        crate::need_orders::protected_stock(w, s, agent, peers.claim_months)?
-    } else {
-        crate::need_orders::claims(w, s, agent, peers.claim_months)?
-    };
+    let protected = crate::minting::orders::stock_protection(
+        w,
+        s,
+        agent,
+        crate::minting::orders::input_claim_months(policy),
+    )?;
     for q in additions {
         let m = venue
             .markets

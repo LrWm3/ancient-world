@@ -60,21 +60,6 @@ pub(super) fn validate(
     Ok(())
 }
 
-fn protection(
-    w: &World,
-    s: &State,
-    agent: AgentId,
-    months: u32,
-) -> Result<BTreeMap<ResourceId, i128>, String> {
-    if w.households.iter().any(|h| h.agent == agent)
-        || w.participants.iter().any(|p| p.agent == agent)
-    {
-        crate::need_orders::protected_stock(w, s, agent, months)
-    } else {
-        crate::need_orders::claims(w, s, agent, months)
-    }
-}
-
 pub(super) fn protect_cash(c: &Config, budgets: &[PurchaseBudget], resources: &mut Resources) {
     let mut floors = BTreeMap::<AgentId, i128>::new();
     for budget in budgets {
@@ -104,7 +89,7 @@ pub(super) fn generate(
             .iter()
             .find(|m| m.id == q.market)
             .ok_or("unlisted stock market")?;
-        let protected = protection(w, s, q.agent, policy.claim_months)?;
+        let protected = stock_protection(w, s, q.agent, policy.claim_months)?;
         let eligible = super::super::eligible(w, s, c.venue, q.agent);
         let authorized = q.max_lots.unwrap_or(MAX_LOTS);
         let lots = match q.side {

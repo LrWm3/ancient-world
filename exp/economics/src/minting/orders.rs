@@ -6,6 +6,29 @@ pub mod peer_stocks;
 
 const MAX_LOTS: i32 = 64;
 const MAX_QUOTES: usize = 32;
+const INPUT_STOCK_CLAIM_MONTHS: u32 = 1;
+
+/// Stock sales protect the same accepted claims and private needs on every route.
+pub(crate) fn stock_protection(
+    w: &World,
+    s: &State,
+    agent: AgentId,
+    months: u32,
+) -> Result<BTreeMap<ResourceId, i128>, String> {
+    if w.households.iter().any(|h| h.agent == agent)
+        || w.participants.iter().any(|p| p.agent == agent)
+    {
+        crate::need_orders::protected_stock(w, s, agent, months)
+    } else {
+        crate::need_orders::claims(w, s, agent, months)
+    }
+}
+
+pub(crate) fn input_claim_months(p: &Policy) -> u32 {
+    INPUT_STOCK_CLAIM_MONTHS
+        .max(p.private_sales.unwrap_or(0))
+        .max(p.peer_stocks.as_ref().map_or(0, |p| p.claim_months))
+}
 
 /// A positive unmet target requires a whole lot, even when smaller than that lot.
 pub(crate) fn required_lots(target: i32, held: i32, lot: i32) -> i32 {
@@ -532,6 +555,37 @@ pub(super) fn generate_fixed(
         let held = s.balance(q.agent, m.goods.resource);
         let lots = match q.side {
             Side::Buy => required_lots(q.holding, held, m.goods.quantity),
+            Side::Sell
+                if p.input_limits.contains_key(&q.market)
+                    && w.resources
+                        .iter()
+                        .any(|r| r.id == m.goods.resource && r.kind == ResourceKind::Stock) =>
+            {
+                let held = opening
+                    .available
+                    .get(&(q.agent, m.goods.resource))
+                    .copied()
+                    .unwrap_or(0);
+                let protected = stock_protection(w, s, q.agent, input_claim_months(p))?;
+                let floor = i128::from(q.holding)
+                    .max(protected.get(&m.goods.resource).copied().unwrap_or(0));
+                let feasible = ((i128::from(held) - floor).max(0) / i128::from(m.goods.quantity))
+                    .min(i128::from(q.max_lots.unwrap_or(MAX_LOTS)))
+                    as i32;
+                plan.sales.push(SaleBudget {
+                    agent: q.agent,
+                    market: q.market,
+                    opening_available: held,
+                    quote_floor: q.holding,
+                    authorized_lots: q.max_lots.unwrap_or(MAX_LOTS),
+                    protected_stock: floor,
+                    eligible: true,
+                    feasible_lots: feasible,
+                    submitted_lots: feasible,
+                    matched_lots: 0,
+                });
+                feasible
+            }
             Side::Sell => {
                 (opening
                     .available

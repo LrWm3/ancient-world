@@ -30,3 +30,16 @@ controller continues to retain its plan on equal forecasts.
    work bundles, insufficient whole lots, signed floors, accepted delivery claims,
    revoked trading permission and a vacant office. These are eligibility controls;
    later clearing must independently protect stock and recheck participation.
+
+4. **Issuer-input claim protection.** Fixed/generated input-stock asks now protect
+   accepted claims at Acquire using the same reader as peer stock asks, including
+   claims added after an earlier plan evaluation. Protection uses the longer of
+   the configured private/peer horizons, with a one-month fallback; the signed
+   floor also applies. Four boundary tests cover a six-unit stock/four-unit claim,
+   actual funded CPU/reference settlement leaving four units, horizon/floor limits
+   and incomplete-package rollback. Claims in these tests are installed accepted
+   history, not a test of voluntary forward admission. Existing mint-order and
+   peer-order tests pass. The legacy provisioning adapter rebuilds its own asks;
+   it now discards the superseded fixed-route receipts. Its separate provisioning
+   policy is unchanged and is not covered by this new stock-protection guarantee;
+   all 15 provisioning regressions pass.

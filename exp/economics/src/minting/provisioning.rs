@@ -247,6 +247,9 @@ pub(crate) fn generate_with(
         .collect();
     plan.orders.clear();
     plan.deals.clear();
+    // This legacy adapter rebuilds income-seeking asks below. Fixed-route stock
+    // budgets describe the discarded orders, not these provisioning decisions.
+    plan.sales.clear();
     let venue = marketplace::venue(w, c.venue).ok_or("missing venue")?;
     let sale = venue
         .markets
