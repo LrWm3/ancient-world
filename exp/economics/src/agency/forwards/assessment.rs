@@ -16,6 +16,9 @@ pub struct Comparison {
     pub proposed: Vec<i128>,
     pub baseline_path: agency::path::Path,
     pub proposed_path: agency::path::Path,
+    /// Each party sees only its own operator completions in each private branch.
+    pub baseline_completions: Vec<agency::completions::Completion>,
+    pub proposed_completions: Vec<agency::completions::Completion>,
     pub admitted: bool,
     pub delivered_on_time: i32,
 }
@@ -86,6 +89,18 @@ pub fn assess(w: &World, s: &State, proposal: &Proposal) -> Result<Assessment, S
                     &objectives,
                     &proposed_path,
                 )?,
+                baseline_completions: agency::completions::observe(
+                    &base.ledger,
+                    agent,
+                    s.month,
+                    base.state.month - 1,
+                ),
+                proposed_completions: agency::completions::observe(
+                    &proposed.ledger,
+                    agent,
+                    s.month,
+                    proposed.state.month - 1,
+                ),
                 baseline_path,
                 proposed_path,
                 admitted,
