@@ -100,3 +100,35 @@ prove household-to-smith exchange. The test checks a committed private-seller ro
 to the smith explicitly. Crop accounting retains the inherited 4:2 wheat/seed cost
 weights as a supplied carrying-cost policy; those weights are not output quantities
 or market valuations for the calibrated 6:2 recipe.
+
+## Pass 5 — matched controls and a viable food calibration
+
+The CPU `--matrix` run exercises twelve cases on the same fixture. All cases pass
+separate-book and coin-supply reconciliation, including those with economic failure.
+
+| Pass-five case | Food deficits | Mint batches | Municipal work | Wage arrears |
+| --- | ---: | ---: | ---: | ---: |
+| Baseline (private wood target 100) | 5 | 3 | 10 | 0 |
+| Four-wheat harvest | 17 | 3 | 10 | 0 |
+| No commercial grain work target | 5 | 3 | 10 | 0 |
+| No private wheat asks | 20 | 3 | 10 | 0 |
+| Private wood target 4 | 0 | 3 | 10 | 0 |
+| No workshop ore | 8 | 0 | 10 | 0 |
+| No smith hours | 20 | 0 | 0 | 0 |
+| Workshop excluded from venue | 8 | 0 | 10 | 0 |
+| Refining legally prohibited | 8 | 0 | 10 | 0 |
+| Municipality has first labor priority | 8 | 0 | 12 | 1 |
+| No opening workshop payroll cash | 5 | 2 | 12 | 1 |
+| No opening municipal payroll cash | 5 | 3 | 2 | 1 |
+
+The bounded wood target reduces grower storage rejections from six to one and
+eliminates all nutrition deficits in this fourteen-month control. This is a supplied
+personal work target, not a new universal food-first policy. Removing the grain work
+target has no measured effect in the original calibration; do not attribute its
+outcomes to a planner improvement. Changing employer rank gives the workshop
+partial hours that cannot complete its indivisible two-hour job: accepted wages
+still accrue even when bought hours cannot produce. Lack of payroll funding retains
+real arrears and suspends later delivery; it does not erase already supplied work.
+Workshop exclusion permits refining but blocks sales; legal prohibition blocks
+refining itself. The workshop's measured net income is negative eight in the
+normal-price runs, so nutrition success still does not establish business viability.

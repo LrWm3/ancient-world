@@ -7,7 +7,8 @@ use crate::{
     financial_reporting::Audit,
     marketplace::Side,
     minting::{
-        COIN, FIREWOOD, HOURS, ISSUER, METAL, MINT, NUTRITION, ORE, REFINE, SUPPLIER, WHEAT, WORKER,
+        COIN, FIREWOOD, GATHER, HOURS, ISSUER, METAL, MINT, NUTRITION, ORE, REFINE, SUPPLIER,
+        WHEAT, WORKER,
     },
     model::*,
     opportunities::{Action, AgentType, HOUSEHOLD_TYPE, PERSON_TYPE},
@@ -47,12 +48,38 @@ const TIGHT_HARVEST_WHEAT: i32 = 4;
 const ACCEPTANCE_HARVEST_HOURS: i32 = 4;
 const COMMERCIAL_GRAIN_TARGET: i32 = 12;
 const PRIVATE_FOOD_RESERVE: i32 = 2;
+const BOUNDED_PRIVATE_FUEL_TARGET: i32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Case {
     Baseline,
     TightFood,
     NoSalesTarget,
+    NoPrivateAsks,
+    BoundedWood,
+    NoOre,
+    NoSmithHours,
+    WorkshopExcluded,
+    WorkshopProhibited,
+    TownFirst,
+    UnfundedWorkshop,
+    UnfundedTown,
+}
+impl Case {
+    pub const ALL: [Self; 12] = [
+        Self::Baseline,
+        Self::TightFood,
+        Self::NoSalesTarget,
+        Self::NoPrivateAsks,
+        Self::BoundedWood,
+        Self::NoOre,
+        Self::NoSmithHours,
+        Self::WorkshopExcluded,
+        Self::WorkshopProhibited,
+        Self::TownFirst,
+        Self::UnfundedWorkshop,
+        Self::UnfundedTown,
+    ];
 }
 
 pub fn scenario() -> Result<(World, State), String> {
@@ -73,8 +100,8 @@ pub fn scenario_for(case: Case) -> Result<(World, State), String> {
         .find(|a| a.resource == WHEAT)
         .unwrap()
         .quantity = match case {
-        Case::Baseline | Case::NoSalesTarget => ACCEPTANCE_HARVEST_WHEAT,
         Case::TightFood => TIGHT_HARVEST_WHEAT,
+        _ => ACCEPTANCE_HARVEST_WHEAT,
     };
     let crop = w
         .definitions
@@ -90,6 +117,65 @@ pub fn scenario_for(case: Case) -> Result<(World, State), String> {
             priority: 0,
             target: Target::Stock(Amount::new(WHEAT, COMMERCIAL_GRAIN_TARGET)),
         });
+    }
+    match case {
+        Case::NoPrivateAsks => w
+            .minting
+            .as_mut()
+            .unwrap()
+            .order_policy
+            .as_mut()
+            .unwrap()
+            .quotes
+            .retain(|q| ![integration::HOUSEHOLD, integration::GROWER].contains(&q.agent)),
+        Case::BoundedWood => {
+            w.activities
+                .orders
+                .iter_mut()
+                .find(|o| o.agent == SUPPLIER && o.definition == GATHER)
+                .unwrap()
+                .target = Target::Stock(Amount::new(FIREWOOD, BOUNDED_PRIVATE_FUEL_TARGET))
+        }
+        Case::NoOre => {
+            s.balances.insert((WORKSHOP, ORE), 0);
+        }
+        Case::NoSmithHours => {
+            w.participants
+                .iter_mut()
+                .find(|p| p.agent == SMITH)
+                .unwrap()
+                .capacity
+                .quantity = 0
+        }
+        Case::WorkshopExcluded => {
+            w.marketplaces[0].allowed_types.remove(&WORKSHOP_TYPE);
+        }
+        Case::WorkshopProhibited => {
+            w.transaction_policy
+                .as_mut()
+                .unwrap()
+                .permissions
+                .remove(&(WORKSHOP_TYPE, Action::Process(REFINE)));
+        }
+        Case::TownFirst => {
+            w.employment
+                .iter_mut()
+                .find(|t| t.id == WORKSHOP_EMPLOYMENT)
+                .unwrap()
+                .rank = 1;
+            w.employment
+                .iter_mut()
+                .find(|t| t.id == TOWN_EMPLOYMENT)
+                .unwrap()
+                .rank = 0;
+        }
+        Case::UnfundedWorkshop => {
+            s.balances.insert((WORKSHOP, COIN), 0);
+        }
+        Case::UnfundedTown => {
+            s.balances.insert((TOWN, COIN), 0);
+        }
+        Case::Baseline | Case::TightFood | Case::NoSalesTarget => {}
     }
     Ok((w, s))
 }
@@ -323,6 +409,10 @@ pub struct Evidence {
     pub household_on_time_delivery: i32,
     pub state_loan_outstanding: Option<i32>,
     pub state_loan_repaid: bool,
+    pub grower_food_sales: usize,
+    pub workshop_net_income: i128,
+    pub wage_arrears: i32,
+    pub grower_storage_rejections: usize,
 }
 
 pub struct Run {
@@ -382,6 +472,31 @@ impl Run {
         }
         Ok(Evidence {
             months,
+            grower_food_sales: accepted_deals(sim)
+                .filter(|d| d.seller == integration::GROWER && d.market == WHEAT)
+                .count(),
+            workshop_net_income: self
+                .audit
+                .book()
+                .statements(WORKSHOP, 1, months)?
+                .net_income,
+            wage_arrears: sim
+                .state
+                .employment
+                .earned
+                .values()
+                .map(|e| e.claim.outstanding())
+                .sum(),
+            grower_storage_rejections: sim
+                .ledger
+                .iter()
+                .flat_map(|b| &b.receipts)
+                .filter(|r| {
+                    r.agent == integration::GROWER
+                        && r.definition == Some(integration::GROW)
+                        && r.reason == Reason::InsufficientStorage
+                })
+                .count(),
             people_food_deficit: sim.reports.iter().map(|r| r.deficit(NUTRITION)).sum(),
             completed_mints: sim
                 .state

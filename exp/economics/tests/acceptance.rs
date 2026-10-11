@@ -157,3 +157,75 @@ fn accepted_deal_evidence_does_not_count_uncommitted_packages() {
     }
     assert_eq!(acceptance::accepted_deals(&proposed_only).count(), 0);
 }
+
+#[test]
+fn acceptance_controls_expose_authority_liquidity_and_contention_failures() {
+    use acceptance::{Case, TOWN_EMPLOYMENT};
+    let run = |case| {
+        let (w, s) = acceptance::scenario_for(case).unwrap();
+        let mut run = Run::new(w, s, Backend::Reference).unwrap();
+        run.through(acceptance::RUN_MONTHS).unwrap();
+        run
+    };
+    let base = run(Case::Baseline).evidence().unwrap();
+    for case in [
+        Case::WorkshopExcluded,
+        Case::WorkshopProhibited,
+        Case::NoOre,
+        Case::NoSmithHours,
+    ] {
+        let r = run(case);
+        let e = r.evidence().unwrap();
+        assert_eq!(e.completed_mints, 0, "{case:?}");
+        assert_eq!(e.workshop_metal_sales, 0, "{case:?}");
+        assert_eq!(e.issuance, 0, "{case:?}");
+        if case == Case::WorkshopExcluded {
+            assert!(e.workshop_batches > 0);
+        } else {
+            assert_eq!(e.workshop_batches, 0);
+        }
+    }
+    let priority = run(Case::TownFirst);
+    let e = priority.evidence().unwrap();
+    assert_eq!(e.workshop_batches, 0);
+    assert_eq!(e.completed_mints, 0);
+    assert!(
+        priority
+            .sim
+            .state
+            .employment
+            .earned
+            .contains_key(&(TOWN_EMPLOYMENT, 1))
+    );
+    // Earlier delivered work remains due even when its employer later runs out of cash.
+    let broke = run(Case::UnfundedTown);
+    let e = broke.evidence().unwrap();
+    assert!(e.municipal_batches < base.municipal_batches);
+    assert!(e.wage_arrears > 0);
+    assert!(e.municipal_batches > 0);
+    let e = run(Case::UnfundedWorkshop).evidence().unwrap();
+    assert!(e.workshop_batches < base.workshop_batches);
+    assert!(e.workshop_wages_paid < base.workshop_wages_paid);
+}
+
+#[test]
+fn supply_controls_distinguish_private_offers_production_and_storage() {
+    use acceptance::Case;
+    let run = |case| {
+        let (w, s) = acceptance::scenario_for(case).unwrap();
+        let mut run = Run::new(w, s, Backend::Reference).unwrap();
+        run.through(acceptance::RUN_MONTHS).unwrap();
+        run.evidence().unwrap()
+    };
+    let base = run(Case::Baseline);
+    let closed = run(Case::NoPrivateAsks);
+    assert_eq!(closed.household_food_sales + closed.grower_food_sales, 0);
+    assert!(closed.people_food_deficit > base.people_food_deficit);
+    let wood = run(Case::BoundedWood);
+    assert!(wood.grower_storage_rejections < base.grower_storage_rejections);
+    assert_eq!(wood.people_food_deficit, 0);
+    let food = run(Case::TightFood);
+    assert!(food.people_food_deficit > base.people_food_deficit);
+    let needs_only = run(Case::NoSalesTarget);
+    assert!(needs_only.people_food_deficit >= base.people_food_deficit);
+}
