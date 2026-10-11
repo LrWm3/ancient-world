@@ -187,3 +187,13 @@ storage, household grain, consenting donor and earned wage debt. With dependent
 support on, extra donation is rejected and one debt unit remains; with it off,
 the extra unit is donated and paid. Existing household grain still pays creditors.
 The child remains hungry in both cases: this policy does not create storage.
+
+## 16. Separate maturity from institutional admission
+
+Accepted citizenship/membership history rejects dates before a registered person's
+maturity. Adult capacity and institutional rights remain separate transitions.
+
+Independent review passed. The audited CPU/reference integration test rejects a
+child's attempted acceptance atomically, verifies no automatic citizenship at
+maturity, settles an explicit membership agreement without creating stocks/assets,
+executes newly permitted work, and rejects a backdated citizenship checkpoint.

@@ -123,6 +123,11 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
         if key != (agreement.member, agreement.organization, agreement.role)
             || agreement.accepted_month == 0
             || agreement.accepted_month > state.month
+            || state
+                .demography
+                .births
+                .get(&agreement.member)
+                .is_some_and(|b| b.adult_at > agreement.accepted_month)
             || !world.agents.iter().any(|a| a.id == agreement.member)
             || !p.membership_offers.iter().any(|o| {
                 o.id == agreement.source_offer

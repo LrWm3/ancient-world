@@ -1828,3 +1828,138 @@ fn failed_child_food_reservation_blocks_extra_voluntary_payment_funding() {
         );
     }
 }
+
+#[test]
+fn maturity_does_not_grant_citizenship_and_admission_cannot_be_backdated() {
+    use economics_compute_smoke::{
+        membership::{self, CITIZEN},
+        opportunities::{self, Action, PERSON_TYPE, STATE_TYPE},
+        scenario::STATE_AGENT,
+        settlement::{DEFAULT_EFFECT_LIMIT, commit},
+    };
+    let run = |backend| {
+        let (mut w, s) = scenario(true, false);
+        let c = w.demography.as_mut().unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.maturity_months = 2;
+        let permissions = w
+            .definitions
+            .iter()
+            .filter(|d| d.execution == Execution::Consumption)
+            .map(|d| (PERSON_TYPE, Action::Process(d.id)))
+            .chain([(PERSON_TYPE, Action::Membership)])
+            .collect();
+        w.transaction_policy = Some(opportunities::Policy {
+            authority: STATE_AGENT,
+            laws: vec![],
+            agreement_forms: None,
+            agreement_limits: Default::default(),
+            membership_offers: vec![membership::Offer {
+                id: 1,
+                organization: STATE_AGENT,
+                role: CITIZEN,
+                eligible_type: PERSON_TYPE,
+            }],
+            membership_permissions: [
+                (CITIZEN, Action::Process(FORAGE)),
+                (CITIZEN, Action::LandAccess),
+            ]
+            .into(),
+            agent_types: [
+                (PERSON, PERSON_TYPE),
+                (PERSON + 1, PERSON_TYPE),
+                (STATE_AGENT, STATE_TYPE),
+            ]
+            .into(),
+            permissions,
+        });
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.phase != Phase::Acquire {
+            a.step(&mut sim).unwrap();
+        }
+        let before = sim.state.clone();
+        let mut b = Batch::empty(&sim.state);
+        b.accept_membership = Some((1, FIRST_CHILD));
+        assert!(
+            commit(
+                &sim.world,
+                &mut sim.state,
+                &b,
+                backend,
+                DEFAULT_EFFECT_LIMIT
+            )
+            .is_err()
+        );
+        assert_eq!(sim.state, before);
+        while !(sim.state.month == 3 && sim.state.phase == Phase::Acquire) {
+            a.step(&mut sim).unwrap();
+        }
+        assert!(sim.state.demography.matured.contains(&FIRST_CHILD));
+        assert!(!opportunities::permits(
+            &sim.world,
+            &sim.state,
+            FIRST_CHILD,
+            Action::Process(FORAGE)
+        ));
+        assert!(
+            !sim.state
+                .memberships
+                .contains_key(&(FIRST_CHILD, STATE_AGENT, CITIZEN))
+        );
+        let before = sim.state.clone();
+        let assets = sim.world.assets.clone();
+        let mut b = Batch::empty(&sim.state);
+        b.accept_membership = Some((1, FIRST_CHILD));
+        commit(
+            &sim.world,
+            &mut sim.state,
+            &b,
+            backend,
+            DEFAULT_EFFECT_LIMIT,
+        )
+        .unwrap();
+        a.record(&sim.world, &before, &b, &sim.state).unwrap();
+        sim.ledger.push(b);
+        assert_eq!(sim.state.balances, before.balances);
+        assert_eq!(sim.world.assets, assets);
+        assert!(opportunities::permits(
+            &sim.world,
+            &sim.state,
+            FIRST_CHILD,
+            Action::Process(FORAGE)
+        ));
+        assert!(opportunities::permits(
+            &sim.world,
+            &sim.state,
+            FIRST_CHILD,
+            Action::LandAccess
+        ));
+        assert!(!opportunities::permits(
+            &sim.world,
+            &sim.state,
+            PERSON + 1,
+            Action::Process(FORAGE)
+        ));
+        while sim.state.month <= 3 {
+            a.step(&mut sim).unwrap();
+        }
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.operator == FIRST_CHILD && p.definition == FORAGE)
+        );
+        let mut forged = sim.state.clone();
+        forged
+            .memberships
+            .get_mut(&(FIRST_CHILD, STATE_AGENT, CITIZEN))
+            .unwrap()
+            .accepted_month = 2;
+        assert!(Simulation::new(sim.world.clone(), forged, backend).is_err());
+        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+        (sim.world, sim.state, sim.ledger, sim.reports, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+}
