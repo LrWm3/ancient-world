@@ -1783,3 +1783,72 @@ fn worker_protection_preserves_started_work_and_recomputes_after_each_boundary()
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn worker_policy_bounds_search_without_changing_supplied_or_preaccepted_consent() {
+    use economics_compute_smoke::employment::supply::Policy;
+    for (agent, horizon) in [(WORKER, 0), (WORKER, 25), (999999, 1)] {
+        let (mut w, s) = production(100);
+        w.employment_supply.insert(agent, Policy { horizon });
+        assert!(
+            Simulation::new(w, s, Backend::Reference)
+                .unwrap_err()
+                .contains("worker supply policy")
+        );
+    }
+    for (hours, posted, protected, expected) in [
+        (64, true, true, 64),
+        (65, true, true, 0),
+        (65, true, false, 65),
+        (65, false, true, 65),
+    ] {
+        let (mut w, s) = production(100);
+        w.storage.capacities.values_mut().for_each(|q| *q = 1000);
+        w.employment[0].capacity.quantity = hours;
+        w.employment[0].wage_per_unit.quantity = 1;
+        w.households[0]
+            .governance
+            .charter
+            .hiring_budget
+            .as_mut()
+            .unwrap()
+            .quantity = 100;
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap()
+            .capacity
+            .quantity = hours;
+        let d = w.definitions.iter_mut().find(|d| d.id == MAKE).unwrap();
+        d.stages[0].monthly_services[0].quantity = hours;
+        d.outputs[0].quantity = 200;
+        if posted {
+            w.employment_offers.insert(1);
+        }
+        if protected {
+            w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            assert_eq!(
+                sim.state.balance(WORKER, TOKEN),
+                expected,
+                "{hours} {posted} {protected}"
+            );
+            let decisions: Vec<_> = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.employment.as_ref())
+                .flat_map(|b| &b.supply)
+                .collect();
+            assert_eq!(decisions.is_empty(), !posted || !protected);
+            if posted && protected {
+                assert_eq!(decisions[0].searched_maximum, 64);
+            }
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

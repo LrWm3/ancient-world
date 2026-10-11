@@ -66,13 +66,15 @@ liquidity is finite; this does not establish indefinite economic sustainability.
 ## Optional worker assessment
 
 `World.employment_supply` assigns a bounded forecast horizon (1–24 months) to a
-person. For that person's posted jobs, acceptance must also preserve projected
+participant. For that participant's posted jobs, acceptance must also preserve projected
 survival, need satisfaction and process completion for the worker and current
 household members. Keeping the hours is compared with consuming them; hypothetical
 wages and employer outputs are not credited. The search considers at most 64 whole
 hours. Each final quantity must pass both worker and employer comparisons. This is
 conservative opportunity-cost protection, not wage bargaining or a claim that the
-best-paid job is selected. Accepted-payment performance is not yet an objective.
+best-paid job is selected. Accepted forward deliveries and loan arrears are also compared in their own units.
+Forward shortfalls are fixed at their deadlines; loan losses use worst recorded
+arrears per accepted loan. This does not yet cover every obligation kind.
 An empty policy map preserves supplied worker consent; preaccepted jobs are unchanged.
 
 The shared post-Acquire preview stages validated citizenship/access, actual

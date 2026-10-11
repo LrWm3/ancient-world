@@ -101,3 +101,12 @@ job; default supplied consent hires and actually aborts it; spare capacity compl
 both. Needs and debt are absent so this isolates process protection. Audited CPU
 continuation rebuilt after each phase matches uninterrupted Reference, including
 reports and world state. All three controls pass; independent review found no blocker.
+
+## 11. Bound the search without changing existing consent
+
+Invalid horizons and unknown participants are rejected. A 64-hour indivisible job
+can pass; a 65-hour job cannot fit this opt-in search and is not partially hired.
+Default supplied consent and preaccepted employment still deliver 65 hours without
+worker-assessment receipts. Four audited CPU/reference cases and three validation
+controls pass. Independent review found no blocker. Documentation now distinguishes
+participant eligibility, the quantity ceiling, and the covered financial duties.
