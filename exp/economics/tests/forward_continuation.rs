@@ -5,7 +5,7 @@ use economics_compute_smoke::{
     simulation::Simulation,
 };
 
-const MONTHS: u32 = 16;
+const MONTHS: u32 = 48;
 
 #[test]
 fn forward_startup_matches_cpu_phase_reconstruction_replay_and_catalog_reordering() {

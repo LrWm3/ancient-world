@@ -1,6 +1,9 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
+    if std::env::args().any(|a| a == "--startup-liquidity") {
+        return startup_liquidity();
+    }
     if std::env::args().any(|a| a == "--startup-forward-comparison") {
         use acceptance::{WORKSHOP, continuation as c, financing};
         println!(
@@ -242,5 +245,54 @@ fn main() -> Result<(), String> {
             );
         }
     }
+    Ok(())
+}
+
+fn startup_liquidity() -> Result<(), String> {
+    use acceptance::{
+        WORKSHOP,
+        continuation::Case,
+        financing::{self, Liquidity, Stocks},
+    };
+    let args: Vec<_> = std::env::args().collect();
+    let stocks = match args
+        .iter()
+        .find_map(|a| a.strip_prefix("--workshop-stocks="))
+    {
+        None | Some("both") => Stocks::Both,
+        Some("ore") => Stocks::OreOnly,
+        Some("metal") => Stocks::MetalOnly,
+        Some("neither") => Stocks::Neither,
+        Some(_) => return Err("workshop stocks must be both, ore, metal or neither".into()),
+    };
+    let policy = if args.iter().any(|a| a == "--monthly-exposure") {
+        Liquidity::MonthlyExposure
+    } else {
+        Liquidity::TerminalReserve
+    };
+    let authority = !args.iter().any(|a| a == "--no-startup-forward");
+    let (w, s) = financing::with_liquidity(Case::Baseline, authority, stocks, policy)?;
+    let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
+    run.through(acceptance::continuation::MONTHS)?;
+    let e = run.evidence()?;
+    let r = acceptance::governed::check(&run)?;
+    println!(
+        "stocks={stocks:?}, policy={policy:?}, authority={authority}, ready={}, mints={}, workshop={}, town={}, food_deficit={}, wage_arrears={}",
+        r.ready(),
+        e.completed_mints,
+        e.workshop_batches,
+        e.municipal_batches,
+        e.people_food_deficit,
+        e.wage_arrears
+    );
+    println!("failures: {:?}", r.failures);
+    for a in &run.sim.world.agency[&WORKSHOP].startup_forwards {
+        println!(
+            "signed month {}, scheduled admission {}, due {}, status {:?}",
+            a.month, a.proposal.terms.month, a.proposal.terms.due, a.status
+        );
+    }
+    // Like the comparison command, a successful exit means the run completed,
+    // not that its readiness assertions passed.
     Ok(())
 }
