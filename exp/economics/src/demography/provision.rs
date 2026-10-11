@@ -68,3 +68,25 @@ pub(crate) fn debit(w: &World, stock: &mut i128, requested: i128) -> i128 {
     *stock -= paid;
     requested - paid
 }
+
+/// Conservative voluntary-sale protection: future top-ups plus the donor floor
+/// once, in addition to personal consumption. This is not a minimal dated budget,
+/// debt, or escrow; retaining extra stock avoids assuming consumption timing away.
+pub(crate) fn protection(
+    w: &World,
+    s: &State,
+    parent: AgentId,
+    months: u32,
+) -> BTreeMap<ResourceId, i128> {
+    let Some(c) = &w.demography else {
+        return BTreeMap::new();
+    };
+    let quantity: i128 = requests(w, s, parent, c.support.resource, u64::from(months))
+        .values()
+        .sum();
+    if quantity == 0 {
+        BTreeMap::new()
+    } else {
+        [(c.support.resource, quantity + i128::from(c.parent_reserve))].into()
+    }
+}

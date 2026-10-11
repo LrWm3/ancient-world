@@ -305,6 +305,9 @@ fn protected_claims(
     months: u32,
 ) -> Result<BTreeMap<ResourceId, i128>, String> {
     let mut result = claims(world, state, agent, months)?;
+    for (r, q) in crate::demography::provision::protection(world, state, agent, months) {
+        *result.entry(r).or_default() += q;
+    }
     if let Some(h) = world.households.iter().find(|h| h.agent == agent) {
         let outlook = payroll_outlook(world, state, h)?;
         for ((_, r), q) in outlook.iter().filter(|((a, _), _)| *a == agent) {

@@ -42,3 +42,15 @@ activation for unrelated debts. Selection now prefers feasible candidates and
 requires actual known-dependent demand. Sixteen reproduction tests pass, including
 audited CPU/reference controls for no personal food demand, disabled planning,
 disabled work, and a lower-ID recipe requiring too much labor.
+
+## 4. Retain family support before voluntary market sales
+
+Market stock protection now includes optional dated support plus one donor floor,
+in addition to accepted claims and personal consumption. This intentionally
+conservative budget is not a minimal reserve, a legal debt or escrow. No future
+request means no extra floor protection.
+
+Independent review checked timing and recommended the conservative bound.
+Seventeen reproduction and eleven need-order tests pass. Audited CPU/reference
+controls show unprotected sales can cause next-month child hunger, protection
+prevents that sale, and additional genuine surplus still trades successfully.

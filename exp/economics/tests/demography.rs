@@ -736,3 +736,51 @@ fn support_only_production_does_not_invent_personal_needs() {
         );
     }
 }
+
+#[test]
+fn market_sales_respect_optional_family_support_reserves() {
+    use economics_compute_smoke::{need_orders, negotiation::Outcome};
+    let run = |backend, enabled, extra| {
+        let (mut w, mut s) = need_orders::scenario();
+        let (d, _) = scenario(true, false);
+        let mut c = d.demography.unwrap();
+        c.parents = [89].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = enabled;
+        w.demography = Some(c);
+        s.balances.insert((89, GRAIN), 5 + extra);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let first = sim
+            .ledger
+            .iter()
+            .find_map(|b| b.negotiation.as_ref())
+            .unwrap();
+        assert_eq!(
+            first.outcome,
+            if enabled && extra == 0 {
+                Outcome::NoSurplus
+            } else {
+                Outcome::Traded { price: 40 }
+            }
+        );
+        let child: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == FIRST_CHILD)
+            .map(|r| r.deficit(NUTRITION))
+            .sum();
+        assert_eq!(child, if !enabled && extra == 0 { 1 } else { 0 });
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, extra) in [(false, 0), (true, 0), (true, 2)] {
+        assert_eq!(
+            run(Backend::Reference, enabled, extra),
+            run(Backend::CubeCpu, enabled, extra)
+        );
+    }
+}
