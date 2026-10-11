@@ -27,3 +27,11 @@ Validation results and the remaining iterations are recorded here as completed.
    a later prohibited trade cannot leave an earlier process start scheduled.
    The regression exercises that exact late-law failure and malformed/duplicate
    commands. Library, shared-agency and program regressions pass.
+
+4. **Activation and cancellation boundaries.** Three integration tests verify no
+   same-month quote effect, checkpoints on both sides of next-Open activation,
+   actual accepted ore purchases, and CPU/reference agreement. Revoking trade law
+   prevents execution without rewriting the accepted decision. An economically
+   motivated explicit stop removes purchases while preserving counterparties and
+   employment obligations. A positive supply control prevents a vacuous no-trade
+   test.
