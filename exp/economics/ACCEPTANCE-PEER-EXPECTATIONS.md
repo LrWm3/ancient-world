@@ -84,3 +84,12 @@ activity is not a financial claim or counterparty consent.
    cover abstention, insufficient turnout, dead/ineligible candidates and the
    explicit future-only boundary, asserting actual vacancies rather than merely
    counting admitted ballots. Eight focused tests pass.
+
+8. **End-to-end failure matrix.** The passing forecast treatment runs against
+   missing ore supply, missing replacement authority, closed metal-market access,
+   insufficient margins and late payroll on both reference and CubeCL CPU. All
+   five remain unready, with equal World, State, ledger, audit and readiness.
+   Additional absent-buyer and already-satisfied-buyer controls mint nothing and
+   generate no recurring peer attempts or later issuer purchases. Forecast demand
+   therefore does not become self-fulfilling money or consent. Two integration
+   tests cover these seven full 48-month failure runs on each backend.
