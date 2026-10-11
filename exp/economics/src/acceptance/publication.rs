@@ -14,6 +14,8 @@ pub fn scenario(case: c::Case) -> Result<(World, State), String> {
     )
 }
 
+/// Startup selects inherited inventory/review settings; even `PostedMetal` has
+/// its supplied ask removed. Only agents may publish organization asks here.
 pub fn with_startup(
     case: c::Case,
     startup: sales::Startup,

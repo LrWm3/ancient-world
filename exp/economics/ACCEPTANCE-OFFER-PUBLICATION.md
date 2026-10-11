@@ -61,3 +61,12 @@ controller continues to retain its plan on equal forecasts.
    and that changing its sealed mandate after first Open fails without changing
    state or decision history. A publication accepted in month 1 still becomes
    effective in month 2; no extra policy review or early execution is introduced.
+
+7. **Partial-inventory controls.** With monthly reviews and voluntary publication,
+   the original small workshop stock produces one mint and no workshop/town work;
+   increasing workshop metal alone to four units produces four mints and two
+   workshop batches, but no town batches. Food deficits remain 61 and 37, with two
+   ending wage arrears in both cases. Publication cannot replace missing working
+   inventory elsewhere in the chain. `Startup::PostedMetal` is an inherited fixture
+   label: this variant removes that supplied ask too. These two controls and the
+   successful treatment all use monthly reviews.
