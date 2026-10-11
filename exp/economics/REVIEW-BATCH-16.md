@@ -92,3 +92,12 @@ changing the worker's comparison. Finite storage is held slack and identical to
 isolate payment performance (the original seven-unit store raised the baseline to
 three). Audited CPU/reference runs and decision equality pass. Independent review
 found no blocker. A global missed-payment boolean would miss this distinction.
+
+## 10. Preserve already-running work across restarts
+
+A worker starts a two-month process through normal execution before employment
+becomes available. Protected scarce labor finishes its process and declines the
+job; default supplied consent hires and actually aborts it; spare capacity completes
+both. Needs and debt are absent so this isolates process protection. Audited CPU
+continuation rebuilt after each phase matches uninterrupted Reference, including
+reports and world state. All three controls pass; independent review found no blocker.

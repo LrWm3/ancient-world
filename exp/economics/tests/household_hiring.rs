@@ -1710,3 +1710,76 @@ fn worker_loan_losses_are_scoped_and_detect_worsening_existing_shortfalls() {
     }
     assert_eq!(decisions[0], decisions[1]);
 }
+
+#[test]
+fn worker_protection_preserves_started_work_and_recomputes_after_each_boundary() {
+    use economics_compute_smoke::employment::supply::Policy;
+    for (protected, capacity, expected, status) in [
+        (true, 3, 0, Status::Completed),
+        (false, 3, 2, Status::Aborted),
+        (true, 4, 2, Status::Completed),
+    ] {
+        let (mut w, s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].from = 2;
+        w.employment[0].through = 2;
+        w.employment[0].wage_per_unit.quantity = 1;
+        if protected {
+            w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+        }
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap()
+            .capacity
+            .quantity = capacity;
+        let mut own = w.definition(MAKE).clone();
+        own.id = 902;
+        own.stages[0].months = 2;
+        w.definitions.push(own);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((PERSON_TYPE, Action::Process(902)));
+        w.scheduled_starts.push(ScheduledStart {
+            month: 1,
+            agent: WORKER,
+            definition: 902,
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            assert!(sim.state.processes.values().any(|p| p.operator == WORKER
+                && p.definition == 902
+                && p.status == Status::Active));
+            while sim.state.month == 2 {
+                a.step(&mut sim).unwrap();
+                if matches!(backend, Backend::CubeCpu) {
+                    let mut resumed =
+                        Simulation::new(sim.world.clone(), sim.state.clone(), backend).unwrap();
+                    resumed.ledger = sim.ledger;
+                    resumed.reports = sim.reports;
+                    sim = resumed;
+                }
+            }
+            assert_eq!(
+                sim.state
+                    .employment
+                    .earned
+                    .get(&(1, 2))
+                    .map_or(0, |e| e.delivered),
+                expected
+            );
+            assert!(
+                sim.state
+                    .processes
+                    .values()
+                    .any(|p| p.operator == WORKER && p.definition == 902 && p.status == status)
+            );
+            (sim.world, sim.state, sim.ledger, sim.reports, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
