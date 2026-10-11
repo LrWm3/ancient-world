@@ -42,3 +42,10 @@ consent, prices, employment and physical endowments remain supplied.
    rule selects no program. Sale-linked candidates exist, but observed-recurrence
    expectations have no successful demand history to repeat. This is an explicit
    negative control, not a passing acceptance claim.
+
+5. **Bounded catalog and compatibility controls.** Unsigned productive recipes
+   cannot become sale candidates. Oversized signed production catalogs reject
+   initial installation atomically instead of silently truncating alternatives.
+   Explicit inventory objectives retain their original target rather than taking
+   the derived sale buffer. Four sale-discovery and two joint-authority tests pass,
+   including arithmetic overflow and historical catalog stability.
