@@ -1,6 +1,38 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
+    if std::env::args().any(|a| a == "--startup-forward-comparison") {
+        use acceptance::{WORKSHOP, continuation as c, financing};
+        println!(
+            "forward_authority,ready,mints,workshop_batches,town_batches,food_deficit,wage_arrears,signed_agreements"
+        );
+        for enabled in [false, true] {
+            let (w, s) = financing::with_authority(c::Case::Baseline, enabled)?;
+            let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
+            run.through(c::MONTHS)?;
+            let e = run.evidence()?;
+            let r = acceptance::governed::check(&run)?;
+            println!(
+                "{enabled},{},{},{},{},{},{},{}",
+                r.ready(),
+                e.completed_mints,
+                e.workshop_batches,
+                e.municipal_batches,
+                e.people_food_deficit,
+                e.wage_arrears,
+                run.sim.world.agency[&WORKSHOP].startup_forwards.len()
+            );
+            println!("failures: {:?}", r.failures);
+            for a in &run.sim.world.agency[&WORKSHOP].startup_forwards {
+                println!(
+                    "accepted month {}, scheduled admission {}, due {}, status {:?}",
+                    a.month, a.proposal.terms.month, a.proposal.terms.due, a.status
+                );
+            }
+        }
+        // A comparison reports negative outcomes; it does not certify readiness.
+        return Ok(());
+    }
     let offer_publication = std::env::args().any(|a| a == "--offer-publication");
     let sale_discovery = std::env::args().any(|a| a == "--sale-discovery");
     if std::env::args().any(|a| a == "--sale-startup-matrix") {
