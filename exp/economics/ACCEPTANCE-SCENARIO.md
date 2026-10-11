@@ -32,3 +32,25 @@ the underlying commitment tests retain the month-four deadline assertion.
 - Founding consent, constitutional menus, quotes and initial endowments are supplied.
 - No automatic company ownership/dividends, municipal formation or dissolution,
   multiple jurisdictions or population/discovery integration is implied.
+
+## Pass 2 — make metal supply an operating dependency
+
+The workshop is a distinct permitted type with its own ore, coins, storage and
+zero endowed hours. A four-month employment agreement buys two smith-hours each
+month; ordinary productive work converts two ore into two metal. The workshop
+replaces the original seller in the existing venue's metal quote. Output from
+Productive can first be offered at the following Acquire. Opening metal is removed,
+so the state cannot issue coins unless the workshop actually produces and sells it.
+
+Employment is an explicit accepted commitment, not an optimizer that automatically
+stops wages when no useful job exists. Missing ore can leave paid but unused hours;
+missing labor cannot create output. Company founding, ownership and governance
+remain open. The runner starts from this month-one fixture; restart verification
+must preserve its Audit and opening-supply basis rather than construct a new book.
+
+Measured reference outcome: four workshop batches, eight paid wages and four mint
+batches; eight distinct agent books reconcile. Removing ore or smith hours stops
+both refining and minting. Workshop cash returns to eight, but this is **not
+profitability**: the supplied metal price covers wages and consumes the opening ore
+endowment without replacing its carrying value. Financial sustainability remains a
+separate acceptance gate.
