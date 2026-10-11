@@ -174,6 +174,7 @@ pub(super) fn quotes(w: &mut World, s: &State, c: &Config) -> Result<(), String>
                 .iter()
                 .filter_map(|o| match o.metric {
                     Metric::Reserve { resource, target }
+                    | Metric::ReserveExposure { resource, target }
                         if o.scope == Scope::Organization && resource == sale.goods.resource =>
                     {
                         Some(target)

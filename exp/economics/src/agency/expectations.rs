@@ -187,7 +187,7 @@ impl Snapshot {
                 .preferences
                 .get(&governor)
                 .unwrap_or(&c.config.objectives);
-            let needed = goals.iter().any(|o| o.scope == super::objectives::Scope::Organization && matches!(o.metric, super::objectives::Metric::Reserve { resource, target } if d.outputs.iter().any(|a| a.resource == resource && a.quantity > 0) && s.balance(e.agent, resource) < target));
+            let needed = goals.iter().any(|o| o.scope == super::objectives::Scope::Organization && matches!(o.metric, super::objectives::Metric::Reserve { resource, target } | super::objectives::Metric::ReserveExposure { resource, target } if d.outputs.iter().any(|a| a.resource == resource && a.quantity > 0) && s.balance(e.agent, resource) < target));
             if !needed
                 || w.scheduled_starts.iter().any(|a| {
                     a.month == s.month && a.agent == e.agent && a.definition == e.definition

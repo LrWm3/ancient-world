@@ -89,8 +89,7 @@ fn project(
     }
     // Debits are isolated hypotheses about opportunity cost. Proceeds and another
     // party's goods are not invented; actual trades use ordinary settlement.
-    sim.run_months(horizon)?;
-    loss(&sim, agent, goals)
+    loss(&super::project(sim, horizon)?, agent, goals)
 }
 
 pub(super) fn choose(

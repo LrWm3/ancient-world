@@ -120,7 +120,7 @@ fn eligible(
             .filter(|o| o.scope == objectives::Scope::Organization)
         {
             let payment_goal = matches!(o.metric,
-                objectives::Metric::Reserve { resource, .. } | objectives::Metric::FundingGap { resource, .. }
+                objectives::Metric::Reserve { resource, .. } | objectives::Metric::ReserveExposure { resource, .. } | objectives::Metric::FundingGap { resource, .. }
                     if resource == m.payment);
             if payment_goal && measure(w, s, &[], agent, std::slice::from_ref(o))?[0] > 0 {
                 wanted = true;

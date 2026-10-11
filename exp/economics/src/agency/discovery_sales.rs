@@ -45,7 +45,8 @@ pub fn opportunities(w: &World, agent: AgentId) -> Result<Vec<Opportunity>, Stri
             .any(|o| {
                 o.scope == objectives::Scope::Organization
                     && match o.metric {
-                        objectives::Metric::Reserve { resource, target } => {
+                        objectives::Metric::Reserve { resource, target }
+                        | objectives::Metric::ReserveExposure { resource, target } => {
                             resource == m.payment && target > 0
                         }
                         objectives::Metric::FundingGap { resource, .. } => resource == m.payment,

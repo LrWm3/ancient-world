@@ -301,18 +301,36 @@ fn needs(w: &World, agent: AgentId) -> Vec<agency::objectives::Objective> {
     }
     result
 }
-fn forecast(w: &World, s: &State, months: u32) -> Result<Simulation, String> {
+struct Projection {
+    sim: Simulation,
+    path: agency::path::Path,
+}
+fn forecast(w: &World, s: &State, months: u32) -> Result<Projection, String> {
     let (w, s) = crate::forecast::ForecastContext::new(w, s).into_parts();
-    let mut sim = Simulation::new(w, s, Backend::Reference)?;
-    sim.run_months(months)?;
-    Ok(sim)
+    project(Simulation::new(w, s, Backend::Reference)?, months)
+}
+fn project(mut sim: Simulation, months: u32) -> Result<Projection, String> {
+    let mut path = agency::path::Path::new(sim.state.month);
+    for _ in 0..months {
+        sim.run_months(1)?;
+        path.record(&sim.world, &sim.state)?;
+    }
+    Ok(Projection { sim, path })
 }
 fn loss(
-    sim: &Simulation,
+    projection: &Projection,
     agent: AgentId,
     objectives: &[agency::objectives::Objective],
 ) -> Result<Vec<i128>, String> {
-    agency::objectives::measure(&sim.world, &sim.state, &sim.reports, agent, objectives)
+    let sim = &projection.sim;
+    agency::objectives::measure_projection(
+        &sim.world,
+        &sim.state,
+        &sim.reports,
+        agent,
+        objectives,
+        &projection.path,
+    )
 }
 
 /// Free, obligation-free citizenship uses a standing acceptance policy. Land

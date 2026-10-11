@@ -69,17 +69,20 @@ pub(super) fn quantity(
         // employer output. Actual work and payment still require normal settlement.
         let mut sim = Simulation::new(world, state, Backend::Reference)?;
         let mut delivery_losses = vec![None; deliveries.len()];
+        let mut path = crate::agency::path::Path::new(sim.state.month);
         for _ in 0..policy.horizon {
             let month = sim.state.month;
             sim.run_months(1)?;
+            path.record(&sim.world, &sim.state)?;
             super::performance::observe(&deliveries, &sim.state, month, &mut delivery_losses);
         }
-        let mut losses = crate::agency::objectives::measure(
+        let mut losses = crate::agency::objectives::measure_projection(
             &sim.world,
             &sim.state,
             &sim.reports,
             terms.worker,
             &goals,
+            &path,
         )?;
         losses.extend(delivery_losses.into_iter().map(|v| v.unwrap_or(0)));
         losses.extend(super::performance::arrears(&loans, &sim.ledger));

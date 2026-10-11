@@ -67,7 +67,7 @@ pub struct Assessment {
     pub attempts: Vec<Attempt>,
 }
 
-fn objectives(w: &World, agent: AgentId, coin: ResourceId) -> Vec<Objective> {
+fn objectives(w: &World, s: &State, agent: AgentId, coin: ResourceId) -> Vec<Objective> {
     let mut result = w
         .agency
         .get(&agent)
@@ -78,7 +78,7 @@ fn objectives(w: &World, agent: AgentId, coin: ResourceId) -> Vec<Objective> {
         scope: Scope::Organization,
         metric: Metric::Debt(coin),
     });
-    result
+    agency::objectives::freeze(w, s, agent, &result)
 }
 
 pub(super) fn discover(w: &mut World, s: &State, c: &Config) -> Result<(), String> {
@@ -159,7 +159,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
     }
     let horizon = c.horizon.max(rule.loan_months + FORECAST_BUFFER_MONTHS);
     let baseline = forecast(w, s, horizon)?;
-    let borrower_objectives = objectives(w, debtor, rule.denomination);
+    let borrower_objectives = objectives(w, s, debtor, rule.denomination);
     let lenders: Vec<_> = people(w, s)
         .into_iter()
         .filter(|lender| {
@@ -257,7 +257,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
                 continue;
             }
         };
-        let mut lender_objectives = objectives(w, lender, rule.denomination);
+        let mut lender_objectives = objectives(w, s, lender, rule.denomination);
         lender_objectives.push(Objective {
             scope: Scope::Organization,
             metric: Metric::Reserve {
@@ -282,7 +282,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
             ),
         ]
         .into();
-        let performance = match projected.state.credit.loans.get(&id) {
+        let performance = match projected.sim.state.credit.loans.get(&id) {
             Some(loan) => Performance::Loan {
                 status: loan.status,
                 outstanding: loan.debt()?,
@@ -290,6 +290,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
             None => Performance::NotAdmitted,
         };
         let repaid = projected
+            .sim
             .state
             .credit
             .loans
@@ -337,7 +338,8 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
     let mut buyers = BTreeMap::<(AgentId, ResourceId), i32>::new();
     for (&agent, controller) in &w.agency {
         for objective in &controller.config.objectives {
-            if let Metric::Reserve { resource, target } = objective.metric
+            if let Metric::Reserve { resource, target }
+            | Metric::ReserveExposure { resource, target } = objective.metric
                 && objective.scope == Scope::Organization
                 && resource != rule.denomination
             {
@@ -371,7 +373,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
             .agents
             .iter()
             .map(|a| a.id)
-            .filter(|a| *a != buyer && baseline.state.balance(*a, resource) >= FORWARD_LOT)
+            .filter(|a| *a != buyer && baseline.sim.state.balance(*a, resource) >= FORWARD_LOT)
             .collect();
         sellers.sort_unstable();
         let assessment = w.discovery.as_ref().unwrap().financial.len();
@@ -439,13 +441,14 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                     continue;
                 }
             };
-            let buyer_objectives = objectives(w, buyer, rule.denomination);
-            let mut seller_objectives = objectives(w, seller, rule.denomination);
+            let buyer_objectives = objectives(w, s, buyer, rule.denomination);
+            let mut seller_objectives = objectives(w, s, seller, rule.denomination);
             seller_objectives.push(Objective {
                 scope: Scope::Organization,
                 metric: Metric::Reserve {
                     resource: rule.denomination,
                     target: baseline
+                        .sim
                         .state
                         .balance(seller, rule.denomination)
                         .saturating_add(price),
@@ -468,7 +471,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                 ),
             ]
             .into();
-            let performance = match projected.state.exchange.forwards.get(&id) {
+            let performance = match projected.sim.state.exchange.forwards.get(&id) {
                 Some(contract) => Performance::Forward {
                     delivered: contract.delivered,
                     outstanding: contract.claim().outstanding(),
@@ -476,6 +479,7 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
                 None => Performance::NotAdmitted,
             };
             let delivered = projected
+                .sim
                 .state
                 .exchange
                 .forwards

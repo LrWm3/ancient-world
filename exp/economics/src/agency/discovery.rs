@@ -27,6 +27,7 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
         use objectives::Metric;
         match objective.metric {
             Metric::Reserve { resource, .. }
+            | Metric::ReserveExposure { resource, .. }
             | Metric::FundingGap { resource, .. }
             | Metric::NeedDeficit(resource) => {
                 wanted.insert(resource);
@@ -71,7 +72,9 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
                         if o.scope != objectives::Scope::Organization {
                             return None;
                         }
-                        let objectives::Metric::Reserve { resource, target } = o.metric else {
+                        let (objectives::Metric::Reserve { resource, target }
+                        | objectives::Metric::ReserveExposure { resource, target }) = o.metric
+                        else {
                             return None;
                         };
                         (target > 0
