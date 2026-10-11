@@ -223,3 +223,46 @@ in [REPRODUCTION.md](REPRODUCTION.md#support-planning-comparisons) records setti
 and outcomes. Planning removes abundant-world deficits. Under scarcity it reduces
 childhood deficits but not deaths; it can change births and their timing. Rotation
 has no aggregate outcome effect in these fixtures. No-birth controls remain stable.
+
+## 19. Verify a growing household across lifecycle boundaries
+
+An eight-month integrated fixture combines births, known-child production,
+charter-authorized support and contributed labor, scarce/abundant shared food,
+both support priorities, and explicit unanimous household accession at maturity.
+The join is an authored scenario action; chronological replay applies that same
+external World change at its original Open, rather than pretending batches encode it.
+
+Independent review tightened the outcome assertions. The focused test passes all
+four configurations: uninterrupted Reference equals CPU rebuilt at every phase,
+including World, State, ledger, reports and audited books. Independent replay also
+reconciles State/World/Audit. Assertions require actual pre-maturity need allocation
+and completed forage by the admitted adult, not merely registration or grants.
+
+## Remaining scope
+
+This batch does not enable demographic composition with endogenous institutional
+discovery, choose reproductive behavior, model gestation/genetics/aging, transfer
+guardianship, implement the extra grown-child adult slots, or automatically admit
+mature people to organizations. A sole parent's death can remove the child's
+household support route. These need explicit policies and adapters. Individual
+self-directed policy changes remain excluded. Support planning and household
+support are optional; unchanged defaults preserve the prior controls.
+
+## Final verification — 2026-10-11
+
+- Full locked release suite: **1,278 passed, zero failed, one ignored** across
+  147 test groups, including all 32 reproduction tests.
+- The ignored annual 32-person production/trading/dues accounting test passed
+  separately (66 seconds).
+- The strengthened iteration-19 integration assertion passed separately after
+  its final review; no failures remained in the full run.
+- Strict all-target release Clippy (`-D warnings`), formatting, whitespace and
+  repository artifact checks passed.
+- Both 36-month CPU matrices completed: 32 audited runs in total. Generated
+  logs/CSVs remain under ignored `output/`; no generated artifacts are committed.
+
+Commands run from `exp/economics` used Rust 1.92.0, `--locked --release`, the full
+`cargo test` suite, the named ignored annual test, `cargo clippy --all-targets --
+-D warnings`, and `cargo fmt -- --check`. The repository-root
+`python3 scripts/check_repository_artifacts.py` passed before each commit.
+These are experiment integration results, not expanded historical v1 release gates.

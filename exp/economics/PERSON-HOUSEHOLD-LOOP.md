@@ -141,8 +141,10 @@ composes with costed member allocation, output pooling, sales and payroll.
 [Five consolidation passes](INTEGRATION-PASSES.md) now connect outside wages,
 private surplus sales, static cash buffers and direct loans with town purchases.
 Remaining town-market composition exclusions stay enforced. Person self-directed
-policy changes are deferred by request. Recruitment, children, automatic death
-estates, nested institutions and autonomous state governance also remain extensions.
+policy changes are deferred by request. This adult-only loop record predates
+[known-child support](REPRODUCTION.md), [bounded discovery](ENDOGENOUS-DISCOVERY.md)
+and [state agency](STATE-AGENCY.md). Those follow-ups have their own scoped coverage;
+automatic death estates, guardianship and general nested institutions remain extensions.
 
 [Five further passes](INTEGRATION-PASSES-2.md) connect physical barter, partial
 support, charter-delegated consumption buying, membership-aware order gates and

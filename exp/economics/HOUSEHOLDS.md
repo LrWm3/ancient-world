@@ -4,7 +4,8 @@ Status: implemented first adult-only pilot in `exp/economics`. Run
 `households-32` for 32 people organized into eight households of four. This is
 opt-in; the existing independent-person scenarios retain their previous rules.
 Formation is explicitly configured, rather than simulated marriage or household
-search. No children have been added. The [governance basics checklist](HOUSEHOLD-BASICS.md)
+search in this fixture. A separate opt-in [reproduction follow-up](REPRODUCTION.md)
+adds children and charter-authorized support. The [governance basics checklist](HOUSEHOLD-BASICS.md)
 tracks integrated completion, reproducible examples and remaining extensions.
 
 ## Governance redesign: first implemented slice
@@ -187,9 +188,13 @@ is no inheritance or estate liquidation policy yet.
 The demographic extension has a distinct allowance: **four additional adults
 who grew up in the household may remain upon adulthood**, separate from the four
 founding/admitted adult places. `GROWN_CHILD_ADULT_SLOTS` records that policy;
-there is no child or maturation implementation yet. Future children have no
-numeric household limit. Their actual material requirements must be supported,
-and a child-only household cannot remain active without an adult.
+the extra-slot admission policy is not implemented. The reproduction pilot now
+creates children and matures them, but explicit adult accession still uses the
+existing adult bound. Children can receive need support under
+`Charter.support_dependents` without joining the adult roster, sharing their own
+storage, voting or contributing labor. Their material requirements remain finite,
+and a child-only household cannot remain active without an adult. Guardian transfer
+after a parent’s death and automatic grown-child accession remain open.
 
 [Adult accession and voluntary exit](HOUSEHOLD-MEMBERSHIP.md) now operate at Open.
 They retain the founding record, property and debts, and recheck shared storage.
@@ -403,7 +408,9 @@ Individual tool/plot underwriting remains a local individual rollout; it exclude
 future household support and is not a joint household credit assessment. Pooled
 external sales, valued bilateral/town barter, bounded joint work and explicit
 wind-down property transfers now have adapters. General migration, inheritance,
-children and optimal multi-period household plans remain extensions. The
+guardianship and optimal multi-period household plans remain extensions. Known-child
+food reservations, collective purchase forecasts, contributed-labor objectives and
+voluntary support now have [scoped adapters](REVIEW-BATCH-19.md). The
 [integration matrix](INTEGRATION-STATUS.md) records the current combination limits,
 including general household prerequisite search and cooperative purchasing.
 Explicit prerequisite/process acceptance is covered by [v1 verification](V1-ACCEPTANCE.md).

@@ -59,8 +59,11 @@ self-directed policy changes remain deferred. [State governance](STATE-GOVERNANC
 now supports citizen governors and dated legal-policy choices within static
 constitutional menus. The opt-in [reproduction pilot](REPRODUCTION.md) now tests
 individual births, finite support and maturation, including loans and household
-opening wind-down transfers. Household child integration and enabled endogenous
-discovery with a changing dependent roster remain unsupported. Open-ended political
+opening wind-down transfers. The [nineteen-iteration expansion](REVIEW-BATCH-19.md)
+adds optional known-child support planning, household food/input/market/labor and
+voluntary-support adapters, worker-consent coverage, dated adulthood admission and
+external population metrics. Child support does not confer adult membership.
+Enabled endogenous discovery with a changing dependent roster remains unsupported. Open-ended political
 choices/spending, negotiated recruitment and automatic death estates remain extensions.
 
 The [state agency controls](STATE-AGENCY.md) add bounded goals, program comparison,
@@ -75,6 +78,7 @@ prove that every combination of those systems works together.
 
 | Combination | Implemented coverage | Boundary still present |
 | --- | --- | --- |
+| Reproduction + person/household economy | Known-child production and orders, charter-authorized food allocation and labor objectives, signed surplus, scoped support priority, worker consent, explicit maturity accession, audited CPU/reference and chronological replay | One parent/support stock, child private storage, no automatic accession/guardianship; endogenous discovery excluded |
 | Endogenous startup + mint/person/household economy | Generated citizenship/land offers, bilateral household formation, discovered policy/work catalogs, finite funding loans and prepaid deliveries, joint land admission and annual renewal | Existing public agent, static rules/templates/objectives, fixed valuation limits, pair formation and scoped finance discovery; not all-driver composition |
 | State founding + household/person execution | Explicit founding signatures, atomic state/law/citizenship creation, immutable terms, later ordinary citizenship, governed household admission, six-month CPU/reference/checkpoint and accounting control | One bootstrap sovereign; consent supplied, no automatic capitalization, land transfer, secession or autonomous founding |
 | State governance + persons/households | Shared objective/program controller, supplied-preference autonomous voting, dated authority, need-driven admission reopening, preserved commitments, CPU/checkpoint and separate-book controls | One state; supplied objectives, prices and finite program menu; broader legal changes, strategic politics and all-driver composition remain open |

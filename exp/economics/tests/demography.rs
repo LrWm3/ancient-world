@@ -1963,3 +1963,114 @@ fn maturity_does_not_grant_citizenship_and_admission_cannot_be_backdated() {
     };
     assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }
+
+#[test]
+fn growing_households_compose_with_reproduction_and_chronological_replay() {
+    use economics_compute_smoke::{
+        demography::SupportOrder,
+        household_governance::{Contribution, Policy},
+        households::{self, membership},
+    };
+    let fixture = |scarce, order| {
+        let (mut w, mut s) = family_household(true, 0);
+        let c = w.demography.as_mut().unwrap();
+        c.max_births = 2;
+        c.maturity_months = 3;
+        c.interval_months = 2;
+        c.plan_support = true;
+        c.support_order = order;
+        w.pools[0].monthly_regeneration = if scarce { 1 } else { 8 };
+        w.definitions
+            .iter_mut()
+            .find(|d| d.id == FORAGE)
+            .unwrap()
+            .enabled = true;
+        for p in &mut w.participants {
+            p.capacity.quantity = 2;
+        }
+        s.balances.insert((PERSON, GRAIN), 6);
+        let mut h = w.households.remove(0);
+        w.agents.retain(|a| a.id != h.agent);
+        h.adults = vec![PERSON, PERSON + 1];
+        h.governance.charter.initial_policy = Policy::NeedsFirst;
+        h.governance.charter.contribution = Contribution::Percent(50);
+        households::form(&mut w, &s, h).unwrap();
+        (w, s)
+    };
+    let join = |w: &mut World, s: &State| {
+        if s.month == 4 && s.phase == Phase::Open {
+            let mut signatures: Vec<_> = households::members(&w.households[0], s).collect();
+            signatures.push(FIRST_CHILD);
+            membership::join(w, s, 10000, FIRST_CHILD, signatures).unwrap();
+        }
+    };
+    let run = |backend, scarce, order, rebuild| {
+        let (w, s) = fixture(scarce, order);
+        let mut a = audit(&w, &s);
+        let (mut rw, mut rs) = (w.clone(), s.clone());
+        let mut ra = a.clone();
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 8 {
+            join(&mut sim.world, &sim.state);
+            if rebuild {
+                let ledger = std::mem::take(&mut sim.ledger);
+                let reports = std::mem::take(&mut sim.reports);
+                sim = Simulation::new(sim.world, sim.state, backend).unwrap();
+                sim.ledger = ledger;
+                sim.reports = reports;
+            }
+            a.step(&mut sim).unwrap();
+            join(&mut rw, &rs);
+            let before = rs.clone();
+            let b = sim.ledger.last().unwrap();
+            demography::replay(
+                &mut rw,
+                &mut rs,
+                b,
+                backend,
+                economics_compute_smoke::settlement::DEFAULT_EFFECT_LIMIT,
+            )
+            .unwrap();
+            ra.record(&rw, &before, b, &rs).unwrap();
+        }
+        assert_eq!((&sim.world, &sim.state, &a), (&rw, &rs, &ra));
+        assert_eq!(sim.state.demography.births.len(), 2);
+        assert!(sim.state.demography.matured.contains(&FIRST_CHILD));
+        assert_eq!(
+            households::parent(&sim.world, &sim.state, FIRST_CHILD),
+            Some(10000)
+        );
+        assert!(
+            sim.ledger
+                .iter()
+                .any(|b| b
+                    .household
+                    .as_ref()
+                    .is_some_and(|h| h.reservations.iter().any(|r| r.allocated > 0
+                        && matches!(r.request.purpose, households::Purpose::Need(_))
+                        && sim
+                            .state
+                            .demography
+                            .births
+                            .get(&r.request.member)
+                            .is_some_and(|birth| b.month < birth.adult_at))))
+        );
+        assert!(
+            sim.state
+                .processes
+                .values()
+                .any(|p| p.operator == FIRST_CHILD
+                    && p.definition == FORAGE
+                    && p.status == Status::Completed)
+        );
+        (sim.world, sim.state, sim.ledger, sim.reports, a)
+    };
+    for scarce in [false, true] {
+        for order in [SupportOrder::OldestFirst, SupportOrder::Rotating] {
+            assert_eq!(
+                run(Backend::Reference, scarce, order, false),
+                run(Backend::CubeCpu, scarce, order, true)
+            );
+        }
+    }
+}

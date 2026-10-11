@@ -175,10 +175,13 @@ this table is the source-controlled result summary.
 
 ## Verification and limits
 
-On 2026-10-11, the full release suite passed **1,255 tests, zero failed, one
-ignored**. All twelve focused reproduction tests passed, as did strict all-target
-release Clippy, formatting and repository artifact checks. The ignored 32-person
-annual accounting integration test also passed separately.
+The [nineteen-iteration expansion](REVIEW-BATCH-19.md) passes **1,278 release tests,
+zero failed, one ignored**, including all thirty-two reproduction tests. The
+original twelve-test lifecycle slice at `40b4236` is preserved within that coverage.
+The final integration test also passes with strengthened infant-feeding and
+completed-adult-work assertions. The two CPU comparison matrices complete all
+32 audited runs. The ignored annual accounting integration test passed separately,
+as did strict all-target release Clippy, formatting and repository artifact checks.
 
 Focused controls cover CPU/reference equality, conserved support, separate
 financial statements, exact maturity, deprivation/death, insufficient birth funds,

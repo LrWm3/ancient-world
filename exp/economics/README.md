@@ -54,8 +54,10 @@ This is bounded preparation, not guaranteed fulfillment of arbitrary contracts.
 
 The [reproduction pilot](REPRODUCTION.md) now exercises population growth with
 ordinary needs, finite parental support, maturation and deprivation consequences.
-It is opt-in and deliberately abstract; it does not yet integrate children into
-households or the self-starting institutional discovery scenario.
+It is opt-in and deliberately abstract. The [nineteen-iteration expansion](REVIEW-BATCH-19.md)
+connects known-child support to production, purchases, household governance and
+worker consent, with explicit adulthood admission and population telemetry.
+Self-starting institutional discovery with a changing dependent roster remains excluded.
 
 ## Current progress — 2026-10-11
 
@@ -120,6 +122,12 @@ one ignored**, including twelve lifecycle/integration controls. CPU/reference
 population outcomes and separate books agree; strict all-target release Clippy
 also passes. The ignored annual accounting test passed separately. This adds an
 opt-in experiment without changing the v1 release scope.
+
+The [nineteen-iteration expansion](REVIEW-BATCH-19.md) passes **1,278 release tests,
+zero failed, one ignored**, including 32 reproduction controls. Its audited CPU
+matrices show support planning removes abundant-world nutrition deficits and
+reduces childhood deficits under scarcity, without improving scarce-world death
+counts. Defaults remain unchanged; these are scoped post-v1 extensions.
 
 The opt-in [self-starting economy](ENDOGENOUS-DISCOVERY.md) now removes initial
 citizenships, household/land/finance agreements, counterparty quotes and operational
@@ -211,8 +219,10 @@ opt-in [reproduction pilot](REPRODUCTION.md) adds children with ordinary needs,
 finite parental support and dated maturity. In its 36-month CPU comparison, two
 founders become fourteen living people with abundant food supply; scarce supply
 leaves five survivors after ten births and seven deaths. Abundant supply still
-has some shortages under the simple support policy. Household child membership
-and endogenous institutional discovery for new people remain open.
+has some shortages under the legacy support policy; opt-in support planning
+removes those abundant-world deficits. Households can support children without
+admitting them as adults; later household/citizenship admission remains explicit.
+Endogenous institutional discovery for new people remains open.
 The 32-person trading fixture now uses upfront coin tool purchases and state
 advances against projected future commodity production, with finite treasury funding.
 A finite state offer now exchanges grain for a durable labor-saving tool.
