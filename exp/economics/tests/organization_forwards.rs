@@ -109,3 +109,28 @@ fn candidates_respect_matching_terms_funding_and_finite_startup_use() {
     w.prepaid_deliveries.push(offers[0].terms.clone());
     assert!(forwards::candidates(&w, &s).unwrap().is_empty());
 }
+
+#[test]
+fn fixed_program_mandate_does_not_authorize_discovered_forward_work() {
+    use economics_compute_smoke::agency::forwards;
+    let (mut w, mut s) = publication::scenario(c::Case::Baseline).unwrap();
+    s.balances.insert((acceptance::WORKSHOP, ORE), 0);
+    for agent in [acceptance::WORKSHOP, acceptance::TOWN] {
+        authorize(
+            &mut w,
+            &s,
+            agent,
+            Options {
+                prepayment: 2,
+                delivery_months: 3,
+            },
+        )
+        .unwrap();
+    }
+    assert!(!forwards::candidates(&w, &s).unwrap().is_empty());
+    for agent in [acceptance::WORKSHOP, acceptance::TOWN] {
+        let mut fixed = w.clone();
+        fixed.agency.get_mut(&agent).unwrap().discover_programs = false;
+        assert!(forwards::candidates(&fixed, &s).unwrap().is_empty());
+    }
+}

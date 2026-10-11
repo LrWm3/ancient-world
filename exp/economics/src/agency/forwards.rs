@@ -67,6 +67,7 @@ pub struct Proposal {
 /// opening stock, but this is only a candidate, never a feasibility assertion.
 pub fn candidates(w: &World, s: &State) -> Result<Vec<Proposal>, String> {
     use crate::marketplace::Side;
+    super::validate(w)?;
     let id = w
         .prepaid_deliveries
         .iter()
@@ -78,6 +79,9 @@ pub fn candidates(w: &World, s: &State) -> Result<Vec<Proposal>, String> {
         .ok_or("forward ID exhausted")?;
     let mut result = vec![];
     for (&buyer, controller) in &w.agency {
+        if !controller.discover_programs {
+            continue;
+        }
         let Some(buy) = controller.operating_agreement() else {
             continue;
         };
@@ -94,6 +98,9 @@ pub fn candidates(w: &World, s: &State) -> Result<Vec<Proposal>, String> {
                 continue;
             }
             for (&seller, controller) in &w.agency {
+                if !controller.discover_programs {
+                    continue;
+                }
                 let Some(sell) = controller.operating_agreement() else {
                     continue;
                 };
