@@ -62,3 +62,22 @@ A town-income case hires two hours per month for three months: household cash
 increases from four to seven, the worker earns six and the food buyer spends nine.
 Increasing the wage above the predicted sale proceeds rejects the hire. Buyer
 liquidity is finite; this does not establish indefinite economic sustainability.
+
+## Optional worker assessment
+
+`World.employment_supply` assigns a bounded forecast horizon (1–24 months) to a
+person. For that person's posted jobs, acceptance must also preserve projected
+survival, need satisfaction and process completion for the worker and current
+household members. Keeping the hours is compared with consuming them; hypothetical
+wages and employer outputs are not credited. The search considers at most 64 whole
+hours. Each final quantity must pass both worker and employer comparisons. This is
+conservative opportunity-cost protection, not wage bargaining or a claim that the
+best-paid job is selected. Accepted-payment performance is not yet an objective.
+An empty policy map preserves supplied worker consent; preaccepted jobs are unchanged.
+
+The shared post-Acquire preview stages validated citizenship/access, actual
+acquisitions, pooling and prior hires before Productive. Opening labor permissions
+still govern employment. A binding dated production plan prevents optional hiring;
+this slice does not amend committed plans. Discovery can compose with posted hires
+when discovered land is disabled. Land's prerequisite reservations still need a
+handoff before that restriction can be lifted.

@@ -163,6 +163,7 @@ pub fn baseline() -> (World, State) {
         agency: Default::default(),
         governance_observation: None,
         employment_offers: Default::default(),
+        employment_supply: Default::default(),
         employment: Default::default(),
         minting: None,
         production_market: None,

@@ -11,34 +11,15 @@ pub(crate) fn quantity(
     terms: &employment::Terms,
     maximum: i32,
 ) -> Result<i32, String> {
+    if base.production_plan.is_some() {
+        return Ok(0);
+    }
     let h = world
         .households
         .iter()
         .find(|h| h.agent == terms.employer)
         .unwrap();
-    let mut w = world.clone();
-    // A projection observes existing commitments, not hypothetical future hires.
-    // Keeping offer identities and terms preserves validation of earned claims.
-    for household in &mut w.households {
-        if let Some(budget) = &mut household.governance.charter.hiring_budget {
-            budget.quantity = 0;
-        }
-    }
-    let mut state = opening.clone();
-    crate::settlement::record_acceptances(&w, &mut state, base)?;
-    for tx in base.transactions.iter().chain(&prior.transactions) {
-        apply(&w, &mut state, &tx.effects, Backend::Reference)?;
-        crate::exchange::record(&mut state, tx);
-    }
-    if let Some(c) = &base.credit {
-        crate::credit::record(&mut state, c);
-    }
-    crate::town_market::record(&mut state, &base.town_market);
-    state.employment = prior.after.clone();
-    let (pooled, remainders) = collect(&w, opening, &state, base)?;
-    apply(&w, &mut state, &pooled, Backend::Reference)?;
-    state.household_remainders = remainders;
-    state.phase = Phase::Productive;
+    let (w, state) = preview(world, opening, base, prior)?;
     // Acquire is complete before any productive work. Only already accepted
     // acquisitions enter this hypothesis; no assumed fills or added resources.
     let project = |state: &State| -> Result<LaborDecision, String> {
@@ -111,4 +92,42 @@ pub(crate) fn quantity(
                 _ => candidate.projected_value - baseline.projected_value > wage * INPUT_BENEFIT,
             });
     Ok(if worthwhile { useful } else { 0 })
+}
+
+/// Hypothetical post-Acquire state shared by both sides of optional hiring.
+pub(crate) fn preview(
+    world: &World,
+    opening: &State,
+    base: &Batch,
+    prior: &employment::Boundary,
+) -> Result<(World, State), String> {
+    let mut w = world.clone();
+    // A projection observes existing commitments, not hypothetical future hires.
+    // Keeping offer identities and terms preserves validation of earned claims.
+    for household in &mut w.households {
+        if let Some(budget) = &mut household.governance.charter.hiring_budget {
+            budget.quantity = 0;
+        }
+    }
+    let mut state = opening.clone();
+    crate::settlement::record_acceptances(&w, &mut state, base)?;
+    for tx in base.transactions.iter().chain(&prior.transactions) {
+        apply(&w, &mut state, &tx.effects, Backend::Reference)?;
+        crate::exchange::record(&mut state, tx);
+    }
+    if let Some(c) = &base.credit {
+        crate::credit::record(&mut state, c);
+    }
+    crate::town_market::record(&mut state, &base.town_market);
+    state.employment = prior.after.clone();
+    let (pooled, remainders) = collect(&w, opening, &state, base)?;
+    apply(&w, &mut state, &pooled, Backend::Reference)?;
+    state.household_remainders = remainders;
+    state.pending_production = base.production_plan.clone();
+    state.next_batch = opening
+        .next_batch
+        .checked_add(1)
+        .ok_or("batch ID overflow")?;
+    state.phase = Phase::Productive;
+    Ok((w, state))
 }

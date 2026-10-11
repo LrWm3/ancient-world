@@ -27,3 +27,14 @@ same-window labor sale. Three audited Reference/CPU controls pass, including den
 membership and next-month labor eligibility. Independent review found no blocker.
 Discovered land remains excluded: its prerequisite reservations need an explicit
 handoff before optional employment can safely compose with them.
+
+## 3. Optional worker-side opportunity-cost protection
+
+Added a per-person, opt-in bounded assessment for posted jobs, sharing the real
+post-Acquire preview with the employer. It protects survival, needs and failed
+processes without hypothetical wage purchases. Both sides must approve the exact
+final hours, including after discrete trimming. Supplied consent and preaccepted
+jobs retain their defaults. Dated production plans remain binding and prevent
+optional hiring. Independent review identified the discrete-quantity issue and
+confirmed the decreasing intersection loop fixes it. All 20 hiring tests pass,
+including food-vs-wages, enough spare hours, no capacity and default-consent controls.

@@ -7,6 +7,8 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod supply;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArrearsPolicy {
     Continue,
@@ -55,6 +57,7 @@ pub enum Reason {
     HiringBudget,
     NoUsefulWork,
     UsefulWorkLimit,
+    WorkerProtection,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
@@ -86,6 +89,7 @@ fn transaction(effects: Vec<Effect>) -> Transaction {
     }
 }
 pub fn validate(w: &World, s: &State) -> Result<(), String> {
+    supply::validate(w)?;
     if w.employment_offers.iter().any(|id| {
         !w.employment
             .iter()
@@ -367,6 +371,28 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                         };
                     }
                     delivered = useful;
+                }
+                if delivered > 0 && w.employment_offers.contains(&t.id) {
+                    let initial = delivered;
+                    loop {
+                        let allowed = supply::quantity(w, s, base, &b, t, delivered)?;
+                        if allowed == delivered {
+                            break;
+                        }
+                        delivered = if allowed > 0 {
+                            crate::households::hiring::quantity(w, s, base, &b, t, allowed)?
+                        } else {
+                            0
+                        };
+                        if delivered == 0 {
+                            break;
+                        }
+                        // A smaller employer grant must itself pass the worker's
+                        // discrete forecast; outcome quality need not be monotonic.
+                    }
+                    if delivered < initial {
+                        reason = Reason::WorkerProtection;
+                    }
                 }
                 *spent = spent
                     .checked_add(delivered * t.wage_per_unit.quantity)

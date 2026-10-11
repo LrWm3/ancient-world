@@ -1198,3 +1198,66 @@ fn discovered_citizenship_is_visible_to_work_but_hiring_uses_opening_permission(
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn optional_worker_policy_protects_food_without_inventing_wage_purchases() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        employment::supply::Policy,
+        scenario::{GRAIN, NUTRITION},
+    };
+    for (protected, capacity, expected) in [(false, 3, 2), (true, 3, 0), (true, 4, 2), (true, 0, 0)]
+    {
+        let (mut w, s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        if protected {
+            w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+        }
+        let p = w
+            .participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap();
+        p.capacity.quantity = capacity;
+        p.needs.push(Requirement {
+            resource: NUTRITION,
+            quantity: 1,
+            priority: 0,
+        });
+        w.activities.orders.push(WorkOrder {
+            agent: WORKER,
+            definition: MAKE,
+            priority: 0,
+            target: Target::Stock(Amount::new(GRAIN, 100)),
+        });
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            assert_eq!(
+                sim.state.balance(WORKER, TOKEN),
+                expected,
+                "{protected} {capacity}"
+            );
+            let deficit = sim
+                .reports
+                .iter()
+                .filter(|r| r.agent == WORKER)
+                .map(|r| r.deficit(NUTRITION))
+                .sum::<i32>();
+            assert_eq!(deficit, if capacity == 0 || !protected { 1 } else { 0 });
+            if protected && capacity == 3 {
+                assert!(
+                    sim.ledger
+                        .iter()
+                        .filter_map(|b| b.employment.as_ref())
+                        .flat_map(|b| &b.receipts)
+                        .any(|r| r.reason == Reason::WorkerProtection)
+                );
+            }
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

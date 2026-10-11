@@ -190,6 +190,8 @@ pub struct World {
     pub employment: Vec<crate::employment::Terms>,
     /// Catalog IDs offered for household acceptance each month, not preaccepted jobs.
     pub employment_offers: std::collections::BTreeSet<u32>,
+    /// Optional worker protection for posted jobs; supplied consent remains the default.
+    pub employment_supply: BTreeMap<AgentId, crate::employment::supply::Policy>,
     pub minting: Option<crate::minting::Config>,
     pub production_market: Option<crate::production_market::Config>,
     pub town_market: Option<crate::town_market::Config>,

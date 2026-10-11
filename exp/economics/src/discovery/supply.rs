@@ -25,7 +25,11 @@ pub struct Decision {
     pub alternatives: Vec<Alternative>,
 }
 
-fn objectives(w: &World, s: &State, agent: AgentId) -> Vec<agency::objectives::Objective> {
+pub(crate) fn objectives(
+    w: &World,
+    s: &State,
+    agent: AgentId,
+) -> Vec<agency::objectives::Objective> {
     // A supplier cannot treat harm to other members as free collective labor.
     let members: Vec<_> = w
         .households
