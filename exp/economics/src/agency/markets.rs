@@ -120,3 +120,46 @@ pub(crate) fn apply(w: &mut World, agent: AgentId, quotes: &[Quote]) -> Result<(
     w.minting.as_mut().unwrap().order_policy = Some(p);
     Ok(())
 }
+
+/// Reserve schema compatibility, not cash or goods. Every signed quote slot must
+/// coexist with peers' slots and still-live quotes before choices are accepted.
+/// This conservative union intentionally forbids aliases even if mutually exclusive.
+pub(crate) fn validate_joint_authorities(w: &World) -> Result<(), String> {
+    let authorities: Vec<_> = w
+        .agency
+        .values()
+        .filter_map(|c| c.operating_agreement())
+        .filter(|a| !a.stock_markets.is_empty())
+        .collect();
+    if authorities.is_empty() {
+        return Ok(());
+    }
+    let c = w.minting.as_ref().ok_or("missing stock market engine")?;
+    let mut policy = c.order_policy.clone().ok_or("missing stock order policy")?;
+    let peer = policy
+        .peer_stocks
+        .as_mut()
+        .ok_or("missing peer stock book")?;
+    let mut slots: BTreeMap<_, _> = peer
+        .quotes
+        .iter()
+        .map(|q| ((q.agent, q.market), q.clone()))
+        .collect();
+    for a in authorities {
+        for (&market, o) in &a.stock_markets {
+            slots.insert(
+                (a.organization, market),
+                Quote {
+                    agent: a.organization,
+                    market,
+                    side: o.side,
+                    limit: *o.limits.first().ok_or("empty stock prices")?,
+                    holding: *o.holdings.first().ok_or("empty stock holdings")?,
+                    max_lots: Some(o.max_lots),
+                },
+            );
+        }
+    }
+    peer.quotes = slots.into_values().collect();
+    orders::validate(w, c, &policy)
+}

@@ -166,7 +166,7 @@ pub fn validate(w: &World) -> Result<(), String> {
             validate_program(w, agent, p)?;
         }
     }
-    Ok(())
+    markets::validate_joint_authorities(w)
 }
 
 /// Validate a complete proposed program before publishing any commands.

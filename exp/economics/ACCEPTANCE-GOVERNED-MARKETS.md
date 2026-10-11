@@ -13,8 +13,6 @@ institution formation or price discovery.
    validates market units and compatibility before accepting signatures. Authority
    alone publishes no orders and grants no legal or venue access.
 
-Validation results and the remaining iterations are recorded here as completed.
-
 2. **Own quote programs.** `PeerStockQuotes` replaces only the issuing
    organization's independent stock quotes at the following Open. Signed bounds,
    lot units and whole-book compatibility are validated; law and venue eligibility
@@ -79,6 +77,23 @@ Validation results and the remaining iterations are recorded here as completed.
    deficits and wage arrears are zero. All nine books reconcile. Each post-startup
    year records 12 batches per organization, 24 ore delivered and workshop/town
    income of 12/13. Final cash is 52/57, matching the supplied-quote spot variant.
+
+9. **Failure controls and compatible mandates.** Five existing supply, access,
+   margin and payroll controls now run against governed programs on both CPU and
+   reference execution. Missing controllers, revoked town trading permission and
+   the cash-first objective also fail readiness. Repaying late wages does not
+   erase historical arrears. A three-month ore-production interruption recovers
+   to the normal two later operating years without food deficits or wage arrears;
+   readiness still records the interrupted year's lost work.
+
+   Installation also checks the union of signed organizations' possible quote
+   slots against the shared market schema. Individually valid mandates cannot
+   collectively authorize incompatible listings or exceed the 32-quote limit.
+   Controls reject conflicting aliases and 33 slots, while accepting a common
+   listing and 32 slots. This deliberately conservative check can reject aliases
+   that would never be posted simultaneously; it reserves no stock or money.
+   The nine tests in the governed-controls, authority-compatibility and
+   stock-discovery targets pass on the final implementation.
 
 Run from `exp/economics`:
 
