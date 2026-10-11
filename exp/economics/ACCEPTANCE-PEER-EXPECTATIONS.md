@@ -51,3 +51,26 @@ activity is not a financial claim or counterparty consent.
    hypothetical ballot admission outcomes. Stepped tests demonstrate ordinary
    elections and process completion across future terms, preserving the live world.
    Household elections are not projected by this adapter.
+
+6. **Cover the policy's operating interval.** The comparison separates memory
+   length from horizon length while keeping annual reviews and cash-first goals.
+   `acceptance::expectations::scenario` now selects the measured passing treatment:
+   a twelve-month workshop forecast and 24-month process/ballot memory. All other
+   fixture terms remain the governed baseline's. Ordinary forecast defaults remain
+   unchanged. Four-month and accepted-intent-only variants remain controls.
+
+   | Workshop forecast | Peer hypothesis | Memory | Mints | Workshop/town batches | Final arrears | Ready |
+   | --- | --- | --- | ---: | --- | ---: | --- |
+   | 4 months | Accepted only | — | 14 | 13 / 13 | 2 | No |
+   | 4 months | Processes | 6 | 14 | 13 / 13 | 2 | No |
+   | 4 months | Processes + ballots | 6 | 14 | 13 / 13 | 2 | No |
+   | 4 months | Processes + ballots | 24 | 27 | 26 / 26 | 0 | No |
+   | 12 months | Accepted only | — | 24 | 24 / 24 | 0 | No |
+   | 12 months | Processes | 24 | 24 | 24 / 24 | 0 | No |
+   | 12 months | Processes + ballots | 24 | 46 | 47 / 47 | 0 | Yes |
+
+   All rows have zero food deficits. Ending arrears alone obscure prior missed
+   payroll in the twelve-month accepted-only/process-only controls. The passing
+   row keeps replenishment at the month-13 review, pays 48 wage coins per
+   organization and has workshop net income 44. These results support the combined
+   bounded treatment, not an assertion that longer forecasts always improve plans.
