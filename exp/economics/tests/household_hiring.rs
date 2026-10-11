@@ -1422,3 +1422,69 @@ fn worker_supply_protects_accepted_forward_delivery_at_its_collection_deadline()
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn later_forward_catchup_does_not_erase_worker_deadline_loss() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        employment::supply::Policy,
+        forward::direct::Terms as Forward,
+        scenario::GRAIN,
+    };
+    let (mut w, mut s) = production(6);
+    w.employment_offers.insert(1);
+    w.employment[0].wage_per_unit.quantity = 1;
+    w.activities.orders.push(WorkOrder {
+        agent: WORKER,
+        definition: MAKE,
+        priority: 0,
+        target: Target::Stock(Amount::new(GRAIN, 4)),
+    });
+    s.balances.insert((92, TOKEN), 1);
+    w.prepaid_deliveries.push(Forward {
+        id: 70001,
+        seller: WORKER,
+        buyer: 92,
+        month: 1,
+        due: 2,
+        goods: Amount::new(GRAIN, 4),
+        prepayment: Amount::new(TOKEN, 1),
+    });
+    let mut unprotected = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut a = audit(&w, &s);
+    through(&mut a, &mut unprotected, 2);
+    assert_eq!(unprotected.state.exchange.forwards[&70001].performed(), 0);
+    through(&mut a, &mut unprotected, 3);
+    assert_eq!(unprotected.state.exchange.forwards[&70001].performed(), 4);
+    w.employment_supply.insert(WORKER, Policy { horizon: 3 });
+    let mut protected = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+    let mut a = audit(&w, &s);
+    through(&mut a, &mut protected, 3);
+    let d = &protected
+        .ledger
+        .iter()
+        .find_map(|b| b.employment.as_ref().filter(|e| !e.supply.is_empty()))
+        .unwrap()
+        .supply[0];
+    assert_eq!(d.baseline.last(), Some(&0));
+    assert_eq!(
+        d.alternatives
+            .iter()
+            .find(|a| a.hours == 2)
+            .unwrap()
+            .losses
+            .as_ref()
+            .unwrap()
+            .last(),
+        Some(&4)
+    );
+    assert_eq!(
+        protected
+            .state
+            .employment
+            .earned
+            .get(&(1, 1))
+            .map_or(0, |e| e.delivered),
+        0
+    );
+}

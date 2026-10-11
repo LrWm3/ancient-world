@@ -53,3 +53,59 @@ pub(super) fn observe(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        delivery_relief::{Action, Applied, Terms},
+        forward::direct::Terms as Forward,
+        scenario::*,
+    };
+    #[test]
+    fn accepted_relief_changes_opening_targets_but_later_relief_is_not_performance() {
+        let (w, mut s) = baseline();
+        s.month = 4;
+        let mut c = Forward {
+            id: 7,
+            seller: PERSON,
+            buyer: STATE_AGENT,
+            month: 1,
+            due: 2,
+            goods: Amount::new(GRAIN, 4),
+            prepayment: Amount::new(TOKEN, 1),
+        }
+        .contract();
+        let relief = |action| Applied {
+            terms: Terms {
+                id: 1,
+                proceeding: 1,
+                contract: 7,
+                debtor: PERSON,
+                creditor: STATE_AGENT,
+                month: 3,
+                expected_due: 2,
+                expected_remaining: 4,
+                action,
+            },
+            delivered: 0,
+            substituted: 0,
+        };
+        s.exchange.forwards.insert(7, c.clone());
+        let frozen = deliveries(&w, &s, PERSON, 1);
+        for action in [Action::WriteOff { quantity: 4 }, Action::Extend { due: 8 }] {
+            c.relief = vec![relief(action.clone())];
+            s.exchange.forwards.insert(7, c.clone());
+            assert!(deliveries(&w, &s, PERSON, 1).is_empty());
+            let mut losses = vec![None];
+            observe(&frozen, &s, 4, &mut losses);
+            assert_eq!(losses, vec![Some(4)]);
+            s.exchange.forwards.get_mut(&7).unwrap().delivered = 4;
+            observe(&frozen, &s, 8, &mut losses);
+            assert_eq!(losses, vec![Some(4)]);
+        }
+        c.relief = vec![relief(Action::WriteOff { quantity: 2 })];
+        s.exchange.forwards.insert(7, c);
+        assert_eq!(deliveries(&w, &s, PERSON, 1)[0].remaining, 2);
+    }
+}

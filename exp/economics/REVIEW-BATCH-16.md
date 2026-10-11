@@ -65,3 +65,12 @@ balance. Out-of-horizon and unaccepted offers are not obligations. Three audited
 CPU/reference controls pass: protect production for an admitted two-month delivery,
 ignore an unfunded proposal, and expose the limitation of a one-month horizon.
 Independent review found no blocker.
+
+## 7. Distinguish missed deadlines from later catch-up and relief
+
+A live audited CPU control delivers nothing by month two and catches up in month
+three; the three-month worker comparison retains a four-unit deadline loss.
+Separate reader tests cover opening write-offs/extensions versus later relief:
+accepted opening changes alter the duty; later changes cannot count as performance
+or rewrite the frozen deadline. These reader fixtures do not claim to exercise
+recovery settlement. Both tests pass; independent review found no blocker.
