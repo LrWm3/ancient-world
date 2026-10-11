@@ -16,3 +16,11 @@ controller continues to retain its plan on equal forecasts.
    production, balance or counterparty decision. The new policy is sealed with
    the existing configuration. The default/equal/worse/invalid projection test
    passes. Publication eligibility does not itself guarantee later execution.
+
+2. **Dated publication and independent demand.** A five-month reference/CPU
+   comparison begins with no workshop/town asks and four metal/four ore opening
+   units. Both governors choose quote-only publication in month 1, effective at
+   month-2 Open. Month 1 has no sale or stock mutation from publication. Subsequent
+   independently selected minting produces real metal sales. World, state, ledger
+   and accounting match across backends. This short test establishes timing and
+   actual demand, not sustained readiness.
