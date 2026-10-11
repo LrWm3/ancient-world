@@ -1,0 +1,18 @@
+# Sale-linked production acceptance
+
+This ten-iteration follow-up tests whether signed sale opportunities can replace
+inventory objectives as the reason to discover productive work. It builds on
+[bounded peer expectations](ACCEPTANCE-PEER-EXPECTATIONS.md). Initial identities,
+consent, prices, employment and physical endowments remain supplied.
+
+## Iteration record
+
+1. **Signed issuer-input sales.** The existing `stock_markets` authority and
+   `PeerStockQuotes` program now also support stock sales into issuer-input markets.
+   They route to the existing mint counterparty book; independent stocks retain
+   the peer book. Only signed issuer-input slots are replaced, including explicit
+   stops; unrelated legacy quotes and other agents remain unchanged. As before,
+   the actor's complete peer portfolio is replaced. Capacity sales and input-market
+   buys are excluded. Two atomic validation/routing tests and nine existing
+   authority, discovery and execution tests pass. This adapter still requires an
+   enabled peer-stock book; it is not universal market authority.
