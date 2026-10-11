@@ -512,3 +512,36 @@ fn opening_credit_outflows_cannot_be_spent_again_on_birth_support() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn support_aware_planning_produces_before_the_next_open() {
+    let run = |backend, enabled, reserve| {
+        let (mut w, mut s) = scenario(true, false);
+        let c = w.demography.as_mut().unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = enabled;
+        c.parent_reserve = reserve;
+        s.balances.insert((PERSON, GRAIN), 2 + reserve);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let unmet: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == FIRST_CHILD)
+            .map(|r| r.deficit(NUTRITION))
+            .sum();
+        assert_eq!(unmet, if enabled { 0 } else { 1 });
+        (sim.world, sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, reserve) in [(false, 1), (true, 1), (false, 2), (true, 2)] {
+        assert_eq!(
+            run(Backend::Reference, enabled, reserve),
+            run(Backend::CubeCpu, enabled, reserve)
+        );
+    }
+}

@@ -14,6 +14,8 @@ pub struct Template {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub enabled: bool,
+    /// Forecast known dependent support in planning; never hypothetical births.
+    pub plan_support: bool,
     pub parents: BTreeSet<AgentId>,
     pub descendants_reproduce: bool,
     pub first_month: u32,
@@ -531,6 +533,7 @@ pub(crate) fn verify(w: &World, s: &State, b: &Batch) -> Result<(), String> {
     Ok(())
 }
 
+pub mod provision;
 pub mod scenario;
 
 /// Atomic chronological ledger replay, including household Open staging and the

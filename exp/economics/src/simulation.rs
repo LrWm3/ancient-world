@@ -917,9 +917,19 @@ impl Simulation {
         horizon: u64,
         claims: &BTreeMap<u64, i128>,
     ) -> i128 {
+        let support = crate::demography::provision::requests(
+            &self.world,
+            &self.state,
+            agent,
+            resource,
+            horizon,
+        );
         let mut stock = i128::from(self.state.balance(agent, resource));
         let mut deficit = 0;
         for month in u64::from(self.state.month)..u64::from(self.state.month) + horizon {
+            // Support precedes production. A late harvest cannot repair a missed Open.
+            let owed = support.get(&month).copied().unwrap_or(0);
+            deficit += crate::demography::provision::debit(&self.world, &mut stock, owed);
             for p in self.state.processes.values().filter(|p| {
                 p.status == Status::Active
                     && p.beneficiary == agent
