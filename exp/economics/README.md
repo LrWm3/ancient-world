@@ -94,9 +94,18 @@ The [sale-linked discovery follow-up](ACCEPTANCE-SALE-DISCOVERY.md) removes thos
 secondary inventory objectives: signed stock-sale options now expose productive
 programs to cash-only organizations. With finite opening metal/ore inventory,
 posted asks and monthly reviews, the 48-month scenario sustains production and
-passes readiness. Cold start and partial supply-chain startups still fail; initial
-market publication and coordination remain open. Run
+passes readiness. Cold start and partial supply-chain startups still fail; that
+comparison leaves initial market publication and coordination unresolved. Run
 `cargo +1.92.0 run --locked --release --example acceptance -- --sale-discovery`.
+
+The [stocked-offer publication follow-up](ACCEPTANCE-OFFER-PUBLICATION.md) removes
+those supplied workshop/town asks. An opt-in controller policy may post a stocked,
+signed ask on an exactly equal forecast, leaving buyers to decide independently.
+The matched 48-month treatment sustains the supply chain; retaining on ties with
+the same unquoted stocks stalls. Working inventories, prices, consent and operating
+terms remain supplied. This is bounded initial offer publication, not autonomous
+startup finance or negotiated pricing. Run
+`cargo +1.92.0 run --locked --release --example acceptance -- --offer-publication`.
 
 ## Current progress — 2026-10-11
 

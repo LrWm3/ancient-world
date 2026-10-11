@@ -189,3 +189,23 @@ In particular:
 - Retained history grows with the run. Durable checkpoint serialization, history
   compaction and cross-composition guarantees for every experimental driver are
   still separate work.
+
+## Optional offer publication
+
+`Config.publication` defaults to `Retain`. The opt-in
+`StockedAsksOnEqualProjection` policy can choose a discovered quote-only program
+when retaining is the best valid alternative under the governing objectives and
+the governing loss vector is exactly equal.
+Each added ask must be lawful, signed, backed by a currently available whole lot
+above its floor and protected claims, and relevant to an unmet payment objective.
+Existing replaced quotes must be preserved exactly. This rule cannot add a buy,
+work commitment, cancellation or price change. If the current governor has
+preference objectives, both equality and payment interest use those objectives.
+
+This choice passes through existing review, emergency, tenure, authority and
+next-Open application. It is recorded as `publish stocked sale offers on equal
+projection`, distinct from a forecast improvement. The static mandate seals this
+configuration; it is not a self-directed change of individual policy. Publication
+is neither reservation nor a transaction: clearing rechecks eligibility, stock,
+claims, lot limits and funded demand. The [acceptance comparison](ACCEPTANCE-OFFER-PUBLICATION.md)
+records the finite-inventory benefit and remaining startup limitations.

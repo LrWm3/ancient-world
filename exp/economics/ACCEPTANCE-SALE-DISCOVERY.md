@@ -127,6 +127,13 @@ month 12 to 54/47 at month 48. The first selected work/trade programs become
 effective in months 6 and 9 respectively. Both existing household delivery units
 settle on time, the state loan is repaid, and nine separate books reconcile.
 
+## Follow-up
+
+The [stocked-offer publication experiment](ACCEPTANCE-OFFER-PUBLICATION.md) now
+compares this finite-inventory treatment without supplied workshop/town asks.
+It adds an opt-in exact-tie publication policy; the default is unchanged. The
+startup results above remain the original supplied-ask controls.
+
 ## What remains open
 
 A signed sale opportunity establishes an admissible alternative, not a buyer.
@@ -146,10 +153,10 @@ remain explicit forecast assumptions. There is no new price learning, hiring,
 formation, self-directed personal policy change, durable restart, unforeseen-shock
 recovery claim, or evidence of persistence beyond the measured 48 months.
 
-The next useful increment is voluntary initial offer publication and bounded
-startup coordination, preserving refusal, funding limits and ordinary settlement.
-It should be compared against these cold and partial-startup failures, rather than
-silently supplying more future demand or weakening readiness.
+Voluntary initial publication is now tested in the follow-up above. Further
+startup coordination should preserve refusal, funding limits and ordinary
+settlement, using these cold and partial-startup failures as controls without
+supplying future demand or weakening readiness.
 
 ## Run
 

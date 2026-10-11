@@ -1,6 +1,7 @@
 //! Run the mixed-organization acceptance fixture on CubeCL CPU.
 use economics_compute_smoke::{acceptance, compute::Backend};
 fn main() -> Result<(), String> {
+    let offer_publication = std::env::args().any(|a| a == "--offer-publication");
     let sale_discovery = std::env::args().any(|a| a == "--sale-discovery");
     if std::env::args().any(|a| a == "--sale-startup-matrix") {
         use acceptance::{
@@ -14,13 +15,29 @@ fn main() -> Result<(), String> {
             Startup::MetalInventory,
             Startup::SupplyChainInventory,
         ] {
-            let (w, s) = sales::with_startup(c::Case::Baseline, startup)?;
+            let (w, s) = if offer_publication {
+                acceptance::publication::with_startup(c::Case::Baseline, startup,
+                    economics_compute_smoke::agency::publication::Policy::StockedAsksOnEqualProjection)?
+            } else {
+                sales::with_startup(c::Case::Baseline, startup)?
+            };
             let mut run = acceptance::Run::new(w, s, Backend::CubeCpu)?;
             run.through(c::MONTHS)?;
             let e = run.evidence()?;
             let report = acceptance::governed::check(&run)?;
+            let label = if offer_publication {
+                match startup {
+                    Startup::Cold => "AnnualBaseStocks",
+                    Startup::PostedMetal => "MonthlyBaseStocks",
+                    Startup::MetalInventory => "MonthlyMetalInventory",
+                    Startup::SupplyChainInventory => "MonthlySupplyChainInventory",
+                }
+                .to_string()
+            } else {
+                format!("{startup:?}")
+            };
             println!(
-                "{startup:?},{},{},{},{},{},{}",
+                "{label},{},{},{},{},{},{}",
                 report.ready(),
                 e.completed_mints,
                 e.workshop_batches,
@@ -38,14 +55,19 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
     let expected_peers = std::env::args().any(|a| a == "--expected-peers");
-    let governed = sale_discovery || expected_peers || std::env::args().any(|a| a == "--governed");
+    let governed = offer_publication
+        || sale_discovery
+        || expected_peers
+        || std::env::args().any(|a| a == "--governed");
     if std::env::args().any(|a| a == "--continuation-matrix") {
         use acceptance::continuation as c;
         println!(
             "case,ready,food_deficit,wage_arrears,last_year_workshop_income,last_year_town_income"
         );
         for case in c::Case::ALL {
-            let (w, s) = if sale_discovery {
+            let (w, s) = if offer_publication {
+                acceptance::publication::scenario(case)?
+            } else if sale_discovery {
                 acceptance::sales::with_startup(
                     case,
                     acceptance::sales::Startup::SupplyChainInventory,
@@ -92,7 +114,9 @@ fn main() -> Result<(), String> {
         )
     }) {
         use acceptance::continuation as c;
-        let (w, s) = if sale_discovery {
+        let (w, s) = if offer_publication {
+            acceptance::publication::scenario(c::Case::Baseline)?
+        } else if sale_discovery {
             acceptance::sales::with_startup(
                 c::Case::Baseline,
                 acceptance::sales::Startup::SupplyChainInventory,

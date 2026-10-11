@@ -79,6 +79,17 @@ startup controls fail. Signed prices, lot ceilings, employment, consent and init
 market publication remain supplied; this does not establish autonomous startup or
 optimal inventory management.
 
+The [stocked-offer publication variant](ACCEPTANCE-OFFER-PUBLICATION.md) removes
+initial workshop/town asks from that finite-inventory treatment. Its optional
+`StockedAsksOnEqualProjection` policy permits quote-only additions on exact
+forecast ties, preserving existing quotes, authority, dated review and ordinary
+settlement. The matched positive run sustains three complete operating years;
+retention on ties still fails with identical stocks. This does not create initial
+inventory, price discovery, credit, employment or founding consent. Fixed-route
+issuer input-stock asks now recheck accepted stock claims at Acquire; legacy
+provisioning keeps its separate allocation policy and emits no discarded fixed-route
+sale-budget receipts.
+
 The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
 households, governance selections, leases, loans, forwards, quotes or dated work.
 Its Open discovery and Acquire joint admission reuse these execution boundaries.
