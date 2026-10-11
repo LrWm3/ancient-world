@@ -32,6 +32,7 @@ fn fixture() -> (World, State, Agreement, agency::Config) {
         term_months: 2,
         processes: [REFINE].into(),
         stock_markets: Default::default(),
+        forwards: Default::default(),
     };
     let c = agency::scenario::config(
         vec![Objective {

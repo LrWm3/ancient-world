@@ -18,6 +18,8 @@ pub struct Agreement {
     /// Constitutional bounds on the operating programs, additional to state law.
     pub processes: BTreeSet<DefinitionId>,
     /// Static, signed choices; these confer no marketplace or legal eligibility.
+    /// Separate consent for one startup prepayment per signed market.
+    pub forwards: BTreeMap<crate::marketplace::MarketId, super::forwards::Options>,
     pub stock_markets: BTreeMap<crate::marketplace::MarketId, super::markets::Options>,
 }
 
@@ -120,6 +122,7 @@ pub(crate) fn validate(w: &World, agent: AgentId, a: &Agreement) -> Result<(), S
         return Err("invalid static operating agreement".into());
     }
     super::markets::validate_options(w, agent, &a.stock_markets)?;
+    super::forwards::validate_options(w, a)?;
     Ok(())
 }
 
