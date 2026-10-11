@@ -2,6 +2,8 @@
 use super::*;
 use crate::marketplace::{MarketId, Side};
 
+pub mod peer_stocks;
+
 const MAX_LOTS: i32 = 64;
 const MAX_QUOTES: usize = 32;
 
@@ -13,6 +15,8 @@ pub(crate) fn required_lots(target: i32, held: i32, lot: i32) -> i32 {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Policy {
+    /// Independent stock replenishment on additional markets at the same venue.
+    pub peer_stocks: Option<peer_stocks::Policy>,
     pub month: u32,
     /// Later independent attempts; missed targets are not automatically retried.
     pub additional_months: BTreeSet<u32>,
@@ -53,6 +57,7 @@ pub struct Order {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PurchaseBudget {
     pub agent: AgentId,
+    pub market: MarketId,
     pub requested_lots: i32,
     pub opening_cash: i32,
     pub protected_cash: i128,
@@ -207,6 +212,9 @@ pub fn validate(w: &World, c: &Config, p: &Policy) -> Result<(), String> {
     if let Some(policy) = &p.provisioning {
         super::provisioning::validate(w, c, p, policy)?;
     }
+    if let Some(policy) = &p.peer_stocks {
+        peer_stocks::validate(w, c, p, policy)?;
+    }
     Ok(())
 }
 
@@ -225,6 +233,9 @@ pub(crate) fn generate_with(
         return super::provisioning::generate_with(w, s, c, p, policy, opening);
     }
     let mut plan = generate_fixed(w, s, c, p, opening)?;
+    if let Some(policy) = &p.peer_stocks {
+        peer_stocks::generate(w, s, c, policy, opening, &mut plan)?;
+    }
     if let Some(policy) = &p.public_sale {
         public_sales(w, s, c, p, policy, opening, &mut plan)?;
     } else if let Some(months) = p.private_sales {
@@ -242,6 +253,20 @@ pub(crate) fn generate_with(
         )?;
     } else {
         clear(w, s, c, &mut plan, opening)?;
+    }
+    for budget in &mut plan.sales {
+        budget.matched_lots = plan
+            .deals
+            .iter()
+            .filter(|d| d.seller == budget.agent && d.market == budget.market)
+            .count() as i32;
+    }
+    for budget in &mut plan.purchases {
+        budget.matched_lots = plan
+            .deals
+            .iter()
+            .filter(|d| d.buyer == budget.agent && d.market == budget.market)
+            .count() as i32;
     }
     Ok(plan)
 }
@@ -372,6 +397,7 @@ fn public_sales(
                 .min(affordable_lots);
             plan.purchases.push(PurchaseBudget {
                 agent: q.agent,
+                market: q.market,
                 requested_lots: needed,
                 opening_cash: cash,
                 protected_cash,
@@ -417,20 +443,6 @@ fn public_sales(
         }
     }
     clear(w, s, c, plan, opening)?;
-    for budget in &mut plan.sales {
-        budget.matched_lots = plan
-            .deals
-            .iter()
-            .filter(|d| d.seller == budget.agent && d.market == budget.market)
-            .count() as i32;
-    }
-    for budget in &mut plan.purchases {
-        budget.matched_lots = plan
-            .deals
-            .iter()
-            .filter(|d| d.buyer == budget.agent && d.market == p.sale_market)
-            .count() as i32;
-    }
     Ok(())
 }
 pub(super) fn generate_fixed(
@@ -595,12 +607,26 @@ pub(super) fn clear(
     plan.orders
         .sort_by_key(|o| (o.side != Side::Sell, o.market, o.limit, o.agent));
     let sale_market = c.order_policy.as_ref().unwrap().sale_market;
+    let peer_markets: BTreeSet<_> = c
+        .order_policy
+        .as_ref()
+        .unwrap()
+        .peer_stocks
+        .as_ref()
+        .into_iter()
+        .flat_map(|p| p.quotes.iter().map(|q| q.market))
+        .collect();
     let mut remaining: Vec<i32> = plan.orders.iter().map(|o| o.lots).collect();
     let mut resources = opening.clone();
+    // One protected cash floor per participant, shared across all of its bids.
+    // Do not let several individually affordable orders spend the same reserve.
+    if c.order_policy.as_ref().unwrap().peer_stocks.is_some() {
+        peer_stocks::protect_cash(c, &plan.purchases, &mut resources);
+    }
     let mut next_id = 1;
     let mut shortages = vec![];
     for (i, order) in plan.orders.iter().enumerate().filter(|(_, o)| {
-        (o.side == Side::Sell && o.market == sale_market)
+        (o.side == Side::Sell && (o.market == sale_market || peer_markets.contains(&o.market)))
             || (o.agent == c.issuer && o.side == Side::Buy)
     }) {
         let mut candidates: Vec<_> = plan
@@ -671,7 +697,7 @@ pub(super) fn clear(
         }
     }
     if !shortages.is_empty() {
-        plan.deals.retain(|d| d.market == sale_market);
+        plan.deals.retain(|d| d.package != u32::MAX);
         plan.reason = format!("input package unmatched: {}", shortages.join("; "));
     }
     Ok(())

@@ -606,6 +606,7 @@ pub fn order_scenario(case: &str) -> Result<(World, State), String> {
     let c = w.minting.as_mut().unwrap();
     c.deals.clear();
     c.order_policy = Some(orders::Policy {
+        peer_stocks: None,
         public_sale: None,
         private_sales: None,
         month: MINT_MONTH,
