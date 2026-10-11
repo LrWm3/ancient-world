@@ -1,7 +1,7 @@
 use economics_compute_smoke::{
     acceptance::{
-        self, Run, continuation as c,
-        financing::{self, Liquidity, Preferences, Stocks},
+        self, Run, buffers, continuation as c,
+        financing::{Liquidity, Preferences, Stocks},
     },
     compute::Backend,
     model::Phase,
@@ -47,11 +47,36 @@ fn both_stock_exposure_matches_cpu_despite_readiness_failure() {
 }
 
 fn compare(stocks: Stocks, workshop: Liquidity, town: Liquidity) {
-    let (w, s) = financing::with_preferences(
+    compare_buffer(stocks, workshop, town, buffers::Policy::Off);
+}
+
+#[test]
+fn input_first_buffers_match_cpu_replay_and_reconstruction() {
+    compare_buffer(
+        Stocks::Both,
+        Liquidity::MonthlyExposure,
+        Liquidity::TerminalReserve,
+        buffers::Policy::InputsFirst,
+    );
+}
+
+#[test]
+fn cash_first_buffers_match_cpu_replay_and_reconstruction() {
+    compare_buffer(
+        Stocks::MetalOnly,
+        Liquidity::MonthlyExposure,
+        Liquidity::TerminalReserve,
+        buffers::Policy::CashFirst,
+    );
+}
+
+fn compare_buffer(stocks: Stocks, workshop: Liquidity, town: Liquidity, policy: buffers::Policy) {
+    let (w, s) = buffers::scenario(
         c::Case::Baseline,
         true,
         stocks,
         Preferences { workshop, town },
+        policy,
     )
     .unwrap();
     let mut reference = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
@@ -76,12 +101,14 @@ fn compare(stocks: Stocks, workshop: Liquidity, town: Liquidity) {
         assert_eq!(replay_state, reference.sim.state);
     }
     assert_eq!(replay_audit, reference.audit);
-    assert_eq!(
-        reference.sim.world.agency[&acceptance::WORKSHOP]
-            .startup_forwards
-            .len(),
-        1
-    );
+    if policy == buffers::Policy::Off {
+        assert_eq!(
+            reference.sim.world.agency[&acceptance::WORKSHOP]
+                .startup_forwards
+                .len(),
+            1
+        );
+    }
     let mut cpu = Run::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
     while cpu.sim.state.month <= MONTHS {
         cpu.audit.step(&mut cpu.sim).unwrap();
