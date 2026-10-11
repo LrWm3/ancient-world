@@ -31,3 +31,13 @@ activity is not a financial claim or counterparty consent.
    live world receives only the selected organization's own authorized program.
    Tests exercise actual hypothetical completion and verify no future processes
    or peer decisions leak into the live Open.
+
+4. **Matched cash-first experiment.** `acceptance::expectations::scenario_with`
+   changes only the workshop's expectation policy between the two cash-first runs;
+   goals, prices and four-month horizon / twelve-month reviews are identical.
+   Both initially fail: 14 mints, 13 batches per organization and ending arrears 2.
+   At month 13 the observation correctly sees consecutive successful starts in
+   months 11/12, but only hypothesizes month 14. The state elects every two months;
+   frozen future voting leaves the month-15 office vacant. Extra demand alone does
+   not solve this second missing counterparty action. This remains a negative
+   control rather than relaxing readiness or silently assuming authority.
