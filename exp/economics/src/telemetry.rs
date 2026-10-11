@@ -12,6 +12,7 @@ use std::{
 };
 
 mod observers;
+mod population;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PlanningDetail {

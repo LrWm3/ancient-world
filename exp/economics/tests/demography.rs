@@ -858,3 +858,93 @@ fn a_parent_can_buy_support_without_personal_food_demand() {
         );
     }
 }
+
+#[test]
+fn lifecycle_observation_is_external_filtered_and_reconciles_receipts() {
+    use economics_compute_smoke::telemetry::{Config, Observer};
+    use serde_json::Value;
+    for selected in [None, Some(PERSON), Some(FIRST_CHILD)] {
+        for settlement in [false, true] {
+            let (mut w, s) = scenario(true, false);
+            w.demography.as_mut().unwrap().max_births = 2;
+            let mut observed = Simulation::new(w.clone(), s.clone(), Backend::CubeCpu).unwrap();
+            let mut plain = observed.clone();
+            let mut a = audit(&w, &s);
+            let mut expected = a.clone();
+            let config = Config {
+                settlement,
+                agents: selected.into_iter().collect(),
+                ..Config::default()
+            };
+            let mut observer = Observer::new(vec![], "families", config).unwrap();
+            while observed.state.month <= 7 {
+                observer.step_audited(&mut observed, &mut a).unwrap();
+            }
+            while plain.state.month <= 7 {
+                expected.step(&mut plain).unwrap();
+            }
+            assert_eq!(
+                (
+                    &observed.world,
+                    &observed.state,
+                    &observed.ledger,
+                    &observed.reports,
+                    a
+                ),
+                (
+                    &plain.world,
+                    &plain.state,
+                    &plain.ledger,
+                    &plain.reports,
+                    expected
+                )
+            );
+            let rows: Vec<Value> = String::from_utf8(observer.finish().unwrap())
+                .unwrap()
+                .lines()
+                .map(|l| serde_json::from_str(l).unwrap())
+                .collect();
+            let count = if !settlement {
+                0
+            } else if selected.is_none() {
+                2
+            } else {
+                1
+            };
+            assert_eq!(
+                rows.iter().filter(|r| r["kind"] == "person_birth").count(),
+                count
+            );
+            assert_eq!(
+                rows.iter()
+                    .filter(|r| r["kind"] == "person_matured")
+                    .count(),
+                count
+            );
+            for r in rows.iter().filter(|r| r["kind"] == "person_birth") {
+                assert!(r["name"].as_str().unwrap().contains("born 1"));
+            }
+            for row in rows.iter().filter(|r| r["kind"] == "dependent_support") {
+                let b = plain
+                    .ledger
+                    .iter()
+                    .find(|b| b.id == row["batch"].as_u64().unwrap())
+                    .unwrap();
+                let r = b
+                    .demography
+                    .as_ref()
+                    .unwrap()
+                    .support
+                    .iter()
+                    .find(|r| row["child"] == r.child)
+                    .unwrap();
+                assert_eq!(row["requested"], r.requested);
+                assert_eq!(row["delivered"], r.delivered);
+                assert_eq!(row["shortfall"], r.requested - r.delivered);
+                if let Some(id) = selected {
+                    assert!(row["child"] == id || row["parent"] == id);
+                }
+            }
+        }
+    }
+}

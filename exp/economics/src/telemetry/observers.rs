@@ -42,7 +42,7 @@ pub(super) fn batch(
     supply_from: usize,
     financial_from: usize,
 ) -> Vec<Value> {
-    let mut records = vec![];
+    let mut records = super::population::batch(config, world, batch);
     if config.planning != PlanningDetail::Off
         && batch.phase == Phase::Open
         && let Some(c) = &world.discovery

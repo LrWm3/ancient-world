@@ -66,3 +66,17 @@ Independent review checked both buyer entrypoints and their zero-demand exits.
 Audited CPU/reference controls cover funded purchase, no support policy, no cash
 and insufficient storage, checking subsequent child support rather than bids alone.
 A bounded-lot test selects the minimum useful quantity for a support-only buyer.
+
+## 6. Observe committed births, maturation and support
+
+The external settlement observer projects lifecycle receipts into `person_birth`,
+`person_matured` and `dependent_support` logs. Birth records include names for
+people absent from the initial catalog snapshot. Support distinguishes birth
+buffers from later top-ups and reports requested, delivered and missing amounts.
+Filtering on either parent or child retains both counterparties.
+
+Audited CPU controls compare observed and unobserved worlds, states, ledgers,
+reports and financial books exactly, test parent/child filters and disabled
+settlement logs, and reconcile emitted quantities with receipts. Nineteen
+reproduction and ten telemetry tests pass. No forecast or planner logging hooks
+were introduced.

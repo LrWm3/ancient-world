@@ -47,6 +47,9 @@ are always emitted, irrespective of filters or log limits.
 | `step_error` | A failed public step, including the number of batches actually appended |
 | `need` | Monthly report's desired, fulfilled and deficit quantities per agent/resource |
 | `agent_status` | Monthly report's terminal flag |
+| `person_birth` | Optional settlement log: committed child/parent IDs, dynamic name and maturity date |
+| `person_matured` | Optional settlement log: committed maturity, without implying citizenship or organization admission |
+| `dependent_support` | Optional settlement log: support resource, requested/delivered/shortfall and whether it is a birth buffer |
 | `balance` | Closing account quantities, including institutional accounts present in state |
 | `account_flow` | Gross credits/debits from observed committed transaction effects, grouped by month/agent/resource |
 | `process_count` | Closing counts of retained active/completed/aborted processes per operator |
@@ -66,6 +69,10 @@ accounts or process operation. A selected transaction retains **all** counterpar
 and effects, enabling reconciliation. Batch envelopes remain visible. Market
 metrics explicitly retain `scope: whole_market`; filtering to a person does not
 relabel market volume as that person's trades.
+
+Lifecycle settlement logs select on either parent or child and retain both IDs.
+They read committed demographic receipts; they do not emit hypothetical births or
+support from forecasts. Enable `Config.settlement` to include these records.
 
 Log limits do not suppress metrics. `finish.omitted_logs` counts eligible records
 excluded by the limit, not those excluded by filters. The limit bounds record
