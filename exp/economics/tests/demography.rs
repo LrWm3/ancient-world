@@ -15,7 +15,13 @@ fn audit(w: &World, s: &State) -> Audit {
             inventory: s
                 .balances
                 .iter()
-                .filter(|((_, r), q)| *r == GRAIN && **q > 0)
+                .filter(|((_, r), q)| {
+                    *r != TOKEN
+                        && **q > 0
+                        && w.resources
+                            .iter()
+                            .any(|v| v.id == *r && v.kind == ResourceKind::Stock)
+                })
                 .map(|(a, q)| (*a, i128::from(*q)))
                 .collect(),
             services: Some(Default::default()),
@@ -544,4 +550,118 @@ fn support_aware_planning_produces_before_the_next_open() {
             run(Backend::CubeCpu, enabled, reserve)
         );
     }
+}
+
+#[test]
+fn alternative_recipes_do_not_disable_support_planning() {
+    const BERRIES: ResourceId = 950;
+    let run = |backend, alternative| {
+        let (mut w, mut s) = scenario(true, false);
+        let c = w.demography.as_mut().unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = true;
+        s.balances.insert((PERSON, GRAIN), 3);
+        if alternative {
+            w.resources.push(Resource {
+                id: BERRIES,
+                name: "berries".into(),
+                kind: ResourceKind::Stock,
+            });
+            let mut recipe = w
+                .definitions
+                .iter()
+                .find(|d| d.execution == Execution::Consumption)
+                .unwrap()
+                .clone();
+            recipe.id = BERRIES;
+            recipe.stages[0].entry_inputs = vec![Amount::new(BERRIES, 1)];
+            recipe.outputs[0].quantity = 2;
+            w.definitions.push(recipe);
+        }
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        a.step(&mut sim).unwrap();
+        if alternative {
+            let mut stocked = sim.state.clone();
+            stocked.balances.insert((FIRST_CHILD, BERRIES), 1);
+            let asks = demography::provision::requests(&sim.world, &stocked, PERSON, GRAIN, 2);
+            assert!(
+                asks.is_empty(),
+                "one alternative meal preserves the child's grain for next month"
+            );
+        }
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(
+            sim.reports
+                .iter()
+                .filter(|r| r.agent == FIRST_CHILD)
+                .map(|r| r.deficit(NUTRITION))
+                .sum::<i32>(),
+            0
+        );
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for alternative in [false, true] {
+        assert_eq!(
+            run(Backend::Reference, alternative),
+            run(Backend::CubeCpu, alternative)
+        );
+    }
+}
+
+#[test]
+fn consumption_preserves_the_same_support_stock_as_the_planner() {
+    let run = |backend| {
+        const BERRIES: ResourceId = 950;
+        let (mut w, mut s) = scenario(true, false);
+        let c = w.demography.as_mut().unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = true;
+        c.parent_reserve = 0;
+        s.balances.insert((PERSON, GRAIN), 2);
+        s.balances.insert((PERSON, BERRIES), 2);
+        w.resources.push(Resource {
+            id: BERRIES,
+            name: "berries".into(),
+            kind: ResourceKind::Stock,
+        });
+        let meal = w
+            .definitions
+            .iter_mut()
+            .find(|d| d.execution == Execution::Consumption)
+            .unwrap();
+        meal.outputs[0].quantity = 2;
+        let mut berries = meal.clone();
+        berries.id = BERRIES;
+        berries.stages[0].entry_inputs = vec![Amount::new(BERRIES, 1)];
+        berries.outputs[0].quantity = 1;
+        w.definitions.push(berries);
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month == 1 {
+            a.step(&mut sim).unwrap();
+        }
+        assert_eq!(sim.state.balance(PERSON, GRAIN), 1);
+        a.step(&mut sim).unwrap();
+        assert_eq!(sim.state.balance(FIRST_CHILD, GRAIN), 1);
+        assert_eq!(
+            sim.ledger
+                .last()
+                .unwrap()
+                .demography
+                .as_ref()
+                .unwrap()
+                .support[0]
+                .delivered,
+            1
+        );
+        (sim.state, sim.ledger, a)
+    };
+    assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
 }

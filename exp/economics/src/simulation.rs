@@ -840,8 +840,37 @@ impl Simulation {
             .iter()
             .map(|d| d.stages[0].entry_inputs[0].resource)
             .collect();
+        let support: BTreeMap<_, _> = self
+            .world
+            .resources
+            .iter()
+            .filter(|r| r.kind == ResourceKind::Stock)
+            .map(|r| {
+                (
+                    r.id,
+                    crate::demography::provision::requests(
+                        &self.world,
+                        &self.state,
+                        participant.agent,
+                        r.id,
+                        u64::from(horizon),
+                    ),
+                )
+            })
+            .collect();
         let mut deficit = 0;
         for month in self.state.month..self.state.month + horizon {
+            for (resource, dates) in &support {
+                let owed = dates.get(&u64::from(month)).copied().unwrap_or(0);
+                let unmet = crate::demography::provision::debit(
+                    &self.world,
+                    stocks.entry(*resource).or_default(),
+                    owed,
+                );
+                if target_inputs.contains(resource) {
+                    deficit += unmet;
+                }
+            }
             let mut outputs = Vec::new();
             for p in self.state.processes.values().filter(|p| {
                 p.status == Status::Active
@@ -888,7 +917,12 @@ impl Simulation {
                         dues.iter()
                             .filter(|(m, _)| **m > u64::from(month))
                             .map(|(_, q)| *q)
-                            .sum(),
+                            .sum::<i128>()
+                            + support[r]
+                                .iter()
+                                .filter(|(m, _)| **m > u64::from(month))
+                                .map(|(_, q)| *q)
+                                .sum::<i128>(),
                     )
                 })
                 .collect();

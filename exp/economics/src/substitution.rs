@@ -66,7 +66,16 @@ pub fn earmarks(world: &World, state: &State, agent: AgentId) -> BTreeMap<Resour
                     u64::from(world.horizon),
                 )
                 .values()
-                .sum(),
+                .sum::<i128>()
+                    + crate::demography::provision::requests(
+                        world,
+                        state,
+                        agent,
+                        r.id,
+                        u64::from(world.horizon),
+                    )
+                    .values()
+                    .sum::<i128>(),
             )
         })
         .collect()
