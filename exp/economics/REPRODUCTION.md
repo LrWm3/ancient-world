@@ -94,10 +94,27 @@ shortfall. The unchanged two-adult controls survive both supply settings.
 
 Abundant supply does not guarantee access for children. Support uses stored food
 at Open, before this month's production, and retains the parent's own reserve.
-The ordinary individual planner does not yet jointly plan the family's future
+The legacy policy used in this table does not jointly plan the family's future
 food/support commitments. This comparison therefore exercises a deliberately
 simple support policy, not reliable family provisioning. Stable allocation order
 also matters under scarcity; these runs do not establish fair access.
+
+## Optional support-aware planning
+
+`Config.plan_support` opts into known-child provisioning. Dated forecasts debit
+support at Open before hypothetical production, respect the reusable parent
+reserve and stop at maturity. They offset children's actual stocks and permitted
+food substitutions; no future birth is assumed. A parent can also request ordinary
+productive work specifically for support without acquiring a fictitious personal
+need. Rights, labor, inputs and storage still determine actual completion.
+
+Alternative-food planning and live consumption share support earmarks. Voluntary
+sales conservatively protect projected top-ups plus the parent floor once, in
+addition to personal consumption and accepted claims. This may retain more than a
+minimal dated budget. Support is not a new financial liability or escrow. Need
+orders and bounded lot selection may buy missing support stocks, even for a parent
+with no personal demand for that resource; money, market access and storage remain
+necessary. These changes do not alter the legacy comparison above.
 
 ## Verification and limits
 

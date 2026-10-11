@@ -353,6 +353,32 @@ pub(crate) fn protected_stock(
         .collect())
 }
 
+// Merge material objectives before attributing the shared stock shortfall. These
+// are planning pressures, not new liabilities; stock and fulfillment IDs differ.
+fn material_deficits(
+    world: &World,
+    state: &State,
+    agent: AgentId,
+    months: u32,
+    claims: &BTreeMap<ResourceId, i128>,
+    stocks: &BTreeMap<ResourceId, i128>,
+    deficits: &mut BTreeMap<ResourceId, i64>,
+) -> Result<(), String> {
+    let mut requirements = funded_requirements(world, state, agent)?;
+    for (r, q) in crate::demography::provision::protection(world, state, agent, months) {
+        *requirements.entry(r).or_default() += q;
+    }
+    for (r, q) in requirements {
+        let gap =
+            (claims.get(&r).copied().unwrap_or(0) - stocks.get(&r).copied().unwrap_or(0)).max(0);
+        deficits.insert(
+            r,
+            i64::try_from(q.min(gap)).map_err(|_| "material deficit overflow")?,
+        );
+    }
+    Ok(())
+}
+
 /// Smallest bounded stock purchase achieving the best non-worsening consumption
 /// outcome. Uses current stocks and claims; future harvests and fills are absent.
 pub(crate) fn purchase_lots(
@@ -367,6 +393,7 @@ pub(crate) fn purchase_lots(
     let stocks = stock_map(&state.balances, agent);
     let mut before = unclaimed(&stocks, &claims);
     let mut best = consume(world, state, agent, months, &mut before, false)?;
+    material_deficits(world, state, agent, months, &claims, &stocks, &mut best)?;
     let mut selected = 0;
     for lots in 1..=maximum {
         if best.values().all(|q| *q == 0) {
@@ -380,7 +407,16 @@ pub(crate) fn purchase_lots(
         let mut candidate = stocks.clone();
         candidate.insert(goods.resource, quantity);
         let mut available = unclaimed(&candidate, &claims);
-        let deficits = consume(world, state, agent, months, &mut available, false)?;
+        let mut deficits = consume(world, state, agent, months, &mut available, false)?;
+        material_deficits(
+            world,
+            state,
+            agent,
+            months,
+            &claims,
+            &candidate,
+            &mut deficits,
+        )?;
         if deficits.iter().all(|(r, q)| *q <= best[r]) && deficits.iter().any(|(r, q)| *q < best[r])
         {
             selected = lots;
@@ -467,23 +503,24 @@ pub(crate) fn generate_for_horizon(
     let mut after = unclaimed(&with_goods, &commitments);
     let mut buyer_deficits = consume(world, &observed, agent, months, &mut before, false)?;
     let mut buyer_after_purchase = consume(world, &observed, agent, months, &mut after, false)?;
-    for (resource, quantity) in funded_requirements(world, &observed, agent)? {
-        let required = commitments.get(&resource).copied().unwrap_or(0);
-        let held = i128::from(observed.balance(agent, resource));
-        let supplied = with_goods.get(&resource).copied().unwrap_or(0);
-        // Stock-resource keys describe commitment shortfalls; fulfillment-resource
-        // keys above describe consumption. Keep both visible in order receipts.
-        buyer_deficits.insert(
-            resource,
-            i64::try_from(quantity.min((required - held).max(0)))
-                .map_err(|_| "commitment deficit overflow")?,
-        );
-        buyer_after_purchase.insert(
-            resource,
-            i64::try_from(quantity.min((required - supplied).max(0)))
-                .map_err(|_| "commitment deficit overflow")?,
-        );
-    }
+    material_deficits(
+        world,
+        &observed,
+        agent,
+        policy.reserve_months,
+        &commitments,
+        &stock_map(&resources.holdings, agent),
+        &mut buyer_deficits,
+    )?;
+    material_deficits(
+        world,
+        &observed,
+        agent,
+        policy.reserve_months,
+        &commitments,
+        &with_goods,
+        &mut buyer_after_purchase,
+    )?;
     let useful = buyer_after_purchase
         .iter()
         .any(|(r, q)| *q < buyer_deficits[r])
@@ -560,4 +597,48 @@ pub fn scenario() -> (World, State) {
         .balances
         .insert((PERSON, crate::scenario::TOKEN), EXAMPLE_CASH);
     (world, state)
+}
+
+#[cfg(test)]
+mod family_tests {
+    use super::*;
+    #[test]
+    fn support_purchase_lots_is_bounded_and_does_not_require_personal_demand() {
+        use crate::{
+            compute::Backend,
+            scenario::{GRAIN, PERSON},
+            simulation::Simulation,
+        };
+        let (mut w, mut s) = scenario();
+        let (d, _) = crate::demography::scenario::scenario(true, false);
+        let mut c = d.demography.unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = true;
+        w.demography = Some(c);
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == PERSON)
+            .unwrap()
+            .needs[0]
+            .quantity = 0;
+        s.balances.insert((PERSON, GRAIN), 2);
+        let mut sim = Simulation::new(w, s, Backend::Reference).unwrap();
+        sim.step().unwrap();
+        let goods = Amount::new(GRAIN, 1);
+        assert_eq!(
+            purchase_lots(&sim.world, &sim.state, PERSON, &goods, 2, 4).unwrap(),
+            1
+        );
+        assert_eq!(
+            purchase_lots(&sim.world, &sim.state, PERSON, &goods, 2, 0).unwrap(),
+            0
+        );
+        sim.world.demography.as_mut().unwrap().plan_support = false;
+        assert_eq!(
+            purchase_lots(&sim.world, &sim.state, PERSON, &goods, 2, 4).unwrap(),
+            0
+        );
+    }
 }

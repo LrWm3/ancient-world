@@ -54,3 +54,15 @@ Independent review checked timing and recommended the conservative bound.
 Seventeen reproduction and eleven need-order tests pass. Audited CPU/reference
 controls show unprotected sales can cause next-month child hunger, protection
 prevents that sale, and additional genuine surplus still trades successfully.
+
+## 5. Buy support even when the parent has no personal food demand
+
+Both bilateral need orders and bounded lot selection include known support
+shortfalls. Material objectives are merged before comparing them with the shared
+stock budget; a purchase cannot count the same grain against two obligations.
+Stock shortfalls remain distinct from fulfillment-resource deficits in receipts.
+
+Independent review checked both buyer entrypoints and their zero-demand exits.
+Audited CPU/reference controls cover funded purchase, no support policy, no cash
+and insufficient storage, checking subsequent child support rather than bids alone.
+A bounded-lot test selects the minimum useful quantity for a support-only buyer.

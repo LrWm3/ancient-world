@@ -784,3 +784,77 @@ fn market_sales_respect_optional_family_support_reserves() {
         );
     }
 }
+
+#[test]
+fn a_parent_can_buy_support_without_personal_food_demand() {
+    use economics_compute_smoke::{need_orders, negotiation::Outcome};
+    let run = |backend, enabled: bool, funded: bool, room: bool| {
+        let (mut w, mut s) = need_orders::scenario();
+        let (d, _) = scenario(true, false);
+        let mut c = d.demography.unwrap();
+        c.parents = [PERSON].into();
+        c.max_births = 1;
+        c.birth_buffer_months = 1;
+        c.plan_support = enabled;
+        w.demography = Some(c);
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == PERSON)
+            .unwrap()
+            .needs[0]
+            .quantity = 0;
+        s.balances.insert((PERSON, GRAIN), 2);
+        if room {
+            w.storage.capacities.insert(PERSON, 4);
+        }
+        if !funded {
+            s.balances.insert((PERSON, TOKEN), 0);
+        }
+        let mut a = audit(&w, &s);
+        let mut sim = Simulation::new(w, s, backend).unwrap();
+        while sim.state.month <= 2 {
+            a.step(&mut sim).unwrap();
+        }
+        let first = sim
+            .ledger
+            .iter()
+            .find_map(|b| b.negotiation.as_ref())
+            .unwrap();
+        assert_eq!(
+            first.outcome,
+            if !enabled {
+                Outcome::NoDemand
+            } else if !funded {
+                Outcome::InsufficientPayment
+            } else if !room {
+                Outcome::InsufficientStorage
+            } else if funded {
+                Outcome::Traded { price: 40 }
+            } else {
+                Outcome::InsufficientPayment
+            }
+        );
+        if enabled {
+            assert!(first.orders.as_ref().unwrap().buy.is_some());
+        }
+        let child: i32 = sim
+            .reports
+            .iter()
+            .filter(|r| r.agent == FIRST_CHILD)
+            .map(|r| r.deficit(NUTRITION))
+            .sum();
+        assert_eq!(child, if enabled && funded && room { 0 } else { 1 });
+        (sim.state, sim.ledger, sim.reports, a)
+    };
+    for (enabled, funded, room) in [
+        (true, true, true),
+        (false, true, true),
+        (true, false, true),
+        (true, true, false),
+    ] {
+        assert_eq!(
+            run(Backend::Reference, enabled, funded, room),
+            run(Backend::CubeCpu, enabled, funded, room)
+        );
+    }
+}
