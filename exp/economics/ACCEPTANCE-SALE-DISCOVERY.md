@@ -22,3 +22,14 @@ consent, prices, employment and physical endowments remain supplied.
    Open, and produces real sales on both reference and CPU. A matched legal-access
    revocation suppresses sales while retaining accepted history, installed quotes
    and employment obligations. In-memory reconstruction preserves the boundary.
+
+3. **Sale-linked productive discovery.** Signed stock-sale options whose payment
+   could meet an organizational cash-reserve or funding-gap objective now root
+   productive alternatives. A target is the signed floor plus the authorized lot
+   count times listing quantity, using checked arithmetic. Only signed productive
+   recipes can supply it. Explicit inventory objectives retain their original
+   targets; otherwise recurring work replaces the one-shot candidate and combines
+   with existing quote portfolios. Catalogs depend on static options, never live
+   balances or quotes. Two new tests and five discovery/execution regressions pass.
+   A target is a persistent stock buffer, not a promise of demand or a rule that
+   automatically stops work when the cash goal is reached.

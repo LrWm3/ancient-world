@@ -34,6 +34,8 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
             _ => {}
         }
     }
+    let sales = discovery_sales::opportunities(w, agent)?;
+    wanted.extend(sales.iter().map(|o| o.resource));
     // Include intermediate technologies; reachability does not assert feasibility.
     let mut processes = BTreeSet::new();
     loop {
@@ -91,6 +93,32 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
                 }
             }),
     );
+    // Preserve explicit reserve-target choices. Without them, signed sale lots
+    // supply bounded replenishment alternatives rather than a one-shot start.
+    let explicit: BTreeSet<_> = commands
+        .iter()
+        .filter_map(|c| match c {
+            Command::WorkTargets(orders) => orders.first().map(|o| o.definition),
+            _ => None,
+        })
+        .collect();
+    let sale_definitions: BTreeSet<_> = sales
+        .iter()
+        .filter(|o| !explicit.contains(&o.definition))
+        .map(|o| o.definition)
+        .collect();
+    commands.retain(|c| !matches!(c, Command::StartProcess(id) if sale_definitions.contains(id)));
+    let mut seen = BTreeSet::new();
+    for o in sales {
+        if !explicit.contains(&o.definition) && seen.insert((o.definition, o.resource, o.target)) {
+            commands.push(Command::WorkTargets(vec![WorkOrder {
+                agent,
+                definition: o.definition,
+                priority: 0,
+                target: crate::activities::Target::Stock(Amount::new(o.resource, o.target)),
+            }]));
+        }
+    }
     let mut portfolios = markets::discovery::portfolios(w, agent)?;
     // On equal improving forecasts, offer a bounded productive bundle before
     // work alone. Retaining existing policy still wins every equal-loss tie.
