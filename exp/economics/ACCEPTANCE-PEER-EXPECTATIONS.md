@@ -22,3 +22,12 @@ activity is not a financial claim or counterparty consent.
    an unmet own output-reserve goal are necessary; normal execution still decides
    resource availability. Hypotheses add no decisions, cash or claims. Tests cover
    isolation, deduplication, satisfied goals and expiry.
+
+3. **Candidate forecasts and evidence.** Each evaluated organizational decision
+   freezes one peer snapshot shared by every candidate. Private simulations apply
+   its attempts at future Open and settle normally. Alternatives retain closing
+   stocks and whether each hypothetical attempt completed; decisions retain their
+   observation evidence through the existing serialized observer interface. The
+   live world receives only the selected organization's own authorized program.
+   Tests exercise actual hypothetical completion and verify no future processes
+   or peer decisions leak into the live Open.

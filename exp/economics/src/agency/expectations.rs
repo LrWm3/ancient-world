@@ -180,3 +180,12 @@ impl Snapshot {
         Ok(starts)
     }
 }
+
+/// A hypothetical attempt and its actual result inside that isolated rollout.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Attempt {
+    pub agent: AgentId,
+    pub definition: DefinitionId,
+    pub month: u32,
+    pub completed: bool,
+}

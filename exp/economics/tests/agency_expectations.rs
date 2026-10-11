@@ -130,3 +130,49 @@ fn hypothetical_starts_are_private_future_dated_deduplicated_and_goal_bounded() 
     s.month += 8;
     assert!(snapshot.apply_hypotheses(&mut w, &s).unwrap().is_empty());
 }
+
+#[test]
+fn organization_alternatives_share_observations_but_execute_their_own_hypotheses() {
+    let (mut w, s) = g::scenario(c::Case::Baseline).unwrap();
+    w.agency
+        .get_mut(&WORKSHOP)
+        .unwrap()
+        .config
+        .peer_expectations = Policy::RecentSuccessfulStarts { memory_months: 6 };
+    let mut run = Run::new(w, s, Backend::Reference).unwrap();
+    run.through(12).unwrap();
+    let before = run.sim.state.clone();
+    run.audit.step(&mut run.sim).unwrap();
+    let decision = run.sim.world.agency[&WORKSHOP].history.last().unwrap();
+    assert_eq!(decision.month, 13);
+    assert!(
+        !decision
+            .peer_expectations
+            .as_ref()
+            .unwrap()
+            .evidence
+            .is_empty()
+    );
+    assert!(decision.alternatives.iter().all(|a| a.losses.is_some()));
+    assert!(decision.alternatives.iter().any(|a| {
+        a.projection
+            .as_ref()
+            .unwrap()
+            .peer_attempts
+            .iter()
+            .any(|p| p.completed)
+    }));
+    assert!(
+        decision
+            .alternatives
+            .iter()
+            .flat_map(|a| &a.projection.as_ref().unwrap().peer_attempts)
+            .all(|a| a.month > 13 && a.agent != WORKSHOP)
+    );
+    // Only the actual Open ran; private month 14+ completions cannot leak.
+    assert_eq!(run.sim.state.processes, before.processes);
+    assert_eq!(
+        run.sim.world.agency[&ISSUER].history.last().unwrap().month,
+        13
+    );
+}

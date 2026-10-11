@@ -87,12 +87,19 @@ impl Controller {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Projection {
+    pub closing_stocks: BTreeMap<ResourceId, i32>,
+    pub peer_attempts: Vec<expectations::Attempt>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Alternative {
     /// None retains accepted policies and work; it does not cancel commitments.
     pub program: Option<u32>,
     pub losses: Option<Vec<i128>>,
     pub preferences: BTreeMap<AgentId, Vec<i128>>,
     pub failure: Option<String>,
+    pub projection: Option<Projection>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -108,6 +115,7 @@ pub struct Decision {
     #[serde(skip)]
     pub catalog: BTreeMap<u32, Program>,
     pub alternatives: Vec<Alternative>,
+    pub peer_expectations: Option<expectations::Snapshot>,
     /// Current stocks/claims/history; need fulfillment is the preceding month.
     pub observed: Vec<i128>,
     pub reason: String,
@@ -428,8 +436,15 @@ fn apply_due(w: &mut World, s: &State) -> Result<(), String> {
     Ok(())
 }
 
-fn forecast(w: &World, s: &State, agent: AgentId, c: &Config, choice: Option<u32>) -> Alternative {
-    type Losses = (Vec<i128>, BTreeMap<AgentId, Vec<i128>>);
+fn forecast(
+    w: &World,
+    s: &State,
+    agent: AgentId,
+    c: &Config,
+    choice: Option<u32>,
+    peers: &expectations::Snapshot,
+) -> Alternative {
+    type Losses = (Vec<i128>, BTreeMap<AgentId, Vec<i128>>, Projection);
     let run = || -> Result<Losses, String> {
         let (mut world, state) = crate::forecast::ForecastContext::new(w, s).into_parts();
         if let Some(id) = choice {
@@ -447,13 +462,47 @@ fn forecast(w: &World, s: &State, agent: AgentId, c: &Config, choice: Option<u32
                     accepted: Some(c.programs[&id].clone()),
                     catalog: c.programs.clone(),
                     alternatives: vec![],
+                    peer_expectations: None,
                     observed: vec![],
                     reason: "hypothesis".into(),
                     ballots: vec![],
                 });
         }
         let mut sim = Simulation::new(world, state, crate::compute::Backend::Reference)?;
-        sim.run_months(c.horizon)?;
+        let end = s
+            .month
+            .checked_add(c.horizon)
+            .ok_or("forecast month overflow")?;
+        let mut starts = vec![];
+        while sim.state.month < end {
+            if sim.state.phase == Phase::Open {
+                starts.extend(peers.apply_hypotheses(&mut sim.world, &sim.state)?);
+            }
+            sim.step()?;
+        }
+        let projection = Projection {
+            closing_stocks: sim
+                .world
+                .resources
+                .iter()
+                .filter(|r| r.kind == ResourceKind::Stock)
+                .map(|r| (r.id, sim.state.balance(agent, r.id)))
+                .collect(),
+            peer_attempts: starts
+                .iter()
+                .map(|a| expectations::Attempt {
+                    agent: a.agent,
+                    definition: a.definition,
+                    month: a.month,
+                    completed: sim.state.processes.values().any(|p| {
+                        p.operator == a.agent
+                            && p.definition == a.definition
+                            && p.start == a.month
+                            && p.status == Status::Completed
+                    }),
+                })
+                .collect(),
+        };
         Ok((
             measure(
                 &sim.world,
@@ -477,20 +526,23 @@ fn forecast(w: &World, s: &State, agent: AgentId, c: &Config, choice: Option<u32
                     ))
                 })
                 .collect::<Result<_, String>>()?,
+            projection,
         ))
     };
     match run() {
-        Ok((losses, preferences)) => Alternative {
+        Ok((losses, preferences, projection)) => Alternative {
             program: choice,
             losses: Some(losses),
             preferences,
             failure: None,
+            projection: Some(projection),
         },
         Err(failure) => Alternative {
             program: choice,
             losses: None,
             preferences: BTreeMap::new(),
             failure: Some(failure),
+            projection: None,
         },
     }
 }
@@ -642,6 +694,7 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
             accepted: None,
             catalog: config.programs.clone(),
             alternatives: vec![],
+            peer_expectations: None,
             observed,
             reason: "waiting for review".into(),
             ballots: vec![],
@@ -651,10 +704,13 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
             .emergency
             .is_some_and(|(i, ceiling)| decision.observed[i] > ceiling);
         if due || emergency || election_due(&opening, s, agent) {
+            let peers =
+                expectations::Snapshot::observe(&opening, s, agent, c.config.peer_expectations)?;
             decision.alternatives = std::iter::once(None)
                 .chain(config.programs.keys().copied().map(Some))
-                .map(|choice| forecast(&opening, s, agent, &config, choice))
+                .map(|choice| forecast(&opening, s, agent, &config, choice, &peers))
                 .collect();
+            decision.peer_expectations = Some(peers);
             let preference = authority.filter(|id| c.config.preferences.contains_key(id));
             let selected = best(&decision.alternatives, preference);
             let last = c.history.iter().rev().find(|d| d.chosen.is_some());
