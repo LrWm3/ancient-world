@@ -118,3 +118,12 @@ The first hire enters the second worker assessment, which rejects another harmfu
 sale. Explicit rank changes the winning household; reversing catalog order does
 not. Food, paid wages, decision losses and both financial books agree between CPU
 and Reference. Both rank controls pass; independent review found no blocker.
+
+## 13. Protect other members after household labor contributions
+
+A worker with no personal need belongs to a second household whose other member
+needs five grain. Its charter reserves half the worker's six hours. Selling two
+hours prevents completing both three-hour food processes: supplied consent leaves
+one unit unmet, while the protected policy declines and feeds the member. Reserved
+contributions and sold hours remain separately bounded. Both audited CPU/reference
+controls pass; independent review found no blocker.

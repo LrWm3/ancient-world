@@ -1944,3 +1944,101 @@ fn later_worker_assessments_include_prior_hires_and_keep_explicit_employer_prior
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn worker_protection_includes_members_needs_after_reserved_household_contributions() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        employment::supply::Policy,
+        household_governance::{Contribution, Policy as Objective},
+        scenario::{GRAIN, NUTRITION},
+    };
+    const OTHER: AgentId = 20000;
+    for protected in [false, true] {
+        let (mut w, s) = production(6);
+        let mut h = w.households[0].clone();
+        h.id = 2;
+        h.agent = OTHER;
+        h.adults = vec![WORKER, 92];
+        h.governance.charter.leader = WORKER;
+        h.admission = None;
+        h.governance.charter.contribution = Contribution::Percent(50);
+        h.governance.charter.initial_policy = Objective::NeedsFirst;
+        h.governance.charter.hiring_budget = None;
+        households::form(&mut w, &s, h).unwrap();
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        if protected {
+            w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+        }
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap()
+            .capacity
+            .quantity = 6;
+        w.participants
+            .iter_mut()
+            .find(|p| p.agent == 92)
+            .unwrap()
+            .needs
+            .push(Requirement {
+                resource: NUTRITION,
+                quantity: 5,
+                priority: 0,
+            });
+        let mut d = w.definition(MAKE).clone();
+        d.id = 903;
+        d.stages[0].monthly_services[0].quantity = 3;
+        w.definitions.push(d);
+        w.transaction_policy
+            .as_mut()
+            .unwrap()
+            .permissions
+            .insert((PERSON_TYPE, Action::Process(903)));
+        for agent in [WORKER, 92] {
+            w.activities.orders.push(WorkOrder {
+                agent,
+                definition: 903,
+                priority: 0,
+                target: Target::Stock(Amount::new(GRAIN, 100)),
+            });
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            let sold = sim
+                .state
+                .employment
+                .earned
+                .get(&(1, 1))
+                .map_or(0, |e| e.delivered);
+            assert_eq!(sold, if protected { 0 } else { 2 });
+            assert_eq!(
+                sim.reports
+                    .iter()
+                    .find(|r| r.agent == 92)
+                    .unwrap()
+                    .deficit(NUTRITION),
+                if protected { 0 } else { 1 }
+            );
+            let labor = sim
+                .ledger
+                .iter()
+                .filter_map(|b| b.household.as_ref())
+                .flat_map(|h| &h.labor)
+                .find(|d| d.household == OTHER)
+                .unwrap();
+            let contribution = labor
+                .contributions
+                .iter()
+                .find(|c| c.member == WORKER)
+                .unwrap();
+            assert_eq!(contribution.reserved, 3);
+            assert!(sold + contribution.reserved <= 6);
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}
