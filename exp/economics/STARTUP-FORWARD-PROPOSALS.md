@@ -1,5 +1,10 @@
 # Startup forward proposals
 
+Follow-up: [startup stocks and liquidity preferences](STARTUP-LIQUIDITY-COMPARISON.md)
+tests the retained workshop stocks, adds monthly liquidity scoring, and extends
+the continuation/replay comparison below from 16 to 48 months. This document
+records the original experiment and its verification window.
+
 This opt-in experiment asks whether two organizations can replace missing town
 ore inventory with a voluntarily accepted delivery and productive operating plans.
 It builds on [stocked offer publication](ACCEPTANCE-OFFER-PUBLICATION.md). A loan

@@ -1,5 +1,13 @@
 # Economics integration and planning interfaces
 
+The [startup liquidity comparison](STARTUP-LIQUIDITY-COMPARISON.md) adds completed-
+month forecast evidence, an opt-in reserve-exposure preference, matched workshop
+stock ablations, and controls for competing delivery claims and leadership turnover.
+It also extends the startup-forward continuation check to the full 48-month window.
+Monthly exposure passes readiness without workshop opening ore when metal remains;
+it is not uniformly better and remains opt-in. Removing opening metal still stalls
+these fixtures. Private forecast diagnostic copying remains a performance gap.
+
 The opt-in [startup-forward acceptance experiment](STARTUP-FORWARD-PROPOSALS.md)
 connects signed organizational authority, independent objective comparisons,
 ordinary prepaid delivery admission, conditional productive programs, spot

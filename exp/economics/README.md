@@ -115,6 +115,15 @@ without forward authority the same stocks stall. Publication, admission and work
 activation remain separate, and rejected prepayment cannot activate the plans.
 Run `cargo +1.92.0 run --locked --release --example acceptance -- --startup-forward-comparison`.
 
+The [startup liquidity comparison](STARTUP-LIQUIDITY-COMPARISON.md) tests removing
+the workshop's remaining stocks and using an opt-in monthly reserve-exposure
+preference. Ordinary and bilateral planners share dated forecast observations;
+existing terminal-only planners retain their scoring. The report distinguishes
+forecast consent, temporary liquidity shortages, and actual sustained operation.
+Monthly exposure sustains the metal-only stock variant, but loses one readiness
+gate with both stocks; neither preference sustains the variants without metal.
+Run `cargo +1.92.0 run --locked --release --example acceptance -- --startup-liquidity --workshop-stocks=both --monthly-exposure`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.
