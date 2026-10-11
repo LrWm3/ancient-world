@@ -1852,3 +1852,95 @@ fn worker_policy_bounds_search_without_changing_supplied_or_preaccepted_consent(
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn later_worker_assessments_include_prior_hires_and_keep_explicit_employer_priority() {
+    use economics_compute_smoke::{
+        activities::{Target, WorkOrder},
+        employment::supply::Policy,
+        scenario::{GRAIN, NUTRITION},
+    };
+    const OTHER: AgentId = 20000;
+    for favored in [1, 2] {
+        let (mut w, mut s) = production(6);
+        let mut h = w.households[0].clone();
+        h.id = 2;
+        h.agent = OTHER;
+        h.adults = vec![92];
+        h.governance.charter.leader = 92;
+        h.admission = None;
+        households::form(&mut w, &s, h).unwrap();
+        s.balances.insert((OTHER, TOKEN), 6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        w.employment[0].rank = u32::from(favored != 1);
+        let mut t = w.employment[0].clone();
+        t.id = 2;
+        t.employer = OTHER;
+        t.rank = u32::from(favored != 2);
+        w.employment.push(t);
+        w.employment_offers.insert(2);
+        w.employment_supply.insert(WORKER, Policy { horizon: 1 });
+        let worker = w
+            .participants
+            .iter_mut()
+            .find(|p| p.agent == WORKER)
+            .unwrap();
+        worker.capacity.quantity = 5;
+        worker.needs.push(Requirement {
+            resource: NUTRITION,
+            quantity: 1,
+            priority: 0,
+        });
+        for agent in [WORKER, 92] {
+            w.activities.orders.push(WorkOrder {
+                agent,
+                definition: MAKE,
+                priority: 0,
+                target: Target::Stock(Amount::new(GRAIN, 100)),
+            });
+        }
+        let run = |backend| {
+            let mut world = w.clone();
+            if matches!(backend, Backend::CubeCpu) {
+                world.employment.reverse();
+            }
+            let mut sim = Simulation::new(world, s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            assert_eq!(sim.state.employment.earned.len(), 1);
+            assert_eq!(sim.state.employment.earned[&(favored, 1)].delivered, 2);
+            assert_eq!(sim.state.balance(WORKER, TOKEN), 2);
+            assert_eq!(
+                sim.reports
+                    .iter()
+                    .find(|r| r.agent == WORKER)
+                    .unwrap()
+                    .deficit(NUTRITION),
+                0
+            );
+            let b = sim
+                .ledger
+                .iter()
+                .find_map(|b| b.employment.as_ref().filter(|b| !b.supply.is_empty()))
+                .unwrap();
+            assert!(
+                b.receipts
+                    .iter()
+                    .any(|r| r.agreement != favored && r.reason == Reason::WorkerProtection)
+            );
+            assert_eq!(b.supply[1].alternatives[0].hours, 2);
+            assert!(
+                b.supply[1].alternatives[0]
+                    .losses
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .zip(&b.supply[1].baseline)
+                    .any(|(a, b)| a > b)
+            );
+            (sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

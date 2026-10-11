@@ -110,3 +110,11 @@ Default supplied consent and preaccepted employment still deliver 65 hours witho
 worker-assessment receipts. Four audited CPU/reference cases and three validation
 controls pass. Independent review found no blocker. Documentation now distinguishes
 participant eligibility, the quantity ceiling, and the covered financial duties.
+
+## 12. Competing employers share one worker's real hours
+
+Two households each value a two-hour job; the worker needs two hours for food.
+The first hire enters the second worker assessment, which rejects another harmful
+sale. Explicit rank changes the winning household; reversing catalog order does
+not. Food, paid wages, decision losses and both financial books agree between CPU
+and Reference. Both rank controls pass; independent review found no blocker.
