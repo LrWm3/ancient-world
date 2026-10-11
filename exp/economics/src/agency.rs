@@ -114,6 +114,8 @@ pub struct Projection {
     pub path: path::Path,
     /// Settled sales in this private branch, never receipts promised to live agents.
     pub sales: Vec<ProjectedSale>,
+    /// Settled process transitions for this operator, including consumption.
+    pub completions: Vec<completions::Completion>,
     pub closing_stocks: BTreeMap<ResourceId, i32>,
     pub peer_attempts: Vec<expectations::Attempt>,
     pub peer_ballots: Vec<expectations::elections::Attempt>,
@@ -574,6 +576,7 @@ fn forecast(
             }
         }
         let projection = Projection {
+            completions: completions::observe(&sim.ledger, agent, s.month, end - 1),
             path,
             sales,
             peer_ballots,
@@ -959,3 +962,6 @@ mod atomic_program_tests {
         assert_eq!(w, before);
     }
 }
+
+#[cfg(test)]
+mod completion_tests;
