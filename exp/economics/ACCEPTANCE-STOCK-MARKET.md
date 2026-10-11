@@ -93,6 +93,10 @@ not prove adaptive pricing, discovery of a substitute supplier, governance-selec
 employment cancellation, or survival after an arbitrary permanent disruption.
 Employment still pays for delivered hours when productive work is unavailable.
 
+The subsequent [governed variant](ACCEPTANCE-GOVERNED-MARKETS.md) removes the
+supplied organization work menus and ore quotes using signed discovery. The
+results above remain the original supplied-quote control.
+
 ## Remaining boundaries
 
 Initial agents, consent, employment terms, stock targets, fixed prices and the

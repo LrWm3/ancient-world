@@ -53,6 +53,15 @@ shares opening cash, claim protection, storage and settlement with existing food
 and mint-input orders. A temporary extraction interruption preserves obligations
 and later recovers; the uninterrupted acceptance gate still records the lost work.
 
+The [governed-market follow-up](ACCEPTANCE-GOVERNED-MARKETS.md) removes workshop/town
+work menus and ore quotes from that initial fixture. Signed governors discover and
+compare persistent production, stock portfolios and compound programs. Choices
+apply next Open, preserve other agents' quotes and obligations, and remain subject to live law and
+settlement. Constitutional market slots must jointly fit the existing book.
+The calibrated reserve-priority baseline passes 48 months; cash-first planning
+still fails under the conservative peer-demand forecast. This does not remove
+supplied identities, consent, employment, prices or goals.
+
 The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
 households, governance selections, leases, loans, forwards, quotes or dated work.
 Its Open discovery and Acquire joint admission reuse these execution boundaries.

@@ -74,6 +74,13 @@ scheduled ore forwards with workshop bids and town asks in the existing venue.
 It protects shared cash reserves across markets and recovers after a temporary
 ore-production interruption. Prices and inventory targets remain supplied.
 
+The [governed-market acceptance variant](ACCEPTANCE-GOVERNED-MARKETS.md) additionally
+starts without workshop/town work menus or ore quotes. Governors discover bounded
+production and trading programs from signed market options and reserve objectives.
+It passes the same 48-month economic gates; cash-first planning remains a failing
+control. Prices, working-reserve goals, employment and initial consent are still
+supplied. Run `cargo +1.92.0 run --locked --release --example acceptance -- --governed`.
+
 ## Current progress — 2026-10-11
 
 Verified economics v1 remains at implementation revision `a1b99fa`.

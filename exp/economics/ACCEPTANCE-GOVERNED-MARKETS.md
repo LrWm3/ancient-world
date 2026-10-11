@@ -17,7 +17,7 @@ institution formation or price discovery.
    organization's independent stock quotes at the following Open. Signed bounds,
    lot units and whole-book compatibility are validated; law and venue eligibility
    remain live checks. Empty quotes explicitly stop discretionary trading.
-   Existing counterparties and the common claim-protection horizon are preserved.
+   Other agents' quotes and the common claim-protection horizon are preserved.
    Five organizational tests cover consent and invalid/cross-agent commands.
 
 3. **Atomic compound admission.** Programs reuse the live activity target
@@ -30,7 +30,7 @@ institution formation or price discovery.
    same-month quote effect, checkpoints on both sides of next-Open activation,
    actual accepted ore purchases, and CPU/reference agreement. Revoking trade law
    prevents execution without rewriting the accepted decision. An economically
-   motivated explicit stop removes purchases while preserving counterparties and
+   motivated explicit stop removes purchases while preserving other agents' quotes and
    employment obligations. A positive supply control prevents a vacuous no-trade
    test.
 
@@ -94,6 +94,46 @@ institution formation or price discovery.
    that would never be posted simultaneously; it reserves no stock or money.
    The nine tests in the governed-controls, authority-compatibility and
    stock-discovery targets pass on the final implementation.
+
+10. **Continuation, regression and documentation.** The governed scenario now
+    uses the recurring acceptance's every-phase CPU reconstruction, uninterrupted
+    reference comparison, dated replay and independent catalog reordering checks.
+    State, World, ledger and audit observations agree. Reconstruction is in memory;
+    replay requires the dated World contexts alongside ledger batches. This does
+    not establish durable checkpoint serialization or replay from a bare ledger.
+    README, integration status and operating-agreement documentation now distinguish
+    discovered programs from the remaining supplied terms.
+
+## Final verification
+
+All 132 tests in the selected final regression targets passed: 18 library tests
+and 114 integration tests across acceptance, recurring continuation, governed
+controls, agency/program discovery, organizational authority, commitments,
+stock/mint orders and telemetry. This was a scoped regression run, not every test
+in the crate. A subsequent five-test organizational run also passed after a
+Clippy-only test cleanup; those repeated tests are not counted twice.
+
+Strict release Clippy passed for all targets, formatting passed, and the repository
+artifact check passed. Independent review found no blocking implementation issues.
+The actual CubeCL CPU acceptance CLI also passed the governed baseline.
+
+## What this establishes and what remains
+
+The workshop and town can select recurring production and market procurement or
+sales through the shared agency controller, without supplied work menus or opening
+ore quotes. Their choices preserve execution boundaries and existing obligations.
+The calibrated economy sustains three complete post-startup years, and its tests
+detect economic failure rather than merely checking conservation.
+
+Prices, signed options, working-stock goals, employment, identities, initial assets
+and consent remain supplied. The acceptance fixture permits one calibrated ore
+price; it does not demonstrate negotiated pricing or ZIP. Static bounded search
+is not unrestricted portfolio planning. The cash-first failure remains a concrete
+counterparty-expectation gap, and the reserve priorities are a declared calibration
+rather than an endogenous solution. Permanent supply/access failures remain
+failures; the temporary interruption demonstrates recovery only after supply is
+restored. This batch adds neither unrestricted organization formation nor
+self-directed personal policy changes.
 
 Run from `exp/economics`:
 

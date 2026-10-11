@@ -61,6 +61,11 @@ fn stock_replenishment_is_ready_on_cpu_with_phase_reconstruction_and_dated_repla
     verify_recurring(c::spot_scenario);
 }
 
+#[test]
+fn governed_programs_are_ready_with_cpu_phase_reconstruction_and_dated_replay() {
+    verify_recurring(acceptance::governed::scenario);
+}
+
 fn verify_recurring(scenario: Scenario) {
     let (w, s) = scenario(c::Case::Baseline).unwrap();
     if w.minting
@@ -123,6 +128,9 @@ fn verify_recurring(scenario: Scenario) {
     let report = c::check(&cpu).unwrap();
     assert!(report.ready(), "{:?}", report.failures);
     assert_eq!(report, c::check(&reference).unwrap());
+    if cpu.sim.world.agency[&acceptance::WORKSHOP].discover_programs {
+        assert!(acceptance::governed::check(&cpu).unwrap().ready());
+    }
     assert_eq!(report.periods.len(), 3);
     for p in report.periods {
         assert!(p.workshop_income > 0);
@@ -198,6 +206,7 @@ fn verify_controls(scenario: Scenario) {
 fn verdict_requires_all_cycles_and_monthly_catalog_order_does_not_change_result() {
     verify_reordering(c::scenario);
     verify_reordering(c::spot_scenario);
+    verify_reordering(acceptance::governed::scenario);
 }
 
 fn verify_reordering(scenario: Scenario) {

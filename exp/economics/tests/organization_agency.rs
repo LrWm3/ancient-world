@@ -247,7 +247,7 @@ fn stock_program_cannot_change_peers_side_units_or_unsigned_terms() {
         holding: 4,
         max_lots: Some(2),
     };
-    markets::validate_quotes(&w, WORKSHOP, &[q.clone()]).unwrap();
+    markets::validate_quotes(&w, WORKSHOP, std::slice::from_ref(&q)).unwrap();
     markets::validate_quotes(&w, WORKSHOP, &[]).unwrap();
     for bad in [
         Quote {
