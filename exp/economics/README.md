@@ -59,14 +59,15 @@ connects known-child support to production, purchases, household governance and
 worker consent, with explicit adulthood admission and population telemetry.
 Self-starting institutional discovery with a changing dependent roster remains excluded.
 
-The [mixed-organization acceptance scenario](ACCEPTANCE-SCENARIO.md) adds an employed
-workshop and municipal treasury to the state/household economy: nine agents run
-for fourteen months, with zero nutrition deficits in the calibrated default,
-timely forward delivery, loan repayment and annual rent. Twelve cases (baseline plus eleven controls)
-exercise missing inputs, permission, payroll and storage constraints with audited
-CPU/reference outcomes. Workshop and town operating mandates remain supplied;
-the workshop loses money and municipal payroll depletes its opening reserve.
-This is bounded interaction coverage, not arbitrary self-sustaining organizations.
+The [recurring mixed-organization acceptance scenario](ACCEPTANCE-READINESS.md)
+connects nine agents over 48 months: people, a household, a workshop, a town,
+a state and a marketplace. It checks three complete operating years after startup,
+including replacement inputs, paid labor, profitable operations, nutrition, dated
+obligations and separate accounting. Workshop and town officers select work policies
+through [signed operating agreements](ORGANIZATION-OPERATING-AGREEMENTS.md).
+Supply, access, margin and late-payroll controls must fail readiness. Initial identities,
+consent, prices, contracts and constitutional menus remain supplied; this is a bounded
+recurring economy, not arbitrary autonomous organization formation.
 
 ## Current progress — 2026-10-11
 

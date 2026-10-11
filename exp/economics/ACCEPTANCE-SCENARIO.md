@@ -1,11 +1,14 @@
-# Mixed-organization acceptance scenario
+# Historical mixed-organization interaction fixture
 
-Status: six independently reviewed passes completed on 2026-10-11. This is one opt-in fixture built on the
+Current acceptance is documented in [recurring acceptance readiness](ACCEPTANCE-READINESS.md).
+This page preserves the earlier fourteen-month configuration and its measured limits.
+
+Historical status: six independently reviewed passes completed on 2026-10-11. This is one opt-in fixture built on the
 integrated commitment economy, not a replacement scheduler or a claim of arbitrary
 organization support. Run from this directory:
 
 ```sh
-cargo +1.92.0 run --locked --release --example acceptance
+cargo +1.92.0 run --locked --release --example acceptance -- --legacy
 cargo +1.92.0 run --locked --release --example acceptance -- --matrix
 cargo +1.92.0 test --locked --release --test acceptance
 ```
@@ -14,7 +17,7 @@ The acceptance target is people, a household, a workshop, a town organization, a
 state and a venue interacting through finite resources, lawful agreements and
 separate accounting. Success requires actual outcomes, not merely named agents.
 
-The final default runs **nine agents for fourteen months**: four people, a household,
+The final fourteen-month configuration runs **nine agents for fourteen months**: four people, a household,
 a workshop, a municipal treasury, a state and a marketplace. It records zero
 nutrition deficits, three completed mints (30 issued coins), timely delivery of
 the two-wheat forward, a repaid state loan and one paid annual land due. All nine
@@ -196,7 +199,7 @@ This proves replay under those contexts, not reconstruction from a bare ledger
 or durable serialized restart. A runner rejects a noninitial opening rather than
 silently initialize new books over a partially completed economy.
 
-## Remaining boundaries
+## Boundaries at the end of pass six
 
 - Workshop/town founding, ownership, governance, recruitment and autonomous spending
   need shared organization adapters. Existing state/household controllers still run.

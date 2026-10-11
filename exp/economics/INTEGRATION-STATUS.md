@@ -35,15 +35,17 @@ and uses individually signed surplus at Acquire, after member needs are reserved
 both units deliver on time in month 4. Missing consent, seed and short horizons
 retain shortfalls. This does not remove the composition exclusions below.
 
-The [mixed acceptance fixture](ACCEPTANCE-SCENARIO.md) adds a separate workshop,
-smith and municipal treasury to the commitment-priority economy. Normal employment,
-production, commodity trading and annual rent connect their separate books. Its
-fourteen-month default meets all personal food needs and existing dated obligations;
-eleven matched controls expose supply, legal/venue eligibility, payroll and storage failures.
-CPU/reference reconstruction covers every phase; replay requires dated World
-contexts as well as batches. Workshop/town mandates and opening funding are supplied,
-the workshop is loss-making, and municipal rent does not fund recurring payroll.
-This adds operating organizations, not their general founding or governance.
+The [recurring mixed acceptance fixture](ACCEPTANCE-READINESS.md) connects nine
+separate entities over 48 months. Town ore deliveries replenish workshop inputs;
+metal sales fund replacement inputs and wages, while town sales and rent fund its
+payroll. Signed organizational authority lets workshop and town controllers select
+work policies within supplied constitutions. Readiness requires three full post-startup
+operating cycles, positive organizational income, no nutrition deficit or late obligations,
+and reconciled books. CPU/reference, phase reconstruction, dated replay and failing
+supply/access/margin/payroll controls cover the boundary. Prices, initial identities,
+consent and contracts remain supplied; founding and ownership are not established.
+The [historical fourteen-month fixture](ACCEPTANCE-SCENARIO.md) retains its earlier
+negative-margin and declining municipal-reserve results as a separate fixture.
 
 The [self-starting follow-up](ENDOGENOUS-DISCOVERY.md) begins without memberships,
 households, governance selections, leases, loans, forwards, quotes or dated work.
