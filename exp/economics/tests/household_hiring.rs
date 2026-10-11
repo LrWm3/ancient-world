@@ -1143,3 +1143,58 @@ fn bounded_discovery_composes_with_posted_hiring_without_discovered_land() {
         assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
     }
 }
+
+#[test]
+fn discovered_citizenship_is_visible_to_work_but_hiring_uses_opening_permission() {
+    use economics_compute_smoke::{membership::CITIZEN, scenario::GRAIN};
+    for case in ["productive grant", "denied membership", "delayed trade"] {
+        let (mut w, s) = production(6);
+        w.employment_offers.insert(1);
+        w.employment[0].wage_per_unit.quantity = 1;
+        w.employment[0].through = 2;
+        let mut c = economics_compute_smoke::discovery::scenario::circulation()
+            .unwrap()
+            .0
+            .discovery
+            .unwrap();
+        c.state = None;
+        w.discovery = Some(c);
+        let law = w.transaction_policy.as_mut().unwrap();
+        law.permissions
+            .remove(&(PERSON_TYPE, Action::Process(MAKE)));
+        law.membership_permissions
+            .insert((CITIZEN, Action::Process(MAKE)));
+        if case != "denied membership" {
+            law.permissions.insert((PERSON_TYPE, Action::Membership));
+        } else {
+            law.permissions.remove(&(PERSON_TYPE, Action::Membership));
+        }
+        if case == "delayed trade" {
+            law.permissions
+                .remove(&(PERSON_TYPE, Action::CapacityTrade));
+            law.membership_permissions
+                .insert((CITIZEN, Action::CapacityTrade));
+        }
+        let run = |backend| {
+            let mut sim = Simulation::new(w.clone(), s.clone(), backend).unwrap();
+            let mut a = audit(&w, &s);
+            through(&mut a, &mut sim, 1);
+            let expected = if case == "productive grant" { 2 } else { 0 };
+            assert_eq!(sim.state.balance(WORKER, TOKEN), expected, "{case}");
+            assert_eq!(sim.state.balance(HOME, GRAIN), expected, "{case}");
+            if case == "delayed trade" {
+                assert!(
+                    sim.ledger
+                        .iter()
+                        .filter_map(|b| b.employment.as_ref())
+                        .flat_map(|b| &b.receipts)
+                        .any(|r| r.reason == Reason::NotPermitted)
+                );
+                through(&mut a, &mut sim, 2);
+                assert_eq!(sim.state.balance(WORKER, TOKEN), 2);
+            }
+            (sim.world, sim.state, sim.ledger, a)
+        };
+        assert_eq!(run(Backend::Reference), run(Backend::CubeCpu));
+    }
+}

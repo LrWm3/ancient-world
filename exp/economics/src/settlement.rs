@@ -365,29 +365,7 @@ pub(crate) fn commit_core(
         staged.employment = e.after.clone();
     }
     crate::town_market::record(&mut staged, &batch.town_market);
-    for (offer, agent) in batch
-        .accept_membership
-        .into_iter()
-        .chain(batch.additional_memberships.iter().copied())
-    {
-        let membership = crate::membership::acceptance(world, &staged, offer, agent)?;
-        staged.memberships.insert(
-            (membership.member, membership.organization, membership.role),
-            membership,
-        );
-    }
-    if let Some(id) = batch.accept_access {
-        let agreement = if let Some(applicant) = batch.access_applicant {
-            crate::commitments::acceptance_for(world, &staged, id, applicant)?
-        } else {
-            crate::commitments::acceptance(world, &staged, id)?
-        };
-        staged.accepted_agreements.insert(id, agreement);
-    }
-    for &(id, applicant) in &batch.additional_access {
-        let agreement = crate::commitments::acceptance_for(world, &staged, id, applicant)?;
-        staged.accepted_agreements.insert(id, agreement);
-    }
+    record_acceptances(world, &mut staged, batch)?;
     if let Some(s) = expected_commitments {
         staged.obligations = s.obligations;
     }
@@ -719,6 +697,38 @@ fn validate_process_transaction(
     actual.retain(|_, value| *value != 0);
     if &expected != after || actual != effects {
         return Err("process transition or effects disagree with definition".into());
+    }
+    Ok(())
+}
+
+/// Stage validated agreement rights in settlement order, without transferring resources.
+pub(crate) fn record_acceptances(
+    world: &World,
+    staged: &mut State,
+    batch: &Batch,
+) -> Result<(), String> {
+    for (offer, agent) in batch
+        .accept_membership
+        .into_iter()
+        .chain(batch.additional_memberships.iter().copied())
+    {
+        let membership = crate::membership::acceptance(world, staged, offer, agent)?;
+        staged.memberships.insert(
+            (membership.member, membership.organization, membership.role),
+            membership,
+        );
+    }
+    if let Some(id) = batch.accept_access {
+        let agreement = if let Some(applicant) = batch.access_applicant {
+            crate::commitments::acceptance_for(world, staged, id, applicant)?
+        } else {
+            crate::commitments::acceptance(world, staged, id)?
+        };
+        staged.accepted_agreements.insert(id, agreement);
+    }
+    for &(id, applicant) in &batch.additional_access {
+        let agreement = crate::commitments::acceptance_for(world, staged, id, applicant)?;
+        staged.accepted_agreements.insert(id, agreement);
     }
     Ok(())
 }

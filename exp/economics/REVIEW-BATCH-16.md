@@ -17,3 +17,13 @@ Independent review found no blocker. All 18 household-hiring tests pass; the new
 six-control test compares Reference/CPU, financial audit and continuation after
 every phase. Useful work hires two hours; absent work, money or capacity and
 unprofitable terms do not.
+
+## 2. Share validated acceptance staging with hiring forecasts
+
+Settlement and hiring previews use one membership/access staging helper. Newly
+accepted productive rights are visible to the subsequent work forecast. Employment
+eligibility still uses opening permissions; new citizenship cannot authorize a
+same-window labor sale. Three audited Reference/CPU controls pass, including denied
+membership and next-month labor eligibility. Independent review found no blocker.
+Discovered land remains excluded: its prerequisite reservations need an explicit
+handoff before optional employment can safely compose with them.

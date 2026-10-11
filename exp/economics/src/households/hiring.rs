@@ -25,6 +25,7 @@ pub(crate) fn quantity(
         }
     }
     let mut state = opening.clone();
+    crate::settlement::record_acceptances(&w, &mut state, base)?;
     for tx in base.transactions.iter().chain(&prior.transactions) {
         apply(&w, &mut state, &tx.effects, Backend::Reference)?;
         crate::exchange::record(&mut state, tx);
