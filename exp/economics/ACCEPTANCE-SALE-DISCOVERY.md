@@ -33,3 +33,12 @@ consent, prices, employment and physical endowments remain supplied.
    balances or quotes. Two new tests and five discovery/execution regressions pass.
    A target is a persistent stock buffer, not a promise of demand or a rule that
    automatically stops work when the cash goal is reached.
+
+4. **Cash-only cold-start control.** A new fixture removes workshop/town
+   inventory objectives and the initial workshop metal ask, while retaining
+   signed price options and finite endowments. Its 48-month reference run fails:
+   zero mints and productive batches, 67 food deficits and ending wage arrears 2.
+   All first workshop cash projections end at zero, so the normal retain-on-tie
+   rule selects no program. Sale-linked candidates exist, but observed-recurrence
+   expectations have no successful demand history to repeat. This is an explicit
+   negative control, not a passing acceptance claim.

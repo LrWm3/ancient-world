@@ -18,6 +18,7 @@ use crate::{
 pub mod continuation;
 pub mod expectations;
 pub mod governed;
+pub mod sales;
 
 pub const RUN_MONTHS: u32 = integration::RUN_MONTHS;
 
