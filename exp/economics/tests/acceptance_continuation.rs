@@ -66,6 +66,11 @@ fn governed_programs_are_ready_with_cpu_phase_reconstruction_and_dated_replay() 
     verify_recurring(acceptance::governed::scenario);
 }
 
+#[test]
+fn expected_peer_plans_are_ready_with_cpu_phase_reconstruction_and_dated_replay() {
+    verify_recurring(acceptance::expectations::scenario);
+}
+
 fn verify_recurring(scenario: Scenario) {
     let (w, s) = scenario(c::Case::Baseline).unwrap();
     if w.minting
@@ -207,6 +212,7 @@ fn verdict_requires_all_cycles_and_monthly_catalog_order_does_not_change_result(
     verify_reordering(c::scenario);
     verify_reordering(c::spot_scenario);
     verify_reordering(acceptance::governed::scenario);
+    verify_reordering(acceptance::expectations::scenario);
 }
 
 fn verify_reordering(scenario: Scenario) {

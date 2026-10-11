@@ -93,3 +93,13 @@ activity is not a financial claim or counterparty consent.
    generate no recurring peer attempts or later issuer purchases. Forecast demand
    therefore does not become self-fulfilling money or consent. Two integration
    tests cover these seven full 48-month failure runs on each backend.
+
+9. **Continuation, replay and telemetry.** The cash-first treatment passes the
+   same every-phase CubeCL CPU reconstruction and dated-World replay checks as
+   earlier acceptance variants, matching uninterrupted reference outcomes and
+   audits. Reordering independent catalogs preserves readiness. This is in-memory
+   reconstruction, not a durable checkpoint format; replay includes dated World
+   inputs rather than relying on the financial ledger alone. The organization
+   observer exports the frozen evidence and private candidate outcomes without
+   adding future live transactions or changing World, State, ledger or audit.
+   Eight continuation tests and one observer test pass.
