@@ -140,3 +140,41 @@ fn fixed_program_mandate_does_not_authorize_discovered_forward_work() {
         assert!(forwards::candidates(&fixed, &s).unwrap().is_empty());
     }
 }
+
+#[test]
+fn startup_use_is_resource_scoped_across_both_counterparty_roles() {
+    use economics_compute_smoke::{
+        acceptance::financing,
+        agency::forwards,
+        minting::{COIN, METAL},
+    };
+    let (w, mut s) = financing::scenario(c::Case::Baseline).unwrap();
+    s.balances.insert((acceptance::WORKSHOP, ORE), 0);
+    assert!(!forwards::candidates(&w, &s).unwrap().is_empty());
+    for (buyer, seller) in [
+        (acceptance::WORKSHOP, acceptance::SMITH),
+        (acceptance::SMITH, acceptance::WORKSHOP),
+        (acceptance::TOWN, acceptance::SMITH),
+        (acceptance::SMITH, acceptance::TOWN),
+    ] {
+        for resource in [ORE, METAL] {
+            let mut candidate = w.clone();
+            candidate
+                .prepaid_deliveries
+                .push(economics_compute_smoke::forward::direct::Terms {
+                    id: 500,
+                    buyer,
+                    seller,
+                    month: 1,
+                    due: 4,
+                    goods: Amount::new(resource, 1),
+                    prepayment: Amount::new(COIN, 1),
+                });
+            assert_eq!(
+                forwards::candidates(&candidate, &s).unwrap().is_empty(),
+                resource == ORE,
+                "buyer={buyer} seller={seller} resource={resource}"
+            );
+        }
+    }
+}

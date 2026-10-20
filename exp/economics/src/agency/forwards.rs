@@ -93,9 +93,10 @@ pub fn candidates(w: &World, s: &State) -> Result<Vec<Proposal>, String> {
             if bounds.side != Side::Buy
                 || s.balance(buyer, listing.goods.resource) >= *bounds.holdings.last().unwrap()
                 || s.balance(buyer, listing.payment) < option.prepayment
-                || w.prepaid_deliveries
-                    .iter()
-                    .any(|t| t.buyer == buyer && t.goods.resource == listing.goods.resource)
+                || w.prepaid_deliveries.iter().any(|t| {
+                    [t.buyer, t.seller].contains(&buyer)
+                        && t.goods.resource == listing.goods.resource
+                })
             {
                 continue;
             }
@@ -109,9 +110,10 @@ pub fn candidates(w: &World, s: &State) -> Result<Vec<Proposal>, String> {
                 if seller == buyer
                     || sell.forwards.get(&market) != Some(option)
                     || sell.stock_markets[&market].side != Side::Sell
-                    || w.prepaid_deliveries
-                        .iter()
-                        .any(|t| t.seller == seller && t.goods.resource == listing.goods.resource)
+                    || w.prepaid_deliveries.iter().any(|t| {
+                        [t.buyer, t.seller].contains(&seller)
+                            && t.goods.resource == listing.goods.resource
+                    })
                 {
                     continue;
                 }
