@@ -17,7 +17,10 @@ pub fn programs_from_requests(
         w,
         agent,
         work_requests::sales(w, snapshot)?,
-        w.agency[&agent].config.work_requests == work_requests::Policy::RespondWithWorkQuotes,
+        matches!(
+            w.agency[&agent].config.work_requests,
+            work_requests::Policy::RespondWithWorkQuotes | work_requests::Policy::Upstream
+        ),
     )
 }
 

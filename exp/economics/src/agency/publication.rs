@@ -1,4 +1,4 @@
-//! Optional publication of signed stock or productive-output asks, never assumed demand.
+//! Optional publication of signed asks and funded input bids, never assumed demand.
 use super::objectives::measure;
 use super::*;
 use crate::marketplace::Side;
@@ -11,6 +11,10 @@ pub enum Policy {
     /// Also prefer adding signed output asks to an equally scored productive
     /// choice, preserving that choice's work and all of its quotes.
     ProductiveAsksOnEqualProjection,
+    /// Additionally publish affordable input bids for explicit upstream goals
+    /// when a quote-only candidate ties with retaining the current policy and no
+    /// stocked sale can be published. Existing sales take priority over exploration.
+    InputBidsOnEqualProjection,
 }
 
 fn losses(a: &Alternative, preference: Option<AgentId>) -> Option<&Vec<i128>> {
@@ -37,7 +41,10 @@ pub(super) fn select(
         .and_then(|p| c.preferences.get(&p))
         .unwrap_or(&c.objectives);
     if let Some(selected) = retain.program {
-        if c.publication != Policy::ProductiveAsksOnEqualProjection {
+        if !matches!(
+            c.publication,
+            Policy::ProductiveAsksOnEqualProjection | Policy::InputBidsOnEqualProjection
+        ) {
             return Ok(None);
         }
         let mut best = None;
@@ -62,6 +69,18 @@ pub(super) fn select(
             && eligible(w, s, agent, &c.programs[&id], goals)?
         {
             return Ok(Some(id));
+        }
+    }
+    // Preserve the stocked-sale policy before considering input exploration;
+    // candidate IDs must not decide whether current supply misses its buyer.
+    if c.publication == Policy::InputBidsOnEqualProjection {
+        for a in alternatives {
+            let Some(id) = a.program else { continue };
+            if losses(a, preference) == losses(retain, preference)
+                && input_bids(w, s, agent, &c.programs[&id])?
+            {
+                return Ok(Some(id));
+            }
         }
     }
     Ok(None)
@@ -270,5 +289,72 @@ fn eligible(
     Ok(true)
 }
 
+/// Publication does not reserve money. The entire proposed buy portfolio must
+/// fit today's uncommitted payment stock; normal Acquire rechecks actual funding.
+fn input_bids(w: &World, s: &State, agent: AgentId, p: &Program) -> Result<bool, String> {
+    let [Command::PeerStockQuotes(quotes)] = p.commands.as_slice() else {
+        return Ok(false);
+    };
+    let Some(mint) = &w.minting else {
+        return Ok(false);
+    };
+    let Some(policy) = &mint.order_policy else {
+        return Ok(false);
+    };
+    if governor(w, s, agent).is_none()
+        || !crate::minting::eligible(w, s, mint.venue, agent)
+        || validate_program(w, agent, p).is_err()
+    {
+        return Ok(false);
+    }
+    let existing = existing_quotes(w, agent);
+    if existing.iter().any(|q| !quotes.contains(q)) {
+        return Ok(false);
+    }
+    let added: Vec<_> = quotes.iter().filter(|q| !existing.contains(q)).collect();
+    if added.is_empty() || added.iter().any(|q| q.side != Side::Buy) {
+        return Ok(false);
+    }
+    let requests = work_requests::upstream::own(w, s, agent)?;
+    if added.iter().any(|q| {
+        !requests
+            .iter()
+            .any(|r| r.market == q.market && r.limit >= q.limit)
+    }) {
+        return Ok(false);
+    }
+    let protected = crate::minting::orders::stock_protection(
+        w,
+        s,
+        agent,
+        crate::minting::orders::input_claim_months(policy),
+    )?;
+    let venue = crate::marketplace::venue(w, mint.venue).ok_or("missing bid publication venue")?;
+    let mut cost: BTreeMap<ResourceId, i128> = BTreeMap::new();
+    for q in quotes.iter().filter(|q| q.side == Side::Buy) {
+        let m = venue
+            .markets
+            .iter()
+            .find(|m| m.id == q.market)
+            .ok_or("missing input bid listing")?;
+        let lots = crate::minting::orders::required_lots(
+            q.holding,
+            s.balance(agent, m.goods.resource),
+            m.goods.quantity,
+        )
+        .min(q.max_lots.unwrap_or(0));
+        *cost.entry(m.payment).or_default() += i128::from(lots) * i128::from(q.limit);
+    }
+    Ok(cost.into_iter().all(|(resource, cost)| {
+        cost > 0
+            && cost
+                <= (i128::from(s.balance(agent, resource))
+                    - protected.get(&resource).copied().unwrap_or(0))
+                .max(0)
+    }))
+}
+
+#[cfg(test)]
+mod input_tests;
 #[cfg(test)]
 mod tests;

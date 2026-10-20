@@ -327,7 +327,8 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
                     Some(snapshot),
                     work_requests::Policy::Observe
                     | work_requests::Policy::Respond
-                    | work_requests::Policy::RespondWithWorkQuotes,
+                    | work_requests::Policy::RespondWithWorkQuotes
+                    | work_requests::Policy::Upstream,
                 ) => {
                     snapshot.validate(w, agent, d.month)?;
                     if c.config.work_requests.responds() {
@@ -926,7 +927,10 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
             } else if let Some(selected) = selected {
                 decision.chosen = selected.program;
                 decision.reason = if publication.is_some() {
-                    if c.config.publication == publication::Policy::ProductiveAsksOnEqualProjection
+                    if c.config.publication == publication::Policy::InputBidsOnEqualProjection {
+                        "publish input bids or sale offers on equal projection"
+                    } else if c.config.publication
+                        == publication::Policy::ProductiveAsksOnEqualProjection
                     {
                         "publish sale offers on equal projection"
                     } else {

@@ -3,6 +3,7 @@
 use crate::{marketplace::Side, model::*, opportunities::Action};
 
 pub mod routes;
+pub mod upstream;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub enum Policy {
@@ -12,10 +13,15 @@ pub enum Policy {
     Respond,
     /// Also compose authorized one-shot work with signed quote portfolios.
     RespondWithWorkQuotes,
+    /// Also announce missing first-batch inputs for explicit production goals.
+    Upstream,
 }
 impl Policy {
     pub(crate) fn responds(self) -> bool {
-        matches!(self, Self::Respond | Self::RespondWithWorkQuotes)
+        matches!(
+            self,
+            Self::Respond | Self::RespondWithWorkQuotes | Self::Upstream
+        )
     }
 }
 
@@ -31,6 +37,7 @@ pub enum Source {
         definition: DefinitionId,
         needed: i32,
     },
+    ProspectiveInput(upstream::Dependency),
 }
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Request {
@@ -43,8 +50,8 @@ pub struct Request {
     pub lots: i32,
     pub limit: i32,
     pub observed_stock: i32,
-    /// A production deadline only for a dated procurement plan. Standing stock
-    /// interest has no invented delivery promise or deadline.
+    /// Scheduled procurement date or aspirational upstream input window.
+    /// Standing stock interest has no invented deadline; none guarantees delivery.
     pub due: Option<u32>,
     pub source: Source,
 }
@@ -169,6 +176,7 @@ impl Snapshot {
                 }
             }
         }
+        upstream::append(w, s, &mut snapshot)?;
         snapshot
             .requests
             .sort_by_key(|r| (r.venue, r.market, r.requester, r.due));
@@ -212,6 +220,9 @@ impl Snapshot {
                 return Err("invalid frozen work request".into());
             }
             let expected = match r.source {
+                Source::ProspectiveInput(ref dependency) => {
+                    upstream::validate(w, self.month, r, dependency)?
+                }
                 Source::StandingStockTarget { target, ceiling } => {
                     let options = w
                         .agency
