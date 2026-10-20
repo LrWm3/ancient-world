@@ -431,17 +431,17 @@ fn productive_work_only_selection_retains_live_quotes_unless_explicitly_cleared(
             _ => None,
         })
         .unwrap();
-    w.minting
-        .as_mut()
-        .unwrap()
-        .order_policy
-        .as_mut()
-        .unwrap()
-        .peer_stocks
-        .as_mut()
-        .unwrap()
-        .quotes
-        .extend(quotes.clone());
+    let buy_only: Vec<_> = quotes
+        .iter()
+        .filter(|q| q.side == Side::Buy)
+        .cloned()
+        .collect();
+    markets::apply(&mut w, WORKSHOP, &buy_only).unwrap();
+    assert_eq!(
+        productive_additions(&w, &s, WORKSHOP, &work_only, combined, &c.objectives).unwrap(),
+        1
+    );
+    markets::apply(&mut w, WORKSHOP, &quotes).unwrap();
     let mut only_ask = combined.clone();
     for c in &mut only_ask.commands {
         if let Command::PeerStockQuotes(q) = c {
