@@ -122,3 +122,72 @@ fn exposure_distinguishes_recovered_shortage_from_terminal_reserve() {
     assert!(objectives::validate(&w, &invalid).is_err());
     assert!(objectives::measure_projection(&w, &s, &[], WORKSHOP, &goals, &Path::new(1)).is_err());
 }
+
+#[test]
+fn dated_goals_reject_missing_duplicate_shifted_or_unclosed_intervals() {
+    use economics_compute_smoke::agency::objectives::{self, Metric, Objective, Scope};
+    let (w, mut s) = financing::scenario(Case::Baseline).unwrap();
+    let mut path = Path::new(1);
+    for month in 2..=4 {
+        s.month = month;
+        path.record(&w, &s).unwrap();
+    }
+    path.completions = Some(vec![]);
+    for metric in [
+        Metric::ReserveExposure {
+            resource: COIN,
+            target: 10,
+        },
+        Metric::ProcessShortfall {
+            definition: economics_compute_smoke::minting::REFINE,
+            target: 1,
+        },
+    ] {
+        let goals = [Objective {
+            scope: Scope::Organization,
+            metric,
+        }];
+        assert!(objectives::measure_projection(&w, &s, &[], WORKSHOP, &goals, &path).is_ok());
+        for case in ["gap", "duplicate", "shifted", "phase", "overflow"] {
+            let mut bad = path.clone();
+            let mut terminal = s.clone();
+            match case {
+                "gap" => {
+                    bad.closes.remove(1);
+                }
+                "duplicate" => bad.closes[1].month = 1,
+                "shifted" => bad.start = 2,
+                "phase" => terminal.phase = Phase::Acquire,
+                "overflow" => {
+                    bad.start = u32::MAX;
+                    bad.closes.truncate(1);
+                    bad.closes[0].month = u32::MAX;
+                    terminal.month = 0;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                objectives::measure_projection(&w, &terminal, &[], WORKSHOP, &goals, &bad).is_err(),
+                "{case}"
+            );
+        }
+    }
+}
+
+#[test]
+fn reserve_loss_uses_wide_arithmetic_at_extreme_balances() {
+    use economics_compute_smoke::agency::objectives::{self, Metric, Objective, Scope};
+    let (w, mut s) = financing::scenario(Case::Baseline).unwrap();
+    s.balances.insert((WORKSHOP, COIN), i32::MIN);
+    let goal = Objective {
+        scope: Scope::Organization,
+        metric: Metric::Reserve {
+            resource: COIN,
+            target: i32::MAX,
+        },
+    };
+    assert_eq!(
+        objectives::measure(&w, &s, &[], WORKSHOP, &[goal]).unwrap(),
+        [4_294_967_295]
+    );
+}

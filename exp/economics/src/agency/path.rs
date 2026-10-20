@@ -47,6 +47,26 @@ impl Path {
         }
     }
 
+    /// All path-valued goals use exactly the same completed interval contract.
+    pub fn validate_interval(&self, state: &State) -> Result<(), String> {
+        if state.phase != Phase::Open
+            || self.start == 0
+            || self.closes.is_empty()
+            || self
+                .closes
+                .iter()
+                .enumerate()
+                .any(|(i, c)| u64::from(c.month) != u64::from(self.start) + i as u64)
+            || self
+                .closes
+                .last()
+                .is_none_or(|c| c.month.checked_add(1) != Some(state.month))
+        {
+            return Err("goal requires consecutive completed projection months at Open".into());
+        }
+        Ok(())
+    }
+
     /// Attach committed flows only after the complete dated path is collected.
     pub fn record_completions(&mut self, ledger: &[Batch]) -> Result<(), String> {
         if self.closes.iter().any(|c| {

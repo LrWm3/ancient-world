@@ -182,7 +182,7 @@ pub fn measure(
                 Metric::Reserve { resource, target }
                 | Metric::ReserveExposure { resource, target } => scope
                     .iter()
-                    .map(|id| i128::from((target - s.balance(*id, resource)).max(0)))
+                    .map(|id| (i128::from(target) - i128::from(s.balance(*id, resource))).max(0))
                     .sum(),
                 Metric::Debt(resource) => s
                     .credit
@@ -227,21 +227,7 @@ pub fn measure_projection(
                     Scope::Agents(ids) => ids.clone(),
                     Scope::Members => return Err("projection beneficiaries must be frozen".into()),
                 };
-                if path.closes.is_empty()
-                    || path
-                        .closes
-                        .iter()
-                        .enumerate()
-                        .any(|(i, c)| u64::from(c.month) != u64::from(path.start) + i as u64)
-                    || path
-                        .closes
-                        .last()
-                        .is_none_or(|c| c.month.checked_add(1) != Some(s.month))
-                {
-                    return Err(
-                        "process goal requires consecutive completed projection months".into(),
-                    );
-                }
+                path.validate_interval(s)?;
                 let rows = path
                     .completions
                     .as_ref()
@@ -259,9 +245,7 @@ pub fn measure_projection(
                 Scope::Agents(ids) => ids.clone(),
                 Scope::Members => return Err("projection beneficiaries must be frozen".into()),
             };
-            if path.closes.is_empty() || path.closes.last().is_none_or(|c| c.month + 1 != s.month) {
-                return Err("exposure goal requires completed projection months".into());
-            }
+            path.validate_interval(s)?;
             losses[i] = path
                 .closes
                 .iter()
