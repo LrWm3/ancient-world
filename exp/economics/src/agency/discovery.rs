@@ -23,9 +23,22 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
         );
     }
     let mut wanted = BTreeSet::new();
+    let mut processes = BTreeSet::new();
     for objective in &w.agency[&agent].config.objectives {
         use objectives::Metric;
         match objective.metric {
+            Metric::ProcessShortfall { definition, .. } => {
+                let d = w.definition(definition);
+                if d.execution == Execution::Productive {
+                    processes.insert(definition);
+                }
+                wanted.extend(
+                    d.stages
+                        .iter()
+                        .flat_map(|s| &s.entry_inputs)
+                        .map(|a| a.resource),
+                );
+            }
             Metric::Reserve { resource, .. }
             | Metric::ReserveExposure { resource, .. }
             | Metric::FundingGap { resource, .. }
@@ -38,7 +51,6 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
     let sales = discovery_sales::opportunities(w, agent)?;
     wanted.extend(sales.iter().map(|o| o.resource));
     // Include intermediate technologies; reachability does not assert feasibility.
-    let mut processes = BTreeSet::new();
     loop {
         let previous = (wanted.len(), processes.len());
         for d in &w.definitions {

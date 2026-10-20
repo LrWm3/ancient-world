@@ -13,6 +13,12 @@ pub enum Metric {
     Deaths,
     NeedDeficit(ResourceId),
     FailedProcesses,
+    /// Per-operator, per-completed-month shortfall in batches of one definition.
+    /// Surplus completions cannot offset a different month's or operator's gap.
+    ProcessShortfall {
+        definition: DefinitionId,
+        target: u32,
+    },
     Reserve {
         resource: ResourceId,
         target: i32,
@@ -45,6 +51,12 @@ pub fn validate(w: &World, objectives: &[Objective]) -> Result<(), String> {
             return Err("objective references unknown agent".into());
         }
         let resource = match o.metric {
+            Metric::ProcessShortfall { definition, .. } => {
+                if !w.definitions.iter().any(|d| d.id == definition) {
+                    return Err("process objective references unknown definition".into());
+                }
+                None
+            }
             Metric::NeedDeficit(r) => Some((r, ResourceKind::Fulfillment)),
             Metric::Reserve { resource, target } | Metric::ReserveExposure { resource, target } => {
                 if target < 0 {
@@ -129,6 +141,9 @@ pub fn measure(
                 Scope::Agents(ids) => ids.clone(),
             };
             Ok(match o.metric {
+                Metric::ProcessShortfall { .. } => {
+                    return Err("process objective requires dated completion evidence".into());
+                }
                 Metric::Deaths => scope
                     .iter()
                     .filter(|id| s.terminal.contains_key(id))
@@ -193,8 +208,8 @@ pub fn measure(
         .collect()
 }
 
-/// Existing metrics retain terminal semantics. Only explicitly chosen exposure
-/// goals integrate completed-month samples; unlike resources remain separate.
+/// Existing metrics retain terminal semantics. Explicit exposure and process-flow
+/// goals integrate completed-month evidence; unlike units remain separate.
 pub fn measure_projection(
     w: &World,
     s: &State,
@@ -203,7 +218,40 @@ pub fn measure_projection(
     objectives: &[Objective],
     path: &super::path::Path,
 ) -> Result<Vec<i128>, String> {
-    let mut losses = measure(w, s, reports, organization, objectives)?;
+    let mut losses = Vec::with_capacity(objectives.len());
+    for o in objectives {
+        losses.push(
+            if let Metric::ProcessShortfall { definition, target } = o.metric {
+                let scope = match &o.scope {
+                    Scope::Organization => [organization].into(),
+                    Scope::Agents(ids) => ids.clone(),
+                    Scope::Members => return Err("projection beneficiaries must be frozen".into()),
+                };
+                if path.closes.is_empty()
+                    || path
+                        .closes
+                        .iter()
+                        .enumerate()
+                        .any(|(i, c)| u64::from(c.month) != u64::from(path.start) + i as u64)
+                    || path
+                        .closes
+                        .last()
+                        .is_none_or(|c| c.month.checked_add(1) != Some(s.month))
+                {
+                    return Err(
+                        "process goal requires consecutive completed projection months".into(),
+                    );
+                }
+                let rows = path
+                    .completions
+                    .as_ref()
+                    .ok_or("missing projected completion evidence")?;
+                super::flow::shortfall(rows, &scope, definition, target, path.start, s.month - 1)
+            } else {
+                measure(w, s, reports, organization, std::slice::from_ref(o))?[0]
+            },
+        );
+    }
     for (i, o) in objectives.iter().enumerate() {
         if let Metric::ReserveExposure { resource, target } = o.metric {
             let scope = match &o.scope {

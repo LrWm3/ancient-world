@@ -121,16 +121,23 @@ fn input_priority_compares_replenishment_on_the_same_opening_snapshot() {
     )
     .unwrap();
     let mut pairs = vec![];
-    for buffered in [false, true] {
+    for variant in 0..3 {
         let mut c = config.clone();
-        if buffered {
+        if variant != 0 {
             c.objectives.insert(
                 0,
                 Objective {
                     scope: Scope::Organization,
-                    metric: Metric::ReserveExposure {
-                        resource: crate::minting::ORE,
-                        target: 2,
+                    metric: if variant == 1 {
+                        Metric::ReserveExposure {
+                            resource: crate::minting::ORE,
+                            target: 2,
+                        }
+                    } else {
+                        Metric::ProcessShortfall {
+                            definition: crate::minting::REFINE,
+                            target: 1,
+                        }
                     },
                 },
             );
@@ -138,7 +145,7 @@ fn input_priority_compares_replenishment_on_the_same_opening_snapshot() {
         let retain = forecast(&live.world, &live.state, WORKSHOP, &c, None, &peers);
         let drop_bid = forecast(&live.world, &live.state, WORKSHOP, &c, Some(1), &peers);
         println!(
-            "SAME_OPEN buffered={buffered} retain={:?} drop={:?} completions={:?}/{:?}",
+            "SAME_OPEN variant={variant} retain={:?} drop={:?} completions={:?}/{:?}",
             retain.losses,
             drop_bid.losses,
             retain.projection.as_ref().map(|p| &p.completions),
@@ -151,6 +158,17 @@ fn input_priority_compares_replenishment_on_the_same_opening_snapshot() {
     assert_eq!(pairs[0].1.losses, Some(vec![11870]));
     assert_eq!(pairs[1].0.losses, Some(vec![2, 11910]));
     assert_eq!(pairs[1].1.losses, Some(vec![24, 11870]));
+    assert_eq!(pairs[2].0.losses, Some(vec![8, 11910]));
+    assert_eq!(pairs[2].1.losses, Some(vec![11, 11870]));
+    assert!(pairs[2].0.losses < pairs[2].1.losses);
+    assert_eq!(
+        pairs[2].0.projection.as_ref().unwrap().completions,
+        pairs[0].0.projection.as_ref().unwrap().completions
+    );
+    assert_eq!(
+        pairs[2].1.projection.as_ref().unwrap().completions,
+        pairs[0].1.projection.as_ref().unwrap().completions
+    );
     assert!(pairs[0].1.losses < pairs[0].0.losses);
     assert!(pairs[1].0.losses < pairs[1].1.losses);
     assert_eq!(pairs[0].0.projection.as_ref().unwrap().completions.len(), 4);

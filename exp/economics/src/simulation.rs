@@ -49,7 +49,7 @@ impl Simulation {
         {
             let mut next = self.clone();
             crate::discovery::open(&mut next.world, &next.state)?;
-            crate::agency::open(&mut next.world, &next.state)?;
+            crate::agency::open(&mut next.world, &next.state, &next.ledger)?;
             if next.world.households.is_empty() {
                 next.step_core()?;
             } else {

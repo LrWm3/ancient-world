@@ -7,6 +7,7 @@ pub mod completions;
 pub mod discovery;
 pub mod discovery_sales;
 pub mod expectations;
+pub mod flow;
 pub mod forwards;
 pub mod integration;
 pub mod markets;
@@ -15,7 +16,7 @@ pub mod organization;
 pub mod path;
 pub mod publication;
 pub mod scenario;
-use objectives::{Objective, measure};
+use objectives::Objective;
 
 const MAX_HORIZON_MONTHS: u32 = 24;
 const MAX_PROGRAMS: usize = 16;
@@ -535,7 +536,13 @@ fn forecast(
             .objectives
             .iter()
             .chain(c.preferences.values().flatten())
-            .any(|o| matches!(o.metric, objectives::Metric::ReserveExposure { .. }));
+            .any(|o| {
+                matches!(
+                    o.metric,
+                    objectives::Metric::ReserveExposure { .. }
+                        | objectives::Metric::ProcessShortfall { .. }
+                )
+            });
         while sim.state.month < end {
             if sim.state.phase == Phase::Open {
                 peer_ballots.extend(peers.apply_ballots(&mut sim.world, &sim.state)?);
@@ -545,6 +552,13 @@ fn forecast(
             if observe_path && sim.state.phase == Phase::Open {
                 path.record(&sim.world, &sim.state)?;
             }
+        }
+        if c.objectives
+            .iter()
+            .chain(c.preferences.values().flatten())
+            .any(|o| matches!(o.metric, objectives::Metric::ProcessShortfall { .. }))
+        {
+            path.record_completions(&sim.ledger)?;
         }
         let mut sales = vec![];
         if let Some(mint) = &sim.world.minting {
@@ -763,7 +777,7 @@ fn vote(
 
 /// One Open pass. Compare programs from a common snapshot; publish only the
 /// receiving institution's authorized intent. Peers retain their own planners.
-pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
+pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), String> {
     validate(w)?;
     validate_history(w, s)?;
     for c in w.agency.values_mut().filter(|c| c.autonomous) {
@@ -791,7 +805,7 @@ pub(crate) fn open(w: &mut World, s: &State) -> Result<(), String> {
         }
         let authority = governor(&opening, s, agent);
         let due = (s.month - 1).is_multiple_of(c.config.review_every);
-        let observed = measure(&opening, s, &[], agent, &c.config.objectives)?;
+        let observed = flow::observe(&opening, s, ledger, agent, &c.config.objectives)?;
         let mut decision = Decision {
             month: s.month,
             effective_month: s.month + 1,

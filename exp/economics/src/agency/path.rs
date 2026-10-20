@@ -35,17 +35,41 @@ impl Close {
 pub struct Path {
     pub start: u32,
     pub closes: Vec<Close>,
+    /// None means flow evidence was not collected, not that no work completed.
+    pub completions: Option<Vec<super::completions::Completion>>,
 }
 impl Path {
     pub fn new(start: u32) -> Self {
         Self {
             start,
             closes: vec![],
+            completions: None,
         }
+    }
+
+    /// Attach committed flows only after the complete dated path is collected.
+    pub fn record_completions(&mut self, ledger: &[Batch]) -> Result<(), String> {
+        if self.closes.iter().any(|c| {
+            !ledger
+                .iter()
+                .any(|b| b.month == c.month && b.phase == Phase::Close)
+        }) {
+            return Err("completion path requires a committed Close for every month".into());
+        }
+        let end = self
+            .closes
+            .last()
+            .ok_or("completion path has no closed months")?
+            .month;
+        self.completions = Some(super::completions::observe_all(ledger, self.start, end));
+        Ok(())
     }
 
     /// Call after Close has advanced the clock, before the next Open executes.
     pub fn record(&mut self, w: &World, s: &State) -> Result<(), String> {
+        if self.completions.is_some() {
+            return Err("cannot extend a finalized completion path".into());
+        }
         let expected = self
             .start
             .checked_add(self.closes.len() as u32)

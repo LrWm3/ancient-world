@@ -18,11 +18,25 @@ pub struct Completion {
 /// Reversed intervals return no rows.
 /// This is a diagnostic reader, not a substitute for settlement validation.
 pub fn observe(ledger: &[Batch], operator: AgentId, from: u32, through: u32) -> Vec<Completion> {
+    collect(ledger, Some(operator), from, through)
+}
+
+/// All operators, for explicitly scoped collective flow objectives.
+pub fn observe_all(ledger: &[Batch], from: u32, through: u32) -> Vec<Completion> {
+    collect(ledger, None, from, through)
+}
+
+fn collect(
+    ledger: &[Batch],
+    operator: Option<AgentId>,
+    from: u32,
+    through: u32,
+) -> Vec<Completion> {
     let mut completed = BTreeMap::<u64, Completion>::new();
     for batch in ledger {
         for change in batch.all_transactions().filter_map(|t| t.process.as_ref()) {
             let p = &change.after;
-            if p.operator != operator
+            if operator.is_some_and(|a| p.operator != a)
                 || p.status != Status::Completed
                 || change
                     .before

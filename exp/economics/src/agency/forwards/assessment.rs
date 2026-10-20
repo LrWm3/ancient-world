@@ -65,9 +65,16 @@ pub fn assess(w: &World, s: &State, proposal: &Proposal) -> Result<Assessment, S
             agent,
             controller.config.peer_expectations,
         )?;
-        let (base, _, _, baseline_path) = project(w, s, horizon, &peers, None)?;
+        let observe_completions = objectives.iter().any(|o| {
+            matches!(
+                o.metric,
+                agency::objectives::Metric::ProcessShortfall { .. }
+            )
+        });
+        let (base, _, _, baseline_path) =
+            project(w, s, horizon, &peers, None, observe_completions)?;
         let (proposed, admitted, delivered_on_time, proposed_path) =
-            project(w, s, horizon, &peers, Some(proposal))?;
+            project(w, s, horizon, &peers, Some(proposal), observe_completions)?;
         comparisons.insert(
             agent,
             Comparison {
@@ -120,6 +127,7 @@ fn project(
     horizon: u32,
     peers: &agency::expectations::Snapshot,
     proposal: Option<&Proposal>,
+    observe_completions: bool,
 ) -> Result<(Simulation, bool, i32, agency::path::Path), String> {
     let (mut world, state) = crate::forecast::ForecastContext::new(w, s).into_parts();
     if let Some(p) = proposal {
@@ -151,6 +159,9 @@ fn project(
                 on_time = c.delivered;
             }
         }
+    }
+    if observe_completions {
+        path.record_completions(&sim.ledger)?;
     }
     Ok((sim, admitted, on_time, path))
 }

@@ -1,4 +1,5 @@
 //! Optional exploration through stocked, signed asks, never assumed demand.
+use super::objectives::measure;
 use super::*;
 use crate::marketplace::Side;
 
