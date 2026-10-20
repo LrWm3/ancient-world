@@ -323,13 +323,28 @@ fn loss(
     objectives: &[agency::objectives::Objective],
 ) -> Result<Vec<i128>, String> {
     let sim = &projection.sim;
+    // Financial counterparties can inherit dated production preferences. Gather
+    // evidence only for those comparisons; stock-only discovery stays unchanged.
+    let mut observed;
+    let path = if objectives.iter().any(|o| {
+        matches!(
+            o.metric,
+            agency::objectives::Metric::ProcessShortfall { .. }
+        )
+    }) {
+        observed = projection.path.clone();
+        observed.record_completions(&sim.ledger)?;
+        &observed
+    } else {
+        &projection.path
+    };
     agency::objectives::measure_projection(
         &sim.world,
         &sim.state,
         &sim.reports,
         agent,
         objectives,
-        &projection.path,
+        path,
     )
 }
 

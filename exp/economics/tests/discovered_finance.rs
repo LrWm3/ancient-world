@@ -670,3 +670,96 @@ fn duration_search_preserves_scarcity_and_resumes_at_every_boundary() {
         );
     }
 }
+
+#[test]
+fn discovered_loan_scores_completed_production_and_still_repays() {
+    let (mut w, s) = mint_loan(1);
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .state
+        .as_mut()
+        .unwrap()
+        .objectives
+        .insert(
+            0,
+            Objective {
+                scope: Scope::Organization,
+                metric: Metric::ProcessShortfall {
+                    definition: MINT,
+                    target: 1,
+                },
+            },
+        );
+    let sim = run(w, s, Backend::Reference);
+    assert_eq!(sim.state.credit.loans.len(), 1);
+    assert!(
+        sim.state
+            .credit
+            .loans
+            .values()
+            .all(|l| l.status == economics_compute_smoke::credit::Status::Repaid)
+    );
+    let published = sim
+        .world
+        .discovery
+        .as_ref()
+        .unwrap()
+        .financial
+        .iter()
+        .flat_map(|a| &a.attempts)
+        .find(|a| a.outcome == economics_compute_smoke::discovery::finance::Outcome::Published)
+        .unwrap();
+    let (before, after) = &published.comparisons[&ISSUER];
+    assert!(after[0] < before[0], "{published:?}");
+}
+
+#[test]
+fn discovered_forward_accepts_inherited_flow_goals_without_inventing_work() {
+    let (mut w, s) = surplus(1);
+    w.discovery
+        .as_mut()
+        .unwrap()
+        .state
+        .as_mut()
+        .unwrap()
+        .objectives
+        .push(Objective {
+            scope: Scope::Organization,
+            metric: Metric::ProcessShortfall {
+                definition: MINT,
+                target: 1,
+            },
+        });
+    let sim = run(w, s, Backend::Reference);
+    let assessment = sim
+        .world
+        .discovery
+        .as_ref()
+        .unwrap()
+        .financial
+        .iter()
+        .find(|a| {
+            a.attempts.iter().any(|a| {
+                a.outcome == economics_compute_smoke::discovery::finance::Outcome::Published
+            })
+        })
+        .unwrap();
+    let attempt = assessment
+        .attempts
+        .iter()
+        .find(|a| a.outcome == economics_compute_smoke::discovery::finance::Outcome::Published)
+        .unwrap();
+    let (before, after) = &attempt.comparisons[&ISSUER];
+    assert_eq!(
+        (before[1], after[1]),
+        (
+            i128::from(assessment.horizon),
+            i128::from(assessment.horizon)
+        )
+    );
+    assert_eq!(
+        sim.state.exchange.forwards[&attempt.candidate_id].delivered,
+        1
+    );
+}
