@@ -1,5 +1,12 @@
 # Economics integration and planning interfaces
 
+The [upstream discovery extension](UPSTREAM-WORK-DISCOVERY.md) exposes conditional
+first-batch input interest and separately tests affordable input-bid publication.
+Stocked sales take priority over exploration. The metal-only startup improves from
+8 to 9 mints over 12 months. Neither-stock output arrives after procurement expires,
+when issuer funds no longer cover its input package. Interest, bids and accepted
+funding remain distinct, and defaults are unchanged.
+
 The [six-pass work-discovery pilot](WORK-DISCOVERY.md) adds dated, nonbinding
 requests, explicit missing-requirement diagnostics and opt-in discovery policies.
 Request filtering alone harms startup; combining one-shot work with signed quote

@@ -9,7 +9,7 @@ fn main() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() != 2 {
         return Err(
-            "usage: work_discovery <both|metal|ore|neither> <static|observe|respond|bundled>"
+            "usage: work_discovery <both|metal|ore|neither> <static|observe|respond|bundled|upstream|input-bids>"
                 .into(),
         );
     }
@@ -25,12 +25,20 @@ fn main() -> Result<(), String> {
         "observe" => Policy::Observe,
         "respond" => Policy::Respond,
         "bundled" => Policy::RespondWithWorkQuotes,
+        "upstream" | "input-bids" => Policy::Upstream,
         _ => return Err("unknown policy".into()),
     };
-    let (w, s) = work_discovery::scenario(Case::Baseline, stocks, policy)?;
+    let (w, s) = if args[1] == "input-bids" {
+        work_discovery::with_input_bids(Case::Baseline, stocks, true)?
+    } else {
+        work_discovery::scenario(Case::Baseline, stocks, policy)?
+    };
     let mut run = Run::new(w, s, Backend::Reference)?;
     run.through(MONTHS)?;
-    println!("SETTINGS {stocks:?} {policy:?} months={MONTHS}");
+    println!(
+        "SETTINGS {stocks:?} {policy:?} input_bids={} months={MONTHS}",
+        args[1] == "input-bids"
+    );
     println!("EVIDENCE {:?}", run.evidence()?);
     for agent in [WORKSHOP, TOWN] {
         for d in &run.sim.world.agency[&agent].history {

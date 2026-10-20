@@ -159,7 +159,8 @@ cargo +1.92.0 test --locked --release -j8 --test work_requests --test work_reque
 cargo +1.92.0 run --locked --release -j8 --example work_discovery -- ore bundled
 ```
 
-The example accepts `both|metal|ore|neither` and `static|observe|respond|bundled`,
+The example accepts `both|metal|ore|neither` and
+`static|observe|respond|bundled|upstream|input-bids`,
 runs 24 months and prints accepted programs, request snapshots and route diagnostics.
 Redirect raw output under ignored `../../output/economics/` when retaining runs.
 
@@ -178,14 +179,14 @@ new run of the experiment's entire test suite.
 
 ## What remains
 
-A useful next experiment is **bounded upstream requests**: a candidate requiring ore
-could announce missing ore by a date, while a counterparty independently decides
-whether to respond. Before adding it, define duplicate-demand suppression, expiry,
-conditional dependencies and how bids become funded commitments. Compare it with
-this same neither-stock control; do not insert free stock or presume a buyer.
+The [upstream extension](UPSTREAM-WORK-DISCOVERY.md) now announces missing
+first-batch inputs from explicit governing production goals and separately tests
+funded input-bid publication. It improves the metal-only startup modestly, but
+neither-stock output still misses downstream procurement. The original six-pass
+results above remain a historical comparison of their own policies.
 
 Further work includes multi-batch scheduling with shared capacity, input bundles,
 conditional acceptance/decommitment, financing and expected counterparty response.
-The present request adapter only reads existing signed stock policies and issuer
-procurement. It is not yet a general marketplace for arbitrary announced tasks,
+The original request adapter reads signed stock policies and issuer
+procurement; the extension also reads explicit governing production goals. It is not yet a general marketplace for arbitrary announced tasks,
 negotiated delivery terms or recursively discovered production chains.
