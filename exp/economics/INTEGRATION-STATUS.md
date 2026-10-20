@@ -1,5 +1,13 @@
 # Economics integration and planning interfaces
 
+The [six-pass work-discovery pilot](WORK-DISCOVERY.md) adds dated, nonbinding
+requests, explicit missing-requirement diagnostics and opt-in discovery policies.
+Request filtering alone harms startup; combining one-shot work with signed quote
+portfolios repairs that regression in matched 12-month controls. Ore-only and
+both-stock runs complete 10 mints versus 9 under the existing policy; neither-stock
+startup still fails. Defaults remain unchanged, and the new variant has 24-month
+CPU/reference continuation coverage rather than a new readiness certification.
+
 The [24-iteration integration batch](REVIEW-BATCH-24.md) makes financial discovery
 respect effective governing preferences and collect required completion evidence.
 Personal goals now seed choices, dated metrics share interval validation, and finite

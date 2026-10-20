@@ -4,6 +4,14 @@ A CPU-running experiment in generic agents, needs, processes, agreements and
 transaction-first settlement. The initial person–household loop works in a bounded
 scenario; the broader economy remains partially integrated.
 
+The [six-pass work-discovery pilot](WORK-DISCOVERY.md) adds dated, nonbinding
+requests, explicit missing-requirement diagnostics and opt-in discovery policies.
+Request filtering alone harms startup; combining one-shot work with signed quote
+portfolios repairs that regression in matched 12-month controls. Ore-only and
+both-stock runs complete 10 mints versus 9 under the existing policy; neither-stock
+startup still fails. Defaults remain unchanged, and the new variant has 24-month
+CPU/reference continuation coverage rather than a new readiness certification.
+
 The latest [24-iteration integration batch](REVIEW-BATCH-24.md) repairs production-goal
 composition with financial discovery, governing preferences and dated observations.
 An opt-in policy posts signed output asks alongside equally scored productive work.
