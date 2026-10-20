@@ -763,3 +763,114 @@ fn discovered_forward_accepts_inherited_flow_goals_without_inventing_work() {
         1
     );
 }
+
+#[test]
+fn financial_discovery_uses_the_governors_reserve_demand_and_flow_preferences() {
+    use economics_compute_smoke::{
+        agency,
+        discovery::finance::{Instrument, Outcome},
+    };
+    for personal in [false, true] {
+        let (mut w, mut s) = surplus(1);
+        let goals = w
+            .discovery
+            .as_ref()
+            .unwrap()
+            .state
+            .as_ref()
+            .unwrap()
+            .objectives
+            .clone();
+        // Install the same public government at founding so distinct personal
+        // preferences can be supplied before any operating mandate is sealed.
+        agency::scenario::govern(&mut w, &mut s, WORKER, &[WORKER, SUPPLIER]);
+        w.discovery.as_mut().unwrap().state = None;
+        let mut config = agency::scenario::config(
+            vec![Objective {
+                scope: Scope::Organization,
+                metric: Metric::Deaths,
+            }],
+            Default::default(),
+        );
+        let mut preferred = goals;
+        preferred.push(Objective {
+            scope: Scope::Organization,
+            metric: Metric::ProcessShortfall {
+                definition: MINT,
+                target: 1,
+            },
+        });
+        config
+            .preferences
+            .insert(if personal { WORKER } else { SUPPLIER }, preferred);
+        w.agency
+            .insert(ISSUER, agency::Controller::discovering(config));
+        let sim = run(w, s, Backend::Reference);
+        let attempts: Vec<_> = sim
+            .world
+            .discovery
+            .as_ref()
+            .unwrap()
+            .financial
+            .iter()
+            .filter(|a| a.instrument == Instrument::Forward)
+            .flat_map(|a| &a.attempts)
+            .collect();
+        if personal {
+            let a = attempts
+                .iter()
+                .find(|a| a.outcome == Outcome::Published)
+                .unwrap();
+            assert_eq!(a.comparisons[&ISSUER].0.len(), 3); // reserve, flow, debt safeguard
+            assert_eq!(a.comparisons[&WORKER].0.len(), 3); // death, debt, seller payment reserve
+            assert_eq!(sim.state.exchange.forwards[&a.candidate_id].delivered, 1);
+        } else {
+            assert!(
+                attempts.is_empty(),
+                "a non-governor cannot create public demand"
+            );
+        }
+    }
+}
+
+#[test]
+fn flow_enabled_discovery_preserves_scarcity_and_cpu_continuation() {
+    for available in [true, false] {
+        let (mut w, mut s) = mint_loan(1);
+        w.discovery
+            .as_mut()
+            .unwrap()
+            .state
+            .as_mut()
+            .unwrap()
+            .objectives
+            .insert(
+                0,
+                Objective {
+                    scope: Scope::Organization,
+                    metric: Metric::ProcessShortfall {
+                        definition: MINT,
+                        target: 1,
+                    },
+                },
+            );
+        if !available {
+            s.balances.insert((SUPPLIER, METAL), 0);
+        }
+        let reference = run(w.clone(), s.clone(), Backend::Reference);
+        let mut audit = scenario::audit(&w, &s).unwrap();
+        let mut cpu = Simulation::new(w, s, Backend::CubeCpu).unwrap();
+        while cpu.state.month <= 10 {
+            audit.step(&mut cpu).unwrap();
+            let mut restored =
+                Simulation::new(cpu.world.clone(), cpu.state.clone(), Backend::CubeCpu).unwrap();
+            restored.ledger = cpu.ledger;
+            restored.reports = cpu.reports;
+            cpu = restored;
+        }
+        assert_eq!(cpu.world, reference.world);
+        assert_eq!(cpu.state, reference.state);
+        assert_eq!(cpu.ledger, reference.ledger);
+        assert_eq!(!cpu.state.credit.loans.is_empty(), available);
+    }
+}

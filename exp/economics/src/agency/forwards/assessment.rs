@@ -53,11 +53,7 @@ pub fn assess(w: &World, s: &State, proposal: &Proposal) -> Result<Assessment, S
             .config
             .horizon
             .max(proposal.terms.due - s.month + 1);
-        let objectives = controller
-            .config
-            .preferences
-            .get(&governor)
-            .unwrap_or(&controller.config.objectives);
+        let objectives = agency::objectives::governing(w, s, agent).unwrap();
         let objectives = agency::objectives::freeze(w, s, agent, objectives);
         let peers = agency::expectations::Snapshot::observe(
             w,

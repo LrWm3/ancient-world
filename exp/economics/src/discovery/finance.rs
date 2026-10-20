@@ -68,10 +68,8 @@ pub struct Assessment {
 }
 
 fn objectives(w: &World, s: &State, agent: AgentId, coin: ResourceId) -> Vec<Objective> {
-    let mut result = w
-        .agency
-        .get(&agent)
-        .map(|c| c.config.objectives.clone())
+    let mut result = agency::objectives::governing(w, s, agent)
+        .map(|goals| goals.to_vec())
         .unwrap_or_else(|| needs(w, agent));
     // Never improve a financial projection merely by rolling debt beyond it.
     result.push(Objective {
@@ -336,8 +334,8 @@ fn forwards(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<
     // An organization's stock reserve objective is demand; a forecast surplus is
     // an offer candidate. One finite lot is attempted per buyer at each boundary.
     let mut buyers = BTreeMap::<(AgentId, ResourceId), i32>::new();
-    for (&agent, controller) in &w.agency {
-        for objective in &controller.config.objectives {
+    for &agent in w.agency.keys() {
+        for objective in agency::objectives::governing(w, s, agent).unwrap() {
             if let Metric::Reserve { resource, target }
             | Metric::ReserveExposure { resource, target } = objective.metric
                 && objective.scope == Scope::Organization

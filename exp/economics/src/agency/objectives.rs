@@ -82,6 +82,18 @@ pub fn validate(w: &World, objectives: &[Objective]) -> Result<(), String> {
     Ok(())
 }
 
+/// Effective preferences at this opening, not a vote fabricated for other members.
+/// Vacancies and absent personal entries retain the controller's fallback goals;
+/// this selects preferences only and does not grant publication authority.
+pub fn governing<'a>(w: &'a World, s: &State, agent: AgentId) -> Option<&'a [Objective]> {
+    let c = &w.agency.get(&agent)?.config;
+    Some(
+        super::governor(w, s, agent)
+            .and_then(|person| c.preferences.get(&person))
+            .unwrap_or(&c.objectives),
+    )
+}
+
 pub fn members(w: &World, s: &State, organization: AgentId) -> BTreeSet<AgentId> {
     if let Some(a) = w
         .agency
