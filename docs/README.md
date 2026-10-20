@@ -30,6 +30,8 @@ Read [repository development guidance](../AGENTS.md) before changing a system.
 These guides describe different contracts; enabling participation does not by itself
 transfer population authority or choose a resource-sharing policy.
 
+For local development history, see [searching Codex traces](search-codex-traces.md).
+
 - [Monthly schedule and timing contracts](monthly-schedule.md)
 - [GPU-native civilization data model (emergency reference only)](gpu-civilization-data-model.md)
 - [Goods forward contracts (experiment idea)](goods-forward-contracts-idea.md)
