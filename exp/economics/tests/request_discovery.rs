@@ -136,3 +136,61 @@ fn absent_demand_removes_sale_work_but_preserves_own_goals_and_static_catalogs()
                 .any(|c| matches!(c, Command::StartProcess(id) if *id == REFINE)))
     );
 }
+
+#[test]
+fn one_shot_work_can_offer_its_output_without_changing_static_forward_ids() {
+    use economics_compute_smoke::{
+        marketplace::Side,
+        minting::{METAL, REFINE},
+    };
+    let (mut w, s) = fixture(Policy::Respond);
+    let snapshot = Snapshot::observe(&w, &s, WORKSHOP).unwrap();
+    let baseline = agency::discovery::programs(&w, WORKSHOP).unwrap();
+    let request_only = agency::discovery::programs_from_requests(&w, WORKSHOP, &snapshot).unwrap();
+    let has_bundle = |p: &agency::Program| {
+        p.commands.contains(&Command::StartProcess(REFINE))
+            && p.commands.iter().any(|c| {
+                matches!(c, Command::PeerStockQuotes(q)
+                if q.iter().any(|q| q.market == METAL && q.side == Side::Sell))
+            })
+    };
+    assert!(!request_only.values().any(has_bundle));
+    w.agency.get_mut(&WORKSHOP).unwrap().config.work_requests = Policy::RespondWithWorkQuotes;
+    let bundled = agency::discovery::programs_from_requests(&w, WORKSHOP, &snapshot).unwrap();
+    assert!(bundled.values().any(has_bundle));
+    assert!(bundled.len() <= 16);
+    for program in bundled.values() {
+        agency::validate_program(&w, WORKSHOP, program).unwrap();
+    }
+    assert_eq!(baseline, agency::discovery::programs(&w, WORKSHOP).unwrap());
+    // Current demand is too early for new output. Own productive goals survive,
+    // but discovery must not turn that demand into a claimed feasible delivery.
+    assert!(
+        agency::work_requests::sales(&w, &snapshot)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        agency::work_requests::routes::explain(&w, &s, &snapshot)
+            .unwrap()
+            .iter()
+            .all(|r| !r.first_batch_meets_date)
+    );
+    let previous = w.agency.remove(&WORKSHOP).unwrap();
+    let mut agreement = previous.operating_agreement().unwrap().clone();
+    agreement.processes.clear();
+    agency::organization::install_discovering_initial(
+        &mut w,
+        &s,
+        agreement.clone(),
+        &agreement.members,
+        previous.config,
+    )
+    .unwrap();
+    assert!(
+        !agency::discovery::programs_from_requests(&w, WORKSHOP, &snapshot)
+            .unwrap()
+            .values()
+            .any(has_bundle)
+    );
+}

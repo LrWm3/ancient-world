@@ -4,7 +4,7 @@ use super::*;
 /// Enumeration supplies alternatives, never authority or promised production.
 /// Refuse an oversized catalog rather than silently favor its first entries.
 pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, String> {
-    programs_with_sales(w, agent, discovery_sales::opportunities(w, agent)?)
+    programs_with_sales(w, agent, discovery_sales::opportunities(w, agent)?, false)
 }
 
 pub fn programs_from_requests(
@@ -13,13 +13,19 @@ pub fn programs_from_requests(
     snapshot: &work_requests::Snapshot,
 ) -> Result<BTreeMap<u32, Program>, String> {
     snapshot.validate(w, agent, snapshot.month)?;
-    programs_with_sales(w, agent, work_requests::sales(w, snapshot)?)
+    programs_with_sales(
+        w,
+        agent,
+        work_requests::sales(w, snapshot)?,
+        w.agency[&agent].config.work_requests == work_requests::Policy::RespondWithWorkQuotes,
+    )
 }
 
 fn programs_with_sales(
     w: &World,
     agent: AgentId,
     sales: Vec<discovery_sales::Opportunity>,
+    bundle_starts: bool,
 ) -> Result<BTreeMap<u32, Program>, String> {
     let mut commands = vec![];
     if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
@@ -159,10 +165,13 @@ fn programs_with_sales(
     // On equal improving forecasts, offer a bounded productive bundle before
     // work alone. Retaining existing policy still wins every equal-loss tie.
     portfolios.sort_by_key(|q| q.is_empty());
-    let work_count = commands
-        .iter()
-        .filter(|c| matches!(c, Command::WorkTargets(_)))
-        .count();
+    // Compose existing work with existing signed portfolios; this adds neither
+    // authority nor assumed fills. Static and request-only catalogs stay stable.
+    let bundle_work = |c: &&Command| {
+        matches!(c, Command::WorkTargets(_))
+            || (bundle_starts && matches!(c, Command::StartProcess(_)))
+    };
+    let work_count = commands.iter().filter(bundle_work).count();
     let total = work_count
         .checked_mul(portfolios.len())
         .and_then(|n| n.checked_add(commands.len()))
@@ -172,10 +181,7 @@ fn programs_with_sales(
     }
     let mut programs = vec![];
     for quotes in &portfolios {
-        for work in commands
-            .iter()
-            .filter(|c| matches!(c, Command::WorkTargets(_)))
-        {
+        for work in commands.iter().filter(bundle_work) {
             programs.push(vec![work.clone(), Command::PeerStockQuotes(quotes.clone())]);
         }
     }

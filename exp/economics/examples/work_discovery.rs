@@ -9,7 +9,8 @@ fn main() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() != 2 {
         return Err(
-            "usage: work_discovery <both|metal|ore|neither> <static|observe|respond>".into(),
+            "usage: work_discovery <both|metal|ore|neither> <static|observe|respond|bundled>"
+                .into(),
         );
     }
     let stocks = match args[0].as_str() {
@@ -23,6 +24,7 @@ fn main() -> Result<(), String> {
         "static" => Policy::Static,
         "observe" => Policy::Observe,
         "respond" => Policy::Respond,
+        "bundled" => Policy::RespondWithWorkQuotes,
         _ => return Err("unknown policy".into()),
     };
     let (w, s) = work_discovery::scenario(Case::Baseline, stocks, policy)?;

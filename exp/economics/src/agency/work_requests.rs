@@ -10,6 +10,13 @@ pub enum Policy {
     Static,
     Observe,
     Respond,
+    /// Also compose authorized one-shot work with signed quote portfolios.
+    RespondWithWorkQuotes,
+}
+impl Policy {
+    pub(crate) fn responds(self) -> bool {
+        matches!(self, Self::Respond | Self::RespondWithWorkQuotes)
+    }
 }
 
 const MAX_REQUESTS: usize = 64;

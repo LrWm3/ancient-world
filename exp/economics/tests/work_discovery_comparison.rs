@@ -4,7 +4,11 @@ use economics_compute_smoke::{
     compute::Backend,
 };
 fn compare(stocks: Stocks) {
-    for policy in [Policy::Static, Policy::Respond] {
+    for policy in [
+        Policy::Static,
+        Policy::Respond,
+        Policy::RespondWithWorkQuotes,
+    ] {
         let (w, s) = work_discovery::scenario(Case::Baseline, stocks, policy).unwrap();
         let mut run = Run::new(w, s, Backend::Reference).unwrap();
         run.through(12).unwrap();
@@ -38,7 +42,9 @@ fn compare(stocks: Stocks) {
             (Stocks::OreOnly, Policy::Static) => (9, 10, 10, 0, 0),
             (Stocks::Both | Stocks::OreOnly, Policy::Respond) => (0, 2, 0, 5, 2),
             (Stocks::MetalOnly, _) => (8, 7, 8, 0, 0),
+            (Stocks::Neither, Policy::RespondWithWorkQuotes) => (0, 2, 4, 5, 1),
             (Stocks::Neither, _) => (0, 1, 3, 5, 1),
+            (Stocks::Both | Stocks::OreOnly, Policy::RespondWithWorkQuotes) => (10, 11, 10, 0, 0),
             _ => unreachable!(),
         };
         assert_eq!(

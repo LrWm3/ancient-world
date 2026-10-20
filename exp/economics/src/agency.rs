@@ -325,10 +325,12 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
                 (None, work_requests::Policy::Static) => catalog.clone(),
                 (
                     Some(snapshot),
-                    work_requests::Policy::Observe | work_requests::Policy::Respond,
+                    work_requests::Policy::Observe
+                    | work_requests::Policy::Respond
+                    | work_requests::Policy::RespondWithWorkQuotes,
                 ) => {
                     snapshot.validate(w, agent, d.month)?;
-                    if c.config.work_requests == work_requests::Policy::Respond {
+                    if c.config.work_requests.responds() {
                         discovery::programs_from_requests(w, agent, snapshot)?
                     } else {
                         catalog.clone()
@@ -832,7 +834,7 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
             None
         };
         if c.discover_programs {
-            config.programs = if config.work_requests == work_requests::Policy::Respond {
+            config.programs = if config.work_requests.responds() {
                 discovery::programs_from_requests(&opening, agent, requests.as_ref().unwrap())?
             } else {
                 discovery::programs(&opening, agent)?
@@ -855,7 +857,7 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
             catalog: config.programs.clone(),
             alternatives: vec![],
             peer_expectations: None,
-            sale_opportunities: if config.work_requests == work_requests::Policy::Respond {
+            sale_opportunities: if config.work_requests.responds() {
                 work_requests::sales(&opening, requests.as_ref().unwrap())?
             } else if c.discover_programs {
                 discovery_sales::opportunities(&opening, agent)?
