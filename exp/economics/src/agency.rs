@@ -16,6 +16,7 @@ pub mod organization;
 pub mod path;
 pub mod publication;
 pub mod scenario;
+pub mod work_requests;
 use objectives::Objective;
 
 const MAX_HORIZON_MONTHS: u32 = 24;

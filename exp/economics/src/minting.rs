@@ -93,7 +93,7 @@ pub struct Boundary {
     pub transactions: Vec<Transaction>,
 }
 /// New market commitments stop while a participant is under authorized recovery.
-fn eligible(w: &World, s: &State, venue: AgentId, agent: AgentId) -> bool {
+pub(crate) fn eligible(w: &World, s: &State, venue: AgentId, agent: AgentId) -> bool {
     marketplace::eligible(w, s, venue, agent)
         && crate::recovery::active(w, &s.credit, agent).is_none()
         && crate::households::market::active(w, s, agent)
