@@ -229,3 +229,93 @@ fn explanations_do_not_double_count_inputs_or_hide_permissions_and_price() {
             > 0
     );
 }
+
+#[test]
+fn next_pending_procurement_replaces_expired_request_without_summing_future_demand() {
+    let (mut w, mut s) = fixture();
+    s.balances.insert((ISSUER, METAL), 0);
+    let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+    p.month = 2;
+    p.additional_months = [4, 6].into();
+    for (month, due) in [
+        (1, Some(2)),
+        (2, Some(2)),
+        (3, Some(4)),
+        (5, Some(6)),
+        (7, None),
+    ] {
+        s.month = month;
+        let observed = Snapshot::observe(&w, &s, WORKSHOP).unwrap();
+        observed.validate(&w, WORKSHOP, month).unwrap();
+        let metal: Vec<_> = observed
+            .requests
+            .iter()
+            .filter(|r| r.requester == ISSUER && r.resource == METAL)
+            .collect();
+        assert_eq!(metal.first().and_then(|r| r.due), due);
+        assert_eq!(metal.len(), usize::from(due.is_some()));
+        assert!(metal.iter().all(|r| r.lots == 1));
+    }
+}
+
+#[test]
+fn terminal_participants_and_recovery_cannot_publish_live_interest() {
+    use economics_compute_smoke::{maintenance::TerminalTransition, recovery};
+    let (w, s) = fixture();
+    let venue = w.minting.as_ref().unwrap().venue;
+    for terminal in [WORKSHOP, TOWN, venue] {
+        let mut ended = s.clone();
+        ended.terminal.insert(
+            terminal,
+            TerminalTransition {
+                month: s.month,
+                subject: terminal,
+                reason: ORE,
+                state: "ended".into(),
+            },
+        );
+        let observed = Snapshot::observe(&w, &ended, TOWN).unwrap();
+        assert!(observed.requests.iter().all(|r| r.requester != WORKSHOP));
+    }
+    let mut recovering = w.clone();
+    let mut state = s.clone();
+    recovering
+        .recovery
+        .proceedings
+        .push(recovery::ProceedingTerms {
+            id: 999,
+            debtor: WORKSHOP,
+            authority: ISSUER,
+            estate: ISSUER,
+            denomination: COIN,
+            opening_month: 1,
+            earliest_close: 2,
+            assets: vec![],
+            discharge_deficiency: false,
+        });
+    state.credit.recovery.proceedings.insert(
+        999,
+        recovery::Proceeding {
+            opened: 1,
+            closed: None,
+            stage: recovery::Stage::Active,
+            cash: 0,
+            sold: Default::default(),
+            sold_inventory: Default::default(),
+            secured: Default::default(),
+        },
+    );
+    assert!(
+        Snapshot::observe(&recovering, &state, TOWN)
+            .unwrap()
+            .requests
+            .iter()
+            .all(|r| r.requester != WORKSHOP)
+    );
+    assert!(
+        Snapshot::observe(&recovering, &state, WORKSHOP)
+            .unwrap()
+            .requests
+            .is_empty()
+    );
+}
