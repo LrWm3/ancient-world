@@ -24,7 +24,12 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
     }
     let mut wanted = BTreeSet::new();
     let mut processes = BTreeSet::new();
-    for objective in &w.agency[&agent].config.objectives {
+    let config = &w.agency[&agent].config;
+    for objective in config
+        .objectives
+        .iter()
+        .chain(config.preferences.values().flatten())
+    {
         use objectives::Metric;
         match objective.metric {
             Metric::ProcessShortfall { definition, .. } => {

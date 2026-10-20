@@ -162,7 +162,7 @@ fn missing_middle_month_cannot_be_finalized_as_zero_work() {
 #[test]
 fn process_only_discovery_still_requires_signed_operating_authority() {
     use economics_compute_smoke::agency::{self, Command};
-    for allowed in [true, false] {
+    for (allowed, personal) in [(true, false), (false, false), (true, true), (false, true)] {
         let (mut w, s) = financing::scenario(Case::Baseline).unwrap();
         let old = w.agency.remove(&WORKSHOP).unwrap();
         let mut agreement = old.operating_agreement().unwrap().clone();
@@ -176,6 +176,13 @@ fn process_only_discovery_still_requires_signed_operating_authority() {
         let mut config = old.config;
         config.objectives = vec![goal(Scope::Organization)];
         config.preferences.clear();
+        if personal {
+            config.preferences.insert(SMITH, config.objectives.clone());
+            config.objectives = vec![Objective {
+                scope: Scope::Organization,
+                metric: Metric::Deaths,
+            }];
+        }
         config.programs.clear();
         agency::organization::install_discovering_initial(
             &mut w,
@@ -190,6 +197,13 @@ fn process_only_discovery_still_requires_signed_operating_authority() {
             .values()
             .flat_map(|p| &p.commands)
             .any(|c| matches!(c, Command::StartProcess(id) if *id == REFINE));
-        assert_eq!(has_process, allowed);
+        assert_eq!(has_process, allowed, "personal={personal}");
+        let mut reversed = w.clone();
+        reversed.definitions.reverse();
+        reversed.agents.reverse();
+        assert_eq!(
+            agency::discovery::programs(&reversed, WORKSHOP).unwrap(),
+            programs
+        );
     }
 }
