@@ -5,6 +5,11 @@ reserve can penalize consuming inputs productively. This experiment instead adds
 an explicit monthly completed-process target, without changing execution,
 settlement, endowments, prices, permissions or readiness gates. It remains opt-in.
 
+The subsequent [24-iteration batch](REVIEW-BATCH-24.md) extends financial discovery
+and personal-goal composition, then compares a different opt-in publication policy.
+That policy makes the ore-only opening viable in this fixture; the results below
+retain the earlier stock-backed publication rule and are not superseded measurements.
+
 ## Meaning and boundaries
 
 `ProcessShortfall { definition, target }` measures missing completed batches of a

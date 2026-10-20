@@ -4,6 +4,13 @@ A CPU-running experiment in generic agents, needs, processes, agreements and
 transaction-first settlement. The initial person–household loop works in a bounded
 scenario; the broader economy remains partially integrated.
 
+The latest [24-iteration integration batch](REVIEW-BATCH-24.md) repairs production-goal
+composition with financial discovery, governing preferences and dated observations.
+An opt-in policy posts signed output asks alongside equally scored productive work.
+In the ore-only startup, it enables independent issuer demand and passes 48-month
+readiness without opening metal. Starting with neither ore nor metal still fails;
+scarcity and adverse-price controls remain failures. Defaults remain unchanged.
+
 The bounded [v1 release checklist](V1-RELEASE.md) is complete. All six scenario
 families and final verification gates passed at `a1b99fa`; see
 [release results](V1-RESULTS.md). The broader roadmap and financial stress tests

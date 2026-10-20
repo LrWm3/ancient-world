@@ -1,5 +1,14 @@
 # Economics integration and planning interfaces
 
+The [24-iteration integration batch](REVIEW-BATCH-24.md) makes financial discovery
+respect effective governing preferences and collect required completion evidence.
+Personal goals now seed choices, dated metrics share interval validation, and finite
+startup-forward use applies across either counterparty role. An opt-in productive
+ask publication policy lets the ore-only startup pass 48-month readiness without
+opening metal; the neither-stock startup still fails. This uses existing prices,
+resources, signed contracts and execution boundaries, not general endogenous credit
+or fully autonomous startup. Historical comparisons below retain their own policies.
+
 The [completed-production comparison](PRODUCTION-PREFERENCES.md) adds opt-in
 monthly process shortfalls to ordinary and bilateral scoring, with prior-month
 live observations from committed work. Both-stock starts pass 48-month readiness

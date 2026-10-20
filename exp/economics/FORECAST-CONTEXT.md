@@ -130,8 +130,12 @@ example where score priorities change but projected process flows remain identic
 `ProcessShortfall` now optionally uses all scoped operators' committed completion
 rows in the dated forecast path. It sums per-month, per-operator shortfalls for one
 definition; extra output cannot erase a missed month. These rows are collected
-only when ordinary or bilateral objectives require them. Missing completed-month
+only when ordinary, bilateral or financial-discovery objectives require them. Missing completed-month
 evidence rejects scoring. Live controller observations use the previous month's
-ledger; founding month one has no prior interval. Existing discovery and worker
-supply adapters still construct their own non-flow goals and do not populate this
-optional evidence. See [production preferences](PRODUCTION-PREFERENCES.md).
+ledger; founding month one has no prior interval. Financial discovery inherits
+current governing preferences, appends its existing debt/payment safeguards, and
+collects flow evidence lazily for those comparisons. Worker supply constructs its
+own non-flow goals and does not populate this optional evidence. Both exposure and
+flow scoring require consecutive completed months ending at Open. See
+[production preferences](PRODUCTION-PREFERENCES.md) and the
+[24-iteration integration batch](REVIEW-BATCH-24.md).
