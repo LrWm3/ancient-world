@@ -126,3 +126,12 @@ failed processes; they do not change loss vectors. Existing private-history trim
 removes old completion diagnostics along with their enclosing projections/reviews.
 See [input-buffer comparisons](INPUT-BUFFER-PREFERENCES.md) for a shared-opening
 example where score priorities change but projected process flows remain identical.
+
+`ProcessShortfall` now optionally uses all scoped operators' committed completion
+rows in the dated forecast path. It sums per-month, per-operator shortfalls for one
+definition; extra output cannot erase a missed month. These rows are collected
+only when ordinary or bilateral objectives require them. Missing completed-month
+evidence rejects scoring. Live controller observations use the previous month's
+ledger; founding month one has no prior interval. Existing discovery and worker
+supply adapters still construct their own non-flow goals and do not populate this
+optional evidence. See [production preferences](PRODUCTION-PREFERENCES.md).

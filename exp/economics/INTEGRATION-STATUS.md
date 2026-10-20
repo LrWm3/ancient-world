@@ -1,5 +1,12 @@
 # Economics integration and planning interfaces
 
+The [completed-production comparison](PRODUCTION-PREFERENCES.md) adds opt-in
+monthly process shortfalls to ordinary and bilateral scoring, with prior-month
+live observations from committed work. Both-stock starts pass 48-month readiness
+with production before or after cash; metal-only production-first also passes.
+Starts without metal and adverse supply/price controls still fail. It counts
+recipe completions, not sales or profit, and leaves defaults unchanged.
+
 The [startup liquidity comparison](STARTUP-LIQUIDITY-COMPARISON.md) adds completed-
 month forecast evidence, an opt-in reserve-exposure preference, matched workshop
 stock ablations, and controls for competing delivery claims and leadership turnover.

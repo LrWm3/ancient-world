@@ -140,7 +140,18 @@ an opt-in experiment. Resource, permission and finance controls retain the ordin
 execution and readiness checks.
 Run `cargo +1.92.0 run --locked --release --example input_buffers -- both inputs`.
 
-## Current progress — 2026-10-11
+The [completed-production follow-up](PRODUCTION-PREFERENCES.md) adds an opt-in
+monthly process shortfall objective shared by ordinary and bilateral planners.
+It scores committed completions rather than retained inputs. Both-stock startups
+now pass all 48-month readiness gates with production before or after cash;
+the rerun cash-only control still records only eleven workshop batches and sales
+in months 13–24. Metal-only
+production-first also passes, with earlier forward acceptance and more completed
+work. No-metal starts and adverse supply/price controls still fail. Defaults,
+resources, permissions and readiness gates are unchanged.
+Run `cargo +1.92.0 run --locked --release --example production_preferences -- both production`.
+
+## Current progress — 2026-10-20
 
 Verified economics v1 remains at implementation revision `a1b99fa`.
 The subsequent planner and state-governance experiments have their own scoped results and verification.
@@ -155,6 +166,7 @@ current blanket restrictions.
 | Area | Implemented and exercised | Main remaining boundary |
 | --- | --- | --- |
 | Persons | Opt-in births, dependent support and maturation; needs and deprivation, repeated processes, bounded forecasts, opportunity search, independent multi-person review, shared dated admission and active trade composition | General discovery across all drivers and sustainable autonomous cooperation |
+| Planning | Swappable bounded search, shared forecasts, peer expectations, dated commitment comparisons, cash/input exposure and completed-production objectives | Robust startup without working stocks, broader collective composition and general seasonal/scheduled production objectives |
 | State and law | First-state founding with optional operating mandate, citizenship, governors, objective-based policy/work selection, supplied-preference voting, finite mint funding and paid public work; existing law/finance execution | Bounded discovered programs/deals now have an opt-in control; general founding/underwriting, multiple jurisdictions and broader governed legal terms remain open |
 | Households | Static constitution/charter, fixed/rotating/elected governors, contributed labor, pooled resources/storage, collective trading, hiring, member support, joining/exit and explicit wind-down | Composition with market/finance drivers, robust collective forecasts, recruitment and broader succession |
 | Marketplaces | Bilateral negotiation/ZIP, local bid/ask books, need orders, reciprocal goods and household trading | General markets for labor, assets, rights and memberships; composition with every planner |
