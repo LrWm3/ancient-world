@@ -23,6 +23,7 @@ pub mod governed;
 pub mod production_preferences;
 pub mod publication;
 pub mod sales;
+pub mod startup_publication;
 
 pub const RUN_MONTHS: u32 = integration::RUN_MONTHS;
 
