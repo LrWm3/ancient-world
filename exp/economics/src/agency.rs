@@ -838,7 +838,7 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
             decision.peer_expectations = Some(peers);
             let preference = authority.filter(|id| c.config.preferences.contains_key(id));
             let mut selected = best(&decision.alternatives, preference);
-            let publication = if let Some(retain) = selected.filter(|a| a.program.is_none()) {
+            let publication = if let Some(retain) = selected {
                 publication::select(
                     &opening,
                     s,
@@ -880,7 +880,12 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
             } else if let Some(selected) = selected {
                 decision.chosen = selected.program;
                 decision.reason = if publication.is_some() {
-                    "publish stocked sale offers on equal projection"
+                    if c.config.publication == publication::Policy::ProductiveAsksOnEqualProjection
+                    {
+                        "publish sale offers on equal projection"
+                    } else {
+                        "publish stocked sale offers on equal projection"
+                    }
                 } else if selected.program.is_some() {
                     "improves projected objectives"
                 } else {
