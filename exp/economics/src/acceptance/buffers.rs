@@ -68,7 +68,7 @@ fn recipe_inputs(definition: &ProcessDefinition) -> Result<Vec<Objective>, Strin
         .collect())
 }
 
-fn apply(config: &mut Config, buffer: &[Objective], policy: Policy) {
+pub(super) fn apply(config: &mut Config, buffer: &[Objective], policy: Policy) {
     if policy == Policy::Off {
         return;
     }

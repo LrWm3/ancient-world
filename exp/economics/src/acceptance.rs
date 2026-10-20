@@ -20,6 +20,7 @@ pub mod continuation;
 pub mod expectations;
 pub mod financing;
 pub mod governed;
+pub mod production_preferences;
 pub mod publication;
 pub mod sales;
 
