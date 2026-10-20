@@ -12,6 +12,7 @@ fn controller_config(
         review_every: REVIEW_MONTHS,
         peer_expectations: Default::default(),
         publication: Default::default(),
+        work_requests: Default::default(),
         minimum_tenure: MINIMUM_TENURE_MONTHS,
         emergency: None,
         objectives,

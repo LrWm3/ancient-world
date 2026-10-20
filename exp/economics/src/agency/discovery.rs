@@ -4,6 +4,23 @@ use super::*;
 /// Enumeration supplies alternatives, never authority or promised production.
 /// Refuse an oversized catalog rather than silently favor its first entries.
 pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, String> {
+    programs_with_sales(w, agent, discovery_sales::opportunities(w, agent)?)
+}
+
+pub fn programs_from_requests(
+    w: &World,
+    agent: AgentId,
+    snapshot: &work_requests::Snapshot,
+) -> Result<BTreeMap<u32, Program>, String> {
+    snapshot.validate(w, agent, snapshot.month)?;
+    programs_with_sales(w, agent, work_requests::sales(w, snapshot)?)
+}
+
+fn programs_with_sales(
+    w: &World,
+    agent: AgentId,
+    sales: Vec<discovery_sales::Opportunity>,
+) -> Result<BTreeMap<u32, Program>, String> {
     let mut commands = vec![];
     if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
         commands.extend(
@@ -53,7 +70,6 @@ pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, Str
             _ => {}
         }
     }
-    let sales = discovery_sales::opportunities(w, agent)?;
     wanted.extend(sales.iter().map(|o| o.resource));
     // Include intermediate technologies; reachability does not assert feasibility.
     loop {

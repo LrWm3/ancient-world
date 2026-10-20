@@ -143,3 +143,89 @@ fn dated_procurement_keeps_deadlines_and_independent_order() {
             .all(|r| r.requester != ISSUER)
     );
 }
+
+#[test]
+fn recipe_explanation_dates_missing_inputs_and_unreserved_services() {
+    use economics_compute_smoke::{
+        agency::work_requests::routes::{self, RequirementKind},
+        minting::{HOURS, REFINE},
+    };
+    let (mut w, mut s) = fixture();
+    let p = w.minting.as_mut().unwrap().order_policy.as_mut().unwrap();
+    p.month = 3;
+    p.additional_months.clear();
+    s.balances.insert((ISSUER, METAL), 0);
+    s.balances.insert((WORKSHOP, METAL), 0);
+    let snapshot = Snapshot::observe(&w, &s, WORKSHOP).unwrap();
+    let routes = routes::explain(&w, &s, &snapshot).unwrap();
+    let route = routes.iter().find(|r| r.definition == REFINE).unwrap();
+    assert_eq!(route.first_output_available, 3);
+    assert!(route.first_batch_meets_date);
+    assert!(!route.buyer_funding_verified);
+    assert!(
+        route
+            .requirements
+            .iter()
+            .any(|r| r.resource == ORE && r.missing_now > 0)
+    );
+    assert!(route.requirements.iter().any(|r| r.resource == HOURS
+        && r.kind == RequirementKind::MonthlyService
+        && r.covered_now == 0));
+    let mut late = snapshot.clone();
+    late.requests.iter_mut().for_each(|r| r.due = Some(2));
+    assert!(
+        routes::explain(&w, &s, &late)
+            .unwrap()
+            .iter()
+            .all(|r| !r.first_batch_meets_date)
+    );
+    s.month += 1;
+    assert!(routes::explain(&w, &s, &snapshot).is_err());
+}
+
+#[test]
+fn explanations_do_not_double_count_inputs_or_hide_permissions_and_price() {
+    use economics_compute_smoke::{
+        agency::work_requests::routes, minting::REFINE, opportunities::Action,
+    };
+    let (mut w, mut s) = fixture();
+    w.minting
+        .as_mut()
+        .unwrap()
+        .order_policy
+        .as_mut()
+        .unwrap()
+        .month = 3;
+    s.balances.insert((ISSUER, METAL), 0);
+    s.balances.insert((WORKSHOP, METAL), 0);
+    s.balances.insert((WORKSHOP, ORE), 2);
+    let d = w.definitions.iter_mut().find(|d| d.id == REFINE).unwrap();
+    let extra = d.stages[0].entry_inputs[0].clone();
+    d.stages[0].entry_inputs.push(extra);
+    w.transaction_policy.as_mut().unwrap().permissions.remove(&(
+        economics_compute_smoke::acceptance::WORKSHOP_TYPE,
+        Action::Process(REFINE),
+    ));
+    let mut snapshot = Snapshot::observe(&w, &s, WORKSHOP).unwrap();
+    snapshot.requests.iter_mut().for_each(|r| r.limit = 1);
+    let routes = routes::explain(&w, &s, &snapshot).unwrap();
+    let r = routes.iter().find(|r| r.definition == REFINE).unwrap();
+    assert!(!r.process_permitted_now);
+    assert!(!r.price_crosses);
+    assert_eq!(
+        r.requirements
+            .iter()
+            .filter(|r| r.resource == ORE)
+            .map(|r| r.covered_now)
+            .sum::<i64>(),
+        2
+    );
+    assert!(
+        r.requirements
+            .iter()
+            .filter(|r| r.resource == ORE)
+            .map(|r| r.missing_now)
+            .sum::<i64>()
+            > 0
+    );
+}

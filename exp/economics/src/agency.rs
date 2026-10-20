@@ -45,6 +45,7 @@ pub struct Config {
     pub horizon: u32,
     pub peer_expectations: expectations::Policy,
     pub publication: publication::Policy,
+    pub work_requests: work_requests::Policy,
     pub review_every: u32,
     pub minimum_tenure: u32,
     /// Optional observed objective index and loss ceiling permitting early review.
@@ -148,6 +149,8 @@ pub struct Decision {
     pub alternatives: Vec<Alternative>,
     pub peer_expectations: Option<expectations::Snapshot>,
     pub sale_opportunities: Vec<discovery_sales::Opportunity>,
+    pub work_requests: Option<work_requests::Snapshot>,
+    pub work_routes: Vec<work_requests::routes::Route>,
     /// Current stocks/claims/history; need fulfillment is the preceding month.
     pub observed: Vec<i128>,
     pub reason: String,
@@ -210,6 +213,7 @@ pub fn validate(w: &World) -> Result<(), String> {
                 .as_ref()
                 .is_some_and(|m| m != &(c.clone(), controller.discover_programs))
             || (controller.discover_programs && !c.programs.is_empty())
+            || (!controller.discover_programs && c.work_requests != work_requests::Policy::Static)
             || (w.state_governance.as_ref().is_none_or(|g| g.state != agent)
                 && !w.households.iter().any(|h| h.agent == agent)
                 && controller.organization.is_none())
@@ -317,6 +321,21 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
         };
         let mut previous = 0;
         for d in &c.history {
+            let expected_catalog = match (&d.work_requests, c.config.work_requests) {
+                (None, work_requests::Policy::Static) => catalog.clone(),
+                (
+                    Some(snapshot),
+                    work_requests::Policy::Observe | work_requests::Policy::Respond,
+                ) => {
+                    snapshot.validate(w, agent, d.month)?;
+                    if c.config.work_requests == work_requests::Policy::Respond {
+                        discovery::programs_from_requests(w, agent, snapshot)?
+                    } else {
+                        catalog.clone()
+                    }
+                }
+                _ => return Err("missing or unexpected work request evidence".into()),
+            };
             let authority = if let Some(a) = &c.organization {
                 organization::at_open(w, s, a, d.month)
             } else if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
@@ -331,7 +350,7 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
                 || d.month > s.month
                 || d.month.checked_add(1) != Some(d.effective_month)
                 || d.accepted.as_ref() != d.chosen.and_then(|id| d.catalog.get(&id))
-                || d.catalog != catalog
+                || d.catalog != expected_catalog
                 || (d.chosen.is_some()
                     && (d.authorized_by.is_none() || d.authorized_by != authority))
             {
@@ -520,6 +539,12 @@ fn forecast(
                     alternatives: vec![],
                     peer_expectations: None,
                     sale_opportunities: vec![],
+                    work_requests: if c.work_requests != work_requests::Policy::Static {
+                        Some(work_requests::Snapshot::observe(w, s, agent)?)
+                    } else {
+                        None
+                    },
+                    work_routes: vec![],
                     observed: vec![],
                     reason: "hypothesis".into(),
                     ballots: vec![],
@@ -801,9 +826,23 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
     for agent in actors {
         let c = &opening.agency[&agent];
         let mut config = c.config.clone();
+        let requests = if config.work_requests != work_requests::Policy::Static {
+            Some(work_requests::Snapshot::observe(&opening, s, agent)?)
+        } else {
+            None
+        };
         if c.discover_programs {
-            config.programs = discovery::programs(&opening, agent)?;
+            config.programs = if config.work_requests == work_requests::Policy::Respond {
+                discovery::programs_from_requests(&opening, agent, requests.as_ref().unwrap())?
+            } else {
+                discovery::programs(&opening, agent)?
+            };
         }
+        let work_routes = requests
+            .as_ref()
+            .map(|r| work_requests::routes::explain(&opening, s, r))
+            .transpose()?
+            .unwrap_or_default();
         let authority = governor(&opening, s, agent);
         let due = (s.month - 1).is_multiple_of(c.config.review_every);
         let observed = flow::observe(&opening, s, ledger, agent, &c.config.objectives)?;
@@ -816,11 +855,15 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
             catalog: config.programs.clone(),
             alternatives: vec![],
             peer_expectations: None,
-            sale_opportunities: if c.discover_programs {
+            sale_opportunities: if config.work_requests == work_requests::Policy::Respond {
+                work_requests::sales(&opening, requests.as_ref().unwrap())?
+            } else if c.discover_programs {
                 discovery_sales::opportunities(&opening, agent)?
             } else {
                 vec![]
             },
+            work_requests: requests,
+            work_routes,
             observed,
             reason: "waiting for review".into(),
             ballots: vec![],

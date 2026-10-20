@@ -27,6 +27,7 @@ pub fn config(objectives: Vec<Objective>, programs: BTreeMap<u32, Program>) -> C
         review_every: REVIEW_MONTHS,
         peer_expectations: Default::default(),
         publication: Default::default(),
+        work_requests: Default::default(),
         minimum_tenure: HOLD_MONTHS,
         emergency: None,
         objectives,
