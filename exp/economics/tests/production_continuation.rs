@@ -11,14 +11,22 @@ use economics_compute_smoke::{
 const MONTHS: u32 = 24;
 #[test]
 fn both_stock_flow_continuation() {
-    compare(Stocks::Both);
+    compare(Stocks::Both, false);
 }
 #[test]
 fn metal_only_flow_continuation() {
-    compare(Stocks::MetalOnly);
+    compare(Stocks::MetalOnly, false);
 }
-fn compare(stocks: Stocks) {
-    let (w, s) = production_preferences::scenario(
+#[test]
+fn ore_only_productive_publication_continuation() {
+    compare(Stocks::OreOnly, true);
+}
+#[test]
+fn neither_stock_productive_publication_continuation() {
+    compare(Stocks::Neither, true);
+}
+fn compare(stocks: Stocks, productive: bool) {
+    let (mut w, s) = production_preferences::scenario(
         c::Case::Baseline,
         stocks,
         Preferences {
@@ -28,6 +36,14 @@ fn compare(stocks: Stocks) {
         Priority::ProductionFirst,
     )
     .unwrap();
+    if productive {
+        w.agency
+            .get_mut(&economics_compute_smoke::acceptance::WORKSHOP)
+            .unwrap()
+            .config
+            .publication =
+            economics_compute_smoke::agency::publication::Policy::ProductiveAsksOnEqualProjection;
+    }
     let mut reference = Run::new(w.clone(), s.clone(), Backend::Reference).unwrap();
     let mut replay_state = s.clone();
     let mut replay_audit = reference.audit.clone();
