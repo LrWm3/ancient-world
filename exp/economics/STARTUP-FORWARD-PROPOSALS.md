@@ -28,6 +28,30 @@ contract's full goods on time. Cash substitution does not count as delivery.
 These comparisons are not a solvency or whole-system readiness guarantee. Cash
 reserve loss can saturate when both alternatives run out of cash.
 
+Before accepting a proposal that passes that comparison, each party also tests
+its own signed operating program without the forward, using existing resources
+and ordinary spot trades. Both next-Open and delayed activation are considered;
+the counterparty's program remains unchanged. A forward must be no worse than
+this independently acceptable alternative, with at least one party strictly
+better than both alternatives. Financing must not receive credit merely for
+installing work that the party could fund itself.
+
+The outside-option receipt records its date, losses, completed work and conditional
+labor. These remain private projections, not commitments or guaranteed future
+hiring. Already-rejected proposals skip the additional comparison, so an absent
+receipt can mean “not evaluated.” The same governing objectives apply; this does
+not add a universal solvency constraint.
+
+A focused regression (`forward_outside_options`) distinguishes the two cases with
+the existing production-first fixture. Without opening workshop stocks or a
+stocked town ask, the forward remains acceptable. Adding four town ore and its
+authorized ask makes independent spot-funded refining preferable: buyer loss is
+`[11, 11986]` versus the forward's `[11, 11989]`, despite both improving on retaining
+`[12, 11972]`. The best independent start is month three. No speculative order,
+counterparty program or prepayment escapes assessment. The historical measurements
+below describe the earlier startup experiment; this control verifies the added
+comparison directly.
+
 At Open month M, publication seals both mandates, records their exact proposed
 programs and governors, and posts ordinary direct-forward terms for Acquire M+1.
 No stock or cash changes during publication. If admission succeeds, the accepted
@@ -99,7 +123,7 @@ From `exp/economics`:
 
 ```sh
 cargo +1.92.0 run --locked --release --example acceptance -- --startup-forward-comparison
-cargo +1.92.0 test --locked --release --test organization_forwards --test forward_assessment --test forward_controls --test acceptance_financing --test forward_continuation
+cargo +1.92.0 test --locked --release --test organization_forwards --test forward_assessment --test forward_outside_options --test forward_controls --test acceptance_financing --test forward_continuation
 ```
 
 The comparison command reports failures as data; its successful exit alone does
