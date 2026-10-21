@@ -7,6 +7,7 @@ pub mod completions;
 pub mod discovery;
 pub mod discovery_sales;
 pub mod expectations;
+pub mod financing;
 pub mod flow;
 pub mod forwards;
 pub mod integration;
@@ -42,6 +43,8 @@ pub struct Program {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
+    /// Explicit initial consent for bounded productive working-capital proposals.
+    pub financing: Option<financing::Terms>,
     pub horizon: u32,
     pub peer_expectations: expectations::Policy,
     pub publication: publication::Policy,
@@ -68,6 +71,8 @@ pub struct Controller {
     pub applied_through: u32,
     pub forward_reviews: Vec<forwards::review::Attempt>,
     pub startup_forwards: Vec<forwards::execution::Agreement>,
+    pub financed_programs: Vec<financing::Agreement>,
+    pub financing_reviews: Vec<financing::Attempt>,
     /// Static operating mandate sealed at the first live opening.
     mandate: Option<(Config, bool)>,
     organization: Option<organization::Agreement>,
@@ -92,6 +97,8 @@ impl Controller {
             history: vec![],
             applied_through: 0,
             startup_forwards: vec![],
+            financed_programs: vec![],
+            financing_reviews: vec![],
             forward_reviews: vec![],
             mandate: None,
             organization: None,
@@ -172,6 +179,26 @@ pub fn governor(w: &World, s: &State, agent: AgentId) -> Option<AgentId> {
     }
 }
 
+/// Authority at the recorded opening, including later succession or death.
+pub(super) fn governor_at_open(
+    w: &World,
+    s: &State,
+    agent: AgentId,
+    month: u32,
+) -> Option<AgentId> {
+    let c = w.agency.get(&agent)?;
+    if let Some(a) = &c.organization {
+        organization::at_open(w, s, a, month)
+    } else if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
+        crate::state_governance::governor_at_open(w, s, g, month)
+    } else {
+        w.households
+            .iter()
+            .find(|h| h.agent == agent)
+            .and_then(|h| crate::household_governance::leader_at_open(h, s, month))
+    }
+}
+
 /// Authorized operating choices from ordinary reviews or activated bilateral
 /// startup agreements. Pending/rejected proposals are not completed choices.
 pub fn accepted_programs(w: &World, agent: AgentId) -> impl Iterator<Item = &Program> {
@@ -191,12 +218,21 @@ pub fn accepted_programs(w: &World, agent: AgentId) -> impl Iterator<Item = &Pro
                 })
                 .filter_map(move |a| a.programs.get(&agent)),
         )
+        .chain(
+            w.agency
+                .get(&agent)
+                .into_iter()
+                .flat_map(|c| &c.financed_programs)
+                .filter(|a| matches!(a.status, financing::Status::Activated(_)))
+                .map(|a| &a.program),
+        )
 }
 
 pub fn validate(w: &World) -> Result<(), String> {
     for (&agent, controller) in &w.agency {
         let c = &controller.config;
         c.peer_expectations.validate()?;
+        financing::validate_terms(w, agent)?;
         if let Some(a) = &controller.organization {
             organization::validate(w, agent, a)?;
         }
@@ -308,9 +344,13 @@ pub fn validate_program(w: &World, agent: AgentId, p: &Program) -> Result<(), St
 
 pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
     forwards::execution::validate_history(w, s)?;
+    financing::validate_history(w, s)?;
     for (&agent, c) in &w.agency {
         if c.applied_through > s.month
-            || ((!c.history.is_empty() || !c.startup_forwards.is_empty()) && c.mandate.is_none())
+            || ((!c.history.is_empty()
+                || !c.startup_forwards.is_empty()
+                || !c.financed_programs.is_empty())
+                && c.mandate.is_none())
         {
             return Err("invalid organization decision boundary".into());
         }
@@ -339,16 +379,7 @@ pub fn validate_history(w: &World, s: &State) -> Result<(), String> {
                 }
                 _ => return Err("missing or unexpected work request evidence".into()),
             };
-            let authority = if let Some(a) = &c.organization {
-                organization::at_open(w, s, a, d.month)
-            } else if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
-                crate::state_governance::governor_at_open(w, s, g, d.month)
-            } else {
-                w.households
-                    .iter()
-                    .find(|h| h.agent == agent)
-                    .and_then(|h| crate::household_governance::leader_at_open(h, s, d.month))
-            };
+            let authority = governor_at_open(w, s, agent, d.month);
             if d.month <= previous
                 || d.month > s.month
                 || d.month.checked_add(1) != Some(d.effective_month)
@@ -481,6 +512,9 @@ pub(crate) fn accepted_start(w: &World, start: &ScheduledStart) -> bool {
                     p.commands
                         .contains(&Command::StartProcess(start.definition))
                 })
+        }) || c.financed_programs.iter().any(|a| {
+            a.status == financing::Status::Activated(start.month)
+                && a.program.commands == [Command::StartProcess(start.definition)]
         })
     })
 }
@@ -815,15 +849,12 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
     }
     apply_due(w, s)?;
     forwards::execution::activate_due(w, s)?;
+    financing::activate_due(w, s)?;
     let opening = w.clone();
     let actors: Vec<_> = w
         .agency
         .iter()
-        .filter(|(a, c)| {
-            c.autonomous
-                && !forwards::execution::pending(w, **a)
-                && c.history.last().is_none_or(|d| d.month < s.month)
-        })
+        .filter(|(_, c)| c.autonomous && c.history.last().is_none_or(|d| d.month < s.month))
         .map(|(&a, _)| a)
         .collect();
     for agent in actors {
@@ -916,9 +947,16 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
                 .map(|d| d.month)
                 .into_iter()
                 .chain(forward_month)
+                .chain(financing::last_agreement(&opening, agent))
                 .max()
                 .is_some_and(|month| s.month - month < c.config.minimum_tenure);
-            if !due && !emergency {
+            if forwards::execution::pending(&opening, agent) || financing::pending(&opening, agent)
+            {
+                // A pending economic commitment holds operating choices, not
+                // elections. Members must still be able to renew leadership.
+                decision.reason =
+                    "awaiting agreement admission; election observation retained".into();
+            } else if !due && !emergency {
                 decision.reason = "election observation; policy review not due".into();
             } else if authority.is_none() {
                 decision.reason = "vacant office".into();
@@ -954,6 +992,7 @@ pub(crate) fn open(w: &mut World, s: &State, ledger: &[Batch]) -> Result<(), Str
         w.agency.get_mut(&agent).unwrap().history.push(decision);
     }
     forwards::review::open(w, s)?;
+    financing::review(w, s)?;
     Ok(())
 }
 

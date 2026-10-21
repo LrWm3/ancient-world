@@ -23,20 +23,26 @@ pub fn reviewable(w: &World, s: &State, agent: AgentId) -> bool {
         return false;
     };
     let last = c.history.iter().rev().find(|d| d.chosen.is_some());
-    let recent_forward = w
-        .agency
-        .values()
-        .flat_map(|c| &c.startup_forwards)
-        .filter(|a| [a.proposal.terms.buyer, a.proposal.terms.seller].contains(&agent))
-        .map(|a| a.month)
-        .max();
+    let recent_forward = last_agreement(w, agent);
     c.autonomous
         && c.discover_programs
         && agency::governor(w, s, agent).is_some()
         && (s.month - 1).is_multiple_of(c.config.review_every)
         && last.is_none_or(|d| s.month - d.month >= c.config.minimum_tenure)
         && recent_forward.is_none_or(|month| s.month - month >= c.config.minimum_tenure)
+        && agency::financing::last_agreement(w, agent)
+            .is_none_or(|month| s.month - month >= c.config.minimum_tenure)
         && !pending(w, agent)
+        && !agency::financing::pending(w, agent)
+}
+
+pub(crate) fn last_agreement(w: &World, agent: AgentId) -> Option<u32> {
+    w.agency
+        .values()
+        .flat_map(|c| &c.startup_forwards)
+        .filter(|a| [a.proposal.terms.buyer, a.proposal.terms.seller].contains(&agent))
+        .map(|a| a.month)
+        .max()
 }
 
 pub fn pending(w: &World, agent: AgentId) -> bool {

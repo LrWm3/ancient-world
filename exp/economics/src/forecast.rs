@@ -30,6 +30,7 @@ impl ForecastContext {
                 }
             }
             controller.forward_reviews.clear();
+            controller.financing_reviews.clear();
         }
         // After Open, the current own endowment is observed independently of
         // unspent or purchased hours. Household shares still need that input.

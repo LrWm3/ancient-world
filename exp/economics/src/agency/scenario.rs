@@ -23,6 +23,7 @@ const WAGE_PER_HOUR: i32 = 1;
 
 pub fn config(objectives: Vec<Objective>, programs: BTreeMap<u32, Program>) -> Config {
     Config {
+        financing: None,
         horizon: HORIZON_MONTHS,
         review_every: REVIEW_MONTHS,
         peer_expectations: Default::default(),

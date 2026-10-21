@@ -8,6 +8,7 @@ fn controller_config(
     horizon: u32,
 ) -> agency::Config {
     agency::Config {
+        financing: None,
         horizon,
         review_every: REVIEW_MONTHS,
         peer_expectations: Default::default(),

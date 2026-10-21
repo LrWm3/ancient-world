@@ -25,6 +25,7 @@ pub mod publication;
 pub mod sales;
 pub mod startup_publication;
 pub mod work_discovery;
+pub mod working_capital;
 
 pub const RUN_MONTHS: u32 = integration::RUN_MONTHS;
 
