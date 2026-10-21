@@ -156,7 +156,15 @@ specialization or a sustainable market economy.
 Experience is an agent-attached competency account, not a transferable asset.
 Catalog practice rules identify a process definition, stage, competency kind and
 positive number of points earned on completing that stage. This keeps learning
-independent of agent roles and of who owns the output. Awards go to the operator.
+independent of agent roles and of who owns the output. Awards go to the operator
+unless an opted-in stage binds a named personal performer. In that case, awards and
+competency checks use the worker; the organization retains inputs, outputs,
+equipment and accounting. The binding consumes hours from actual accepted
+employment, cannot reuse delivered hours and persists with the completed process.
+The [skilled-workshop integration](SKILLED-WORKSHOP-ACCEPTANCE.md) exercises this
+through ordinary hiring, production, repair and wages. It currently supports one
+person per single-month stage and full-world forecasts; person-local adapters that
+discard worker context reject this configuration explicitly.
 
 The validated process transition is the immutable provenance for an award.
 Settlement derives awards from those records using the fixed run catalog and

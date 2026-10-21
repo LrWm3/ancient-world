@@ -5,6 +5,17 @@ transaction-first settlement. The person–household loop and a configured nine-
 economy work end to end. The broader institutional roadmap remains partially
 integrated.
 
+The [skilled-workshop variant](SKILLED-WORKSHOP-ACCEPTANCE.md) binds organizational
+production to a named worker's actual employment hours. Completed work awards
+personal experience; qualification lowers later labor requirements and accepted
+wages while the organization retains assets, outputs and accounting. A controlled
+first year completes eight refining jobs using eleven paid hours, versus six jobs
+using thirteen hours without the skill benefit. Both meet food and wage obligations.
+The 48-month reference run passes maintained-economy readiness with 36 refining
+jobs, nine repairs, replenished inputs and positive mature-year operating income.
+The report lists unsupported person-local forecast adapters, teaching and team
+production, and separates startup controls from long-run verification.
+
 The [maintained-workshop variant](MAINTAINED-WORKSHOP-ACCEPTANCE.md) connects finite
 equipment life to organizational work discovery, voluntary repair labor, input
 purchases and audited operating costs. It adds an optional condition-reserve goal

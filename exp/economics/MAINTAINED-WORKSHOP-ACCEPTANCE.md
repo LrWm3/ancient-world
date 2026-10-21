@@ -233,7 +233,7 @@ selection across heterogeneous equipment.
 
 Broader forecasts still use explicitly conditional labor; actual Acquire obtains
 live consent. Initial assets, organizational membership and financial terms remain
-supplied. The next useful extension is a bounded capability or teaching investment
-that improves real worker output while preserving needs, budgets and consent,
-followed by succession or member loss under operating obligations. Neither is
-claimed as completed here.
+supplied. The [personal-skill follow-up](SKILLED-WORKSHOP-ACCEPTANCE.md) now binds
+productive work to an actual employee and exercises learning-by-doing with lower
+later labor requirements. Teaching investments and endogenous succession or member
+replacement under operating obligations remain outstanding.

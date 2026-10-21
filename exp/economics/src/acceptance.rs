@@ -24,6 +24,7 @@ pub mod maintained_workshop;
 pub mod production_preferences;
 pub mod publication;
 pub mod sales;
+pub mod skilled_workshop;
 pub mod startup_publication;
 pub mod voluntary_employment;
 pub mod work_discovery;

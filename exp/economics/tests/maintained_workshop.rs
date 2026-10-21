@@ -213,12 +213,13 @@ fn check_interruption(case: &str) {
     while sim.state.month <= 16 {
         audit.step(&mut sim).unwrap();
     }
-    println!(
-        "{case}: food deficits={}",
+    assert_eq!(
         sim.reports
             .iter()
             .map(|r| r.deficit(economics_compute_smoke::minting::NUTRITION))
-            .sum::<i32>()
+            .sum::<i32>(),
+        0,
+        "{case}: recovery food deficit"
     );
     println!(
         "{case}: completed workshop work {:?}, condition {}, food {}, cash {}",
