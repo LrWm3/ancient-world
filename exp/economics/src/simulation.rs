@@ -686,6 +686,7 @@ impl Simulation {
                     &self.state.balances,
                     &empty,
                     &crate::storage::usage(&self.world, &self.state.balances),
+                    &crate::performers::reserved(&self.state),
                 )
                 .is_ok()
             {
@@ -804,6 +805,7 @@ impl Simulation {
                     &self.state.balances,
                     &empty,
                     &crate::storage::usage(&self.world, &self.state.balances),
+                    &crate::performers::reserved(&self.state),
                 )
                 .is_ok()
             {
@@ -1054,6 +1056,7 @@ impl Simulation {
                     &self.state.balances,
                     &BTreeMap::new(),
                     &crate::storage::usage(&self.world, &self.state.balances),
+                    &crate::performers::reserved(&self.state),
                 )
                 .is_ok()
             {
@@ -1179,7 +1182,15 @@ impl Simulation {
         budget: &BTreeMap<Account, i32>,
         reserved: &BTreeMap<AssetId, u64>,
         stored: &BTreeMap<AgentId, i128>,
-    ) -> Result<(ProcessInstance, Option<crate::equipment::TechniqueUse>), Reason> {
+        work_used: &crate::performers::Reservations,
+    ) -> Result<
+        (
+            ProcessInstance,
+            Option<crate::equipment::TechniqueUse>,
+            Option<crate::performers::Work>,
+        ),
+        Reason,
+    > {
         let d = self.world.definition(r.definition);
         if !crate::opportunities::permits(
             &self.world,
@@ -1299,7 +1310,7 @@ impl Simulation {
         for technique in self.world.techniques.iter().filter(|t| {
             t.definition == d.id
                 && t.stage == p.stage
-                && crate::equipment::eligible(t, &self.state, p.operator)
+                && crate::performers::eligible(&self.world, &self.state, t, p.operator)
         }) {
             if technique.equipment_kind.is_none() {
                 variants.push((
@@ -1379,6 +1390,41 @@ impl Simulation {
                     break;
                 }
             }
+            let performer = if let Some(resource) =
+                crate::performers::resource(&self.world, d.id, p.stage)
+            {
+                let chosen =
+                    crate::performers::candidates(&self.world, &self.state, p.operator, resource)
+                        .into_iter()
+                        .filter_map(|id| {
+                            crate::performers::bind(
+                                &self.world,
+                                &self.state,
+                                id,
+                                services.unwrap_or(&d.stages[p.stage].monthly_services),
+                                usage.as_ref().map(|u| u.technique),
+                                work_used,
+                            )
+                        })
+                        .find(|work| {
+                            usage.as_ref().is_none_or(|u| {
+                                let technique = self
+                                    .world
+                                    .techniques
+                                    .iter()
+                                    .find(|t| t.id == u.technique)
+                                    .unwrap();
+                                crate::equipment::eligible(technique, &self.state, work.worker)
+                            })
+                        });
+                if chosen.is_none() {
+                    failure = Reason::InsufficientCapacity;
+                    continue;
+                }
+                chosen
+            } else {
+                None
+            };
             if feasible {
                 let mut effects: Vec<_> = costs(d, &p, services)
                     .into_iter()
@@ -1405,7 +1451,7 @@ impl Simulation {
                     failure = Reason::InsufficientStorage;
                     continue;
                 }
-                return Ok((p, usage));
+                return Ok((p, usage, performer));
             }
         }
         Err(failure)
@@ -1442,6 +1488,7 @@ impl Simulation {
         batch: &mut Batch,
     ) -> Result<(), String> {
         let mut budget = self.state.balances.clone();
+        let mut work_used = crate::performers::reserved(&self.state);
         let mut stored = crate::storage::usage(&self.world, &self.state.balances);
         let mut reserved = BTreeMap::new();
         let mut next_id = self
@@ -1464,7 +1511,7 @@ impl Simulation {
                 .iter()
                 .try_fold(0i32, |n, a| n.checked_add(a.quantity))
                 .ok_or("service total overflow")?;
-            match self.prepare(&r, next_id, &budget, &reserved, &stored) {
+            match self.prepare(&r, next_id, &budget, &reserved, &stored, &work_used) {
                 Err(reason) => {
                     if let Some(id) = r.existing {
                         let before = self.state.processes[&id].clone();
@@ -1480,6 +1527,7 @@ impl Simulation {
                             cause: format!("abort {}: {reason:?}", d.name),
                             effects: Vec::new(),
                             process: Some(ProcessChange {
+                                performer: None,
                                 before: Some(before),
                                 after,
                             }),
@@ -1495,7 +1543,10 @@ impl Simulation {
                         completed: 0,
                     });
                 }
-                Ok((mut p, technique_use)) => {
+                Ok((mut p, technique_use, performer)) => {
+                    if let Some(work) = &performer {
+                        *work_used.entry(work.agreement).or_default() += work.capacity.quantity;
+                    }
                     let services = technique_use
                         .as_ref()
                         .map(|u| crate::equipment::services(&self.world, u));
@@ -1565,7 +1616,11 @@ impl Simulation {
                         royalty,
                         cause: format!("{} / {stage_name}", d.name),
                         effects,
-                        process: Some(ProcessChange { before, after: p }),
+                        process: Some(ProcessChange {
+                            performer,
+                            before,
+                            after: p,
+                        }),
                     });
                     // Newly generated output is deliberately not added to budget.
                     batch.receipts.push(Receipt {

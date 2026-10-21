@@ -443,9 +443,21 @@ fn project(
         .iter()
         .filter(|b| b.month == s.month && b.phase == Phase::Productive)
         .flat_map(|b| b.all_transactions())
-        .flat_map(|tx| &tx.effects)
-        .filter(|e| e.account == (t.employer, t.capacity.resource) && e.delta < 0)
-        .map(|e| -i64::from(e.delta))
+        .map(|tx| {
+            if let Some(work) = tx.process.as_ref().and_then(|p| p.performer.as_ref()) {
+                if work.agreement == t.id {
+                    i64::from(work.capacity.quantity)
+                } else {
+                    0
+                }
+            } else {
+                tx.effects
+                    .iter()
+                    .filter(|e| e.account == (t.employer, t.capacity.resource) && e.delta < 0)
+                    .map(|e| -i64::from(e.delta))
+                    .sum()
+            }
+        })
         .sum();
     let mut employer_duties: Vec<_> = employer_delivery_losses
         .into_iter()

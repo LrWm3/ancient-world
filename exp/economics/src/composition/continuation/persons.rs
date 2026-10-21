@@ -282,6 +282,7 @@ impl Persons {
     }
 
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
+        crate::performers::require_local_compatible(&sim.world)?;
         self.counterparty_policy.validate()?;
         if !sim.world.households.is_empty() || sim.world.priority != Priority::ContinuingFirst {
             return Err("independent continuation requires persons without households and with ContinuingFirst".into());

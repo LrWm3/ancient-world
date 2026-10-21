@@ -19,6 +19,7 @@ fn transaction(id: u64, status: Status) -> Transaction {
         trade: None,
         stock_trade: None,
         process: Some(ProcessChange {
+            performer: None,
             before: None,
             after: ProcessInstance {
                 id,

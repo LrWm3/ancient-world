@@ -411,6 +411,7 @@ fn validate_search(
     scope: &Scope,
     budget: Budget,
 ) -> Result<Vec<AgentId>, String> {
+    crate::performers::require_local_compatible(&sim.world)?;
     if sim.state.phase != Phase::Acquire || budget.forecasts == 0 || budget.months == 0 {
         return Err("composition requires Acquire and positive forecast budget/horizon".into());
     }

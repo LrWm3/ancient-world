@@ -45,6 +45,7 @@ pub struct Earned {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Book {
+    pub work: BTreeMap<crate::performers::Key, crate::performers::Work>,
     pub earned: BTreeMap<(u32, u32), Earned>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -141,7 +141,7 @@ pub fn apply_use(
         || change.after.status == Status::Aborted
         || technique.definition != change.after.definition
         || technique.stage != stage
-        || !eligible(technique, opening, change.after.operator)
+        || !eligible(technique, opening, crate::performers::subject(change))
     {
         return Err("ineligible technique".into());
     }
@@ -313,7 +313,7 @@ pub fn award(world: &World, state: &mut State, change: &ProcessChange) -> Result
     {
         let points = state
             .practice
-            .entry((change.after.operator, rule.competency))
+            .entry((crate::performers::subject(change), rule.competency))
             .or_default();
         *points = points.checked_add(rule.points).ok_or("practice overflow")?;
     }

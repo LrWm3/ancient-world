@@ -716,6 +716,7 @@ fn retired_equipment_has_no_hidden_value_or_repair_target_and_ids_cannot_be_reus
             &w,
             &mut unchanged,
             &ProcessChange {
+                performer: None,
                 before: None,
                 after: process.clone()
             }
@@ -730,6 +731,7 @@ fn retired_equipment_has_no_hidden_value_or_repair_target_and_ids_cannot_be_reus
             &w,
             &mut unchanged,
             &ProcessChange {
+                performer: None,
                 before: None,
                 after: process
             }

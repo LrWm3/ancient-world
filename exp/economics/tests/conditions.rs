@@ -415,6 +415,7 @@ fn terminal_operators_cannot_replay_even_capacity_free_consumption() {
                 },
             ],
             process: Some(ProcessChange {
+                performer: None,
                 before: None,
                 after: ProcessInstance {
                     id: before.processes.keys().next_back().unwrap() + 1,

@@ -146,6 +146,7 @@ fn validate_state(world: &World, state: &State) -> Result<(), String> {
     crate::pools::validate(world, state)?;
     maintenance::validate(world, state)?;
     crate::equipment::validate(world, state)?;
+    crate::performers::validate(world, state)?;
     crate::commitments::validate(world, state)?;
     if state.month == 0
         || state.month > u32::MAX - MAX_PLANNING_HORIZON_MONTHS - MAX_PROCESS_DURATION_MONTHS
@@ -451,6 +452,7 @@ pub(crate) fn commit_core(
         if t.trade.is_some() {
             crate::equipment::apply_trade(world, &mut staged, t)?;
         }
+        crate::performers::apply(world, state, &mut staged, t)?;
         if t.technique_use.is_some() {
             crate::equipment::apply_use(world, state, &mut staged, t)?;
         }

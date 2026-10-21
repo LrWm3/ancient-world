@@ -569,7 +569,7 @@ pub fn retained_outputs(
                         t.definition == definition.id
                             && t.equipment_kind == Some(a.kind)
                             && a.remaining_uses >= t.wear
-                            && crate::equipment::eligible(t, state, agent)
+                            && crate::performers::eligible(world, state, t, agent)
                     }))
                 .then(|| state.exchange.contracts.get(&a.id))
                 .flatten()

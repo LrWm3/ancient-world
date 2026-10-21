@@ -37,6 +37,8 @@ pub struct CoinPayment {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Activities {
+    /// Opt-in personal labor provenance, by productive definition and stage.
+    pub performers: BTreeMap<(DefinitionId, usize), ResourceId>,
     /// Immediately recoverable material per retired asset; not a labor recycling recipe.
     pub salvage: BTreeMap<u32, Vec<Amount>>,
     pub kinds: BTreeMap<u32, DurableKind>,

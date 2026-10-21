@@ -194,7 +194,7 @@ pub fn demand(world: &World, state: &State, agent: AgentId) -> Result<(u32, bool
     };
     let mut lots = service_bound(&d.stages[0].monthly_services);
     for technique in world.techniques.iter().filter(|t| {
-        t.definition == d.id && t.stage == 0 && crate::equipment::eligible(t, state, agent)
+        t.definition == d.id && t.stage == 0 && crate::performers::eligible(world, state, t, agent)
     }) {
         let mut bound = service_bound(&technique.services);
         if let Some(kind) = technique.equipment_kind {

@@ -969,6 +969,7 @@ pub(crate) fn attachment_changes(
             after.beneficiary = to;
             after.goal = None;
             ProcessChange {
+                performer: None,
                 before: Some(p.clone()),
                 after,
             }

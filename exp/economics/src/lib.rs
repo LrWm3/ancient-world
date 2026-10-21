@@ -182,3 +182,5 @@ pub mod discovery;
 pub mod demography;
 
 pub mod acceptance;
+
+pub mod performers;

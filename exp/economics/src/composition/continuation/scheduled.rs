@@ -41,6 +41,7 @@ impl Controller {
     }
 
     pub fn step(&mut self, sim: &mut Simulation) -> Result<(), String> {
+        crate::performers::require_local_compatible(&sim.world)?;
         let config = sim
             .world
             .town_market

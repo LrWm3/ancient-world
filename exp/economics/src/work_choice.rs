@@ -151,6 +151,7 @@ fn work(sim: &Simulation, c: &Config, plan: &Plan) -> Result<Batch, String> {
                 cause: "remaining-value policy declines continuing work".into(),
                 effects: vec![],
                 process: Some(ProcessChange {
+                    performer: None,
                     before: Some(p.clone()),
                     after,
                 }),

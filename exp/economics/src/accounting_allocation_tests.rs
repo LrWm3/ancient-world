@@ -91,6 +91,7 @@ fn combined(reverse: bool) -> (Inventory, Costs, Book) {
         delta: -1,
     }]);
     work.process = Some(ProcessChange {
+        performer: None,
         before: None,
         after: ProcessInstance {
             id: 1,

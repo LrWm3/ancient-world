@@ -75,6 +75,7 @@ pub fn prepare_many(
     policy: Policy,
     applications: &[Application],
 ) -> Result<Batch, String> {
+    crate::performers::require_local_compatible(&sim.world)?;
     let offers: Vec<_> = offers
         .iter()
         .copied()

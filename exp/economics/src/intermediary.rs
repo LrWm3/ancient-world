@@ -361,6 +361,7 @@ pub fn prepare_with_policy(
     memory: &Memory,
     allocation_mode: consequence_priority::Mode,
 ) -> Result<(Batch, Round), String> {
+    crate::performers::require_local_compatible(&sim.world)?;
     if sim.world.participants.len() > MAX_PARTICIPANTS
         || sim.state.phase != Phase::Acquire
         || sim.world.pool_market.is_some()

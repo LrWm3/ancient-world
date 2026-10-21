@@ -123,6 +123,7 @@ impl Controller {
         sim: &mut Simulation,
         same: impl Fn(&ForecastContext, &ForecastContext) -> bool,
     ) -> Result<(), String> {
+        crate::performers::require_local_compatible(&sim.world)?;
         // This is an explicit experiment configuration, never a silent rewrite
         // of the world's existing default decision policy.
         if sim.world.priority != Priority::ContinuingFirst || sim.world.competition.is_some() {

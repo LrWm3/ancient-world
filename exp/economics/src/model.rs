@@ -262,6 +262,7 @@ pub struct Effect {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProcessChange {
+    pub performer: Option<crate::performers::Work>,
     pub before: Option<ProcessInstance>,
     pub after: ProcessInstance,
 }
