@@ -6,6 +6,12 @@ marketplace operating together for **48 months**. Readiness means this configure
 economy passes the gates below; it does not mean arbitrary organizations can
 discover a sustainable economy from scratch.
 
+The [voluntary-employment variant](VOLUNTARY-EMPLOYMENT-ACCEPTANCE.md) retains these
+gates while replacing standing workshop/town jobs with dated mutual consent.
+It explicitly redistributes three existing startup grain units and supplies
+food-reserve-then-cash worker preferences; the scenario report records those
+assumptions, failed trials and controls separately from this baseline.
+
 The [inventory-driven follow-up](ACCEPTANCE-STOCK-MARKET.md) passes the same gates
 with workshop/town ore bids and asks replacing the dated ore-forward schedule.
 It also exercises temporary supply interruption and recovery. The baseline and

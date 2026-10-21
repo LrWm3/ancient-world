@@ -1,5 +1,14 @@
 # Economics integration and planning interfaces
 
+The [voluntary-employment variant](VOLUNTARY-EMPLOYMENT-ACCEPTANCE.md) replaces
+standing workshop/town jobs with fresh monthly employer demand and worker consent.
+Its matching 48-month CPU/reference runs pass unchanged readiness: 44 mints, 45 refining jobs,
+46 mining jobs, no food deficits or wage arrears, and nine reconciled books.
+It uses existing employment settlement, with explicit conditional labor forecasts
+and supplied food-then-cash preferences. The startup fixture redistributes three
+existing grain units from state to worker; total resources and coin balances are
+unchanged. Named offers, wages and institutional terms remain supplied.
+
 The [working-capital acceptance variant](WORKING-CAPITAL-ACCEPTANCE.md) now passes
 unchanged 48-month readiness with neither opening ore nor metal at the workshop.
 Independent state/town financing supports an authorized mint program through the
