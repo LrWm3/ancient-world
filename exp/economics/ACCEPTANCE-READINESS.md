@@ -6,6 +6,12 @@ marketplace operating together for **48 months**. Readiness means this configure
 economy passes the gates below; it does not mean arbitrary organizations can
 discover a sustainable economy from scratch.
 
+The [maintained-workshop variant](MAINTAINED-WORKSHOP-ACCEPTANCE.md) uses a separate
+physical-throughput gate for recurring equipment exhaustion and repair downtime.
+It shares the obligation and accounting checks below, but does not claim to meet
+this page's twelve-refining-jobs-per-year threshold. These original gates remain
+unchanged.
+
 The [voluntary-employment variant](VOLUNTARY-EMPLOYMENT-ACCEPTANCE.md) retains these
 gates while replacing standing workshop/town jobs with dated mutual consent.
 It explicitly redistributes three existing startup grain units and supplies

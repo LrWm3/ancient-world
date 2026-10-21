@@ -13,9 +13,9 @@ use crate::{
 pub const MONTHS: u32 = 48;
 pub const CYCLE_MONTHS: u32 = 12;
 const CONTRACT_THROUGH: u32 = MONTHS + CYCLE_MONTHS;
-const REFINING_HOURS: i32 = 1;
+pub(super) const REFINING_HOURS: i32 = 1;
 const ORE_LOT: i32 = 2;
-const ORE_PRICE: i32 = 2;
+pub(super) const ORE_PRICE: i32 = 2;
 const ORE_BUFFER: i32 = 4;
 const METAL_PRICE: i32 = 4;
 const METAL_BUFFER: i32 = 4;
@@ -389,7 +389,7 @@ impl Readiness {
 }
 
 /// Fail closed: a functioning treasury or balanced books alone are insufficient.
-pub fn check(run: &Run) -> Result<Readiness, String> {
+pub(crate) fn obligations(run: &Run) -> Result<Vec<String>, String> {
     let e = run.evidence()?;
     if e.months != MONTHS {
         return Err("acceptance requires exactly 48 completed months".into());
@@ -482,6 +482,16 @@ pub fn check(run: &Run) -> Result<Readiness, String> {
             "no authorized organization work choice",
         );
     }
+    Ok(failures)
+}
+
+pub fn check(run: &Run) -> Result<Readiness, String> {
+    let mut failures = obligations(run)?;
+    let mut require = |pass: bool, reason: &str| {
+        if !pass {
+            failures.push(reason.into());
+        }
+    };
     let periods = (1..MONTHS / CYCLE_MONTHS)
         .map(|cycle| period(run, cycle * CYCLE_MONTHS + 1, (cycle + 1) * CYCLE_MONTHS))
         .collect::<Result<Vec<_>, _>>()?;

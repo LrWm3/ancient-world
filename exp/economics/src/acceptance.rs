@@ -20,6 +20,7 @@ pub mod continuation;
 pub mod expectations;
 pub mod financing;
 pub mod governed;
+pub mod maintained_workshop;
 pub mod production_preferences;
 pub mod publication;
 pub mod sales;
@@ -451,13 +452,23 @@ fn coins(s: &State) -> i128 {
 
 impl Run {
     pub fn new(w: World, s: State, backend: Backend) -> Result<Self, String> {
+        let opening = integration::opening(&w, &s);
+        Self::with_opening(w, s, backend, opening)
+    }
+
+    pub fn with_opening(
+        w: World,
+        s: State,
+        backend: Backend,
+        opening: crate::financial_reporting::Opening,
+    ) -> Result<Self, String> {
         if s.month != 1 || s.phase != Phase::Open {
             return Err(
                 "acceptance runner needs its month-one opening; preserve Run when restarting"
                     .into(),
             );
         }
-        let audit = integration::audit(&w, &s)?;
+        let audit = Audit::with_opening(&w, &s, COIN, opening)?;
         let opening_coins = coins(&s);
         Ok(Self {
             sim: Simulation::new(w, s, backend)?,

@@ -1,6 +1,8 @@
 //! Candidate discovery from institutional options, recipes and dated accepted work.
 use super::*;
 
+const MIN_WORKING_USES: u32 = 1;
+
 /// Enumeration supplies alternatives, never authority or promised production.
 /// Refuse an oversized catalog rather than silently favor its first entries.
 pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, String> {
@@ -19,21 +21,7 @@ pub fn programs_from_requests(
     snapshot: &work_requests::Snapshot,
 ) -> Result<BTreeMap<u32, Program>, String> {
     snapshot.validate(w, agent, snapshot.month)?;
-    // Historical validation regenerates this catalogue: never read live orders.
-    // The latest accepted replacement effective at this opening is the authority
-    // for retained targets; unsigned founding orders are not inferred here.
-    let retained = w.agency[&agent]
-        .history
-        .iter()
-        .rev()
-        .filter(|d| d.effective_month <= snapshot.month)
-        .filter_map(|d| d.accepted.as_ref())
-        .flat_map(|p| p.commands.iter().rev())
-        .find_map(|c| match c {
-            Command::WorkTargets(orders) => Some(orders.as_slice()),
-            _ => None,
-        })
-        .unwrap_or(&[]);
+    let retained = retained_targets(w, agent, snapshot.month);
     programs_with_sales(
         w,
         agent,
@@ -44,6 +32,50 @@ pub fn programs_from_requests(
         ),
         retained,
     )
+}
+
+/// Reproduce the work replacements visible at this Open, including admitted
+/// forward-funded work. Ordinary choices apply before forward activations;
+/// matching their real owner/index order resolves same-month replacements.
+/// Finance currently starts a process and never replaces work targets.
+fn retained_targets(w: &World, agent: AgentId, month: u32) -> &[WorkOrder] {
+    let ordinary = w.agency[&agent]
+        .history
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.effective_month <= month)
+        .filter_map(|(i, d)| {
+            d.accepted
+                .as_ref()
+                .map(|p| ((d.effective_month, 0, agent, i), p))
+        });
+    let forwarded = w.agency.iter().flat_map(|(&owner, c)| {
+        c.startup_forwards
+            .iter()
+            .enumerate()
+            .filter_map(move |(i, a)| {
+                let forwards::execution::Status::Activated(effective) = a.status else {
+                    return None;
+                };
+                (effective <= month)
+                    .then(|| {
+                        a.programs
+                            .get(&agent)
+                            .map(|p| ((effective, 1, owner, i), p))
+                    })
+                    .flatten()
+            })
+    });
+    ordinary
+        .chain(forwarded)
+        .filter_map(|(key, p)| {
+            p.commands.iter().find_map(|c| match c {
+                Command::WorkTargets(orders) => Some((key, orders.as_slice())),
+                _ => None,
+            })
+        })
+        .max_by_key(|(key, _)| *key)
+        .map_or(&[], |(_, orders)| orders)
 }
 
 fn programs_with_sales(
@@ -219,7 +251,7 @@ fn programs_with_sales(
                 priority: 0,
                 target: crate::activities::Target::Maintain {
                     kind: *kind,
-                    below: 1,
+                    below: MIN_WORKING_USES,
                 },
             };
             let bundle = match command {

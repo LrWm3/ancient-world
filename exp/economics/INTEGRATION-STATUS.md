@@ -1,5 +1,17 @@
 # Economics integration and planning interfaces
 
+The [maintained-workshop variant](MAINTAINED-WORKSHOP-ACCEPTANCE.md) connects finite
+equipment life to organizational work discovery, voluntary repair labor, input
+purchases and audited operating costs. It adds an optional condition-reserve goal
+and preserves dated productive targets when proposing upkeep. Its 48-month
+reference run passes readiness with 36 refining jobs, nine repairs, no food deficits
+or wage arrears, replenished materials and positive mature-year operating income.
+Its separate throughput gate accounts for repair downtime; the original gate remains
+unchanged. Forward proposals now compare financing with independently spot-funded
+work, preventing an operating improvement from being mistaken for a financing benefit.
+The scenario report records recovery controls and the supplied asset, preference
+and market assumptions.
+
 The [voluntary-employment variant](VOLUNTARY-EMPLOYMENT-ACCEPTANCE.md) replaces
 standing workshop/town jobs with fresh monthly employer demand and worker consent.
 Its matching 48-month CPU/reference runs pass unchanged readiness: 44 mints, 45 refining jobs,

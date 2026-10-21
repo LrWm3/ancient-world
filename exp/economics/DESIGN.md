@@ -1,5 +1,12 @@
 # Agent-centered economics: processes and transaction-first execution
 
+The [maintained-workshop integration](MAINTAINED-WORKSHOP-ACCEPTANCE.md) now exercises
+productive capital upkeep through ordinary organization choices and paid work.
+An optional remaining-service reserve goal values condition without promising
+future output; dated accepted work targets survive upkeep proposals. This uses the
+existing equipment, employment, market and accounting paths. The report defines
+its bounded acceptance and remaining supply-chain and multi-asset limits.
+
 Status: architecture proposal with implemented CPU pilots. See the
 [current integration matrix](INTEGRATION-STATUS.md) for which features actually
 compose. Generic agents, rights, staged processes, need consequences, bounded
