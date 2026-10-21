@@ -133,7 +133,13 @@ Continuation compares Reference with CubeCL CPU reconstructed at every phase,
 including activation before acquisition. Ledger replay, audit reconciliation and
 reversed independent catalogs check state, decisions and completed outcomes.
 
-## Remaining boundary
+## Follow-up and remaining boundary
+
+The subsequent [working-capital experiment](WORKING-CAPITAL-ACCEPTANCE.md) closes
+the neither-stock startup gap using independently accepted, ordinary credit and
+an authorized productive program. Its configured economy passes the unchanged
+48-month gates. Results below describe upstream discovery **without** that new
+financing mandate.
 
 A missing input request is useful explanatory evidence, but is neither a funded
 award nor a viable multi-party plan. The neither-stock fixture still has a startup
@@ -142,14 +148,12 @@ arrive, while later metal output does not by itself sustain issuer demand.
 The issuer also lacks the full input budget when output first arrives. The
 input-bid path uses spot purchases without a workshop startup forward.
 
-The next bounded experiment should compare a downstream procurement retry with
-an explicitly funded later delivery window or independently accepted forward.
-Keep money conserved and show whether the buyer preserves its future input budget;
-a later date alone cannot cover the observed shortfall. Preserve affordability,
-withdrawal/default consequences and a no-supply control. Recursive request
-propagation, joint funding,
-capacity reservations, arbitrary chain formation and 48-month acceptance readiness
-remain unverified for these policies. CUDA is also unverified.
+The financing follow-up addresses this with independently accepted credit and a
+dated productive program. A later procurement date alone cannot cover the observed
+shortfall. Recursive request propagation, joint funding, capacity reservations and
+arbitrary chain formation remain unverified. The new 48-month readiness result
+requires the additional financing mandate; it does not change this upstream-only
+comparison. CUDA is also unverified.
 
 Final targeted verification: 79 tests passed (41 library, 3 organization discovery,
 5 organization forwards, 1 publication execution, 4 request discovery, 7 work

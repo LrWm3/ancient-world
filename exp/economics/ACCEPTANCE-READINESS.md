@@ -11,6 +11,11 @@ with workshop/town ore bids and asks replacing the dated ore-forward schedule.
 It also exercises temporary supply interruption and recovery. The baseline and
 measurements on this page retain their original forward-based configuration.
 
+The [working-capital variant](WORKING-CAPITAL-ACCEPTANCE.md) also passes these
+unchanged gates after removing both workshop opening ore and metal. It combines
+upstream discovery with an independently accepted loan and conditional productive
+work. Its narrower assumptions and controls are documented separately.
+
 Run from `exp/economics`:
 
 ```sh

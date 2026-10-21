@@ -1,14 +1,24 @@
 # Stand-alone agent-based economics experiment
 
 A CPU-running experiment in generic agents, needs, processes, agreements and
-transaction-first settlement. The initial person–household loop works in a bounded
-scenario; the broader economy remains partially integrated.
+transaction-first settlement. The person–household loop and a configured nine-agent
+economy work end to end. The broader institutional roadmap remains partially
+integrated.
+
+The [working-capital acceptance variant](WORKING-CAPITAL-ACCEPTANCE.md) now passes
+unchanged 48-month readiness with neither opening ore nor metal at the workshop.
+Independent state/town financing supports an authorized mint program through the
+existing credit and accounting system. All wages and loans are paid on time;
+production and trade recur across three complete operating years. Consent, prices,
+employment and institutional terms remain supplied; arbitrary economy formation
+is still outside this result. Financing is opt-in.
 
 The [upstream discovery extension](UPSTREAM-WORK-DISCOVERY.md) exposes conditional
 first-batch input interest and separately tests affordable input-bid publication.
 Stocked sales take priority over exploration. The metal-only startup improves from
-8 to 9 mints over 12 months. Neither-stock output arrives after procurement expires,
-when issuer funds no longer cover its input package. Interest, bids and accepted
+8 to 9 mints over 12 months. Without the new financing mandate, neither-stock output
+arrives after procurement expires, when issuer funds no longer cover its input
+package. Interest, bids and accepted
 funding remain distinct, and defaults are unchanged.
 
 The [six-pass work-discovery pilot](WORK-DISCOVERY.md) adds dated, nonbinding
