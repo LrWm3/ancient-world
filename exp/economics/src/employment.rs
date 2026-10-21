@@ -8,6 +8,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 pub mod performance;
+pub mod recruitment;
 pub mod supply;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +74,7 @@ pub struct Receipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boundary {
     pub supply: Vec<supply::Decision>,
+    pub recruitment: Vec<recruitment::Decision>,
     pub after: Book,
     pub receipts: Vec<Receipt>,
     pub transactions: Vec<Transaction>,
@@ -92,12 +94,15 @@ fn transaction(effects: Vec<Effect>) -> Transaction {
 }
 pub fn validate(w: &World, s: &State) -> Result<(), String> {
     supply::validate(w)?;
+    recruitment::validate(w)?;
     if w.employment_offers.iter().any(|id| {
-        !w.employment
-            .iter()
-            .any(|t| t.id == *id && w.households.iter().any(|h| h.agent == t.employer))
+        !w.employment.iter().any(|t| {
+            t.id == *id
+                && (w.households.iter().any(|h| h.agent == t.employer)
+                    || recruitment::authorized(w, t))
+        })
     }) {
-        return Err("labor offers require catalog terms targeting a household".into());
+        return Err("labor offers require an authorized employer".into());
     }
     if !w.employment_offers.is_empty()
         && (w.market.is_some()
@@ -290,6 +295,7 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
     let mut execution = finance::Execution::from_parts(resources.available, resources.storage);
     let mut b = Boundary {
         supply: vec![],
+        recruitment: vec![],
         after: s.employment.clone(),
         receipts: vec![],
         transactions: vec![],
@@ -401,6 +407,24 @@ pub(crate) fn evaluate(w: &World, s: &State, base: &Batch) -> Result<Option<Boun
                 *spent = spent
                     .checked_add(delivered * t.wage_per_unit.quantity)
                     .ok_or("hiring budget overflow")?;
+            }
+            if delivered > 0 && recruitment::authorized(w, t) && w.employment_offers.contains(&t.id)
+            {
+                let (quantity, decision) =
+                    recruitment::quantity(w, s, base, &b, t, delivered, &execution.available)?;
+                if quantity < delivered {
+                    reason = if decision.affordable == 0 {
+                        Reason::HiringBudget
+                    } else if decision.requested == 0 {
+                        Reason::NoUsefulWork
+                    } else if decision.requested > quantity {
+                        Reason::WorkerProtection
+                    } else {
+                        Reason::UsefulWorkLimit
+                    };
+                }
+                delivered = quantity;
+                b.recruitment.push(decision);
             }
             let wage = delivered
                 .checked_mul(t.wage_per_unit.quantity)

@@ -9,6 +9,7 @@ fn controller_config(
 ) -> agency::Config {
     agency::Config {
         financing: None,
+        hiring: None,
         horizon,
         review_every: REVIEW_MONTHS,
         peer_expectations: Default::default(),

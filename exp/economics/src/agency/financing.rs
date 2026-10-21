@@ -34,9 +34,12 @@ pub enum Status {
 pub struct OutsideOption {
     pub month: u32,
     pub losses: Vec<i128>,
+    pub conditional_labor: Vec<crate::employment::recruitment::Hypothesis>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Comparison {
+    pub baseline_labor: Vec<crate::employment::recruitment::Hypothesis>,
+    pub proposed_labor: Vec<crate::employment::recruitment::Hypothesis>,
     pub governor: AgentId,
     pub baseline: Vec<i128>,
     /// Same authorized work without a loan, if it can complete and service debt.
@@ -327,12 +330,27 @@ pub fn assess(w: &World, s: &State, p: &Proposal) -> Result<Assessment, String> 
                 .as_ref()
                 .is_none_or(|option| losses < option.losses)
             {
-                self_funded = Some(OutsideOption { month, losses });
+                self_funded = Some(OutsideOption {
+                    month,
+                    losses,
+                    conditional_labor: crate::employment::recruitment::hypotheses(
+                        &unfunded.world,
+                        &unfunded.ledger,
+                    ),
+                });
             }
         }
         comparisons.insert(
             actor,
             Comparison {
+                baseline_labor: crate::employment::recruitment::hypotheses(
+                    &base.world,
+                    &base.ledger,
+                ),
+                proposed_labor: crate::employment::recruitment::hypotheses(
+                    &proposed.world,
+                    &proposed.ledger,
+                ),
                 governor: governor(w, s, actor).ok_or("vacant financing office")?,
                 baseline,
                 proposed: objectives::measure_projection(

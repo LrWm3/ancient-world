@@ -45,6 +45,7 @@ pub struct Program {
 pub struct Config {
     /// Explicit initial consent for bounded productive working-capital proposals.
     pub financing: Option<financing::Terms>,
+    pub hiring: Option<crate::employment::recruitment::Mandate>,
     pub horizon: u32,
     pub peer_expectations: expectations::Policy,
     pub publication: publication::Policy,
@@ -119,6 +120,7 @@ pub struct ProjectedSale {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Projection {
+    pub conditional_labor: Vec<crate::employment::recruitment::Hypothesis>,
     /// Completed-month detail only when an exposure objective requests it.
     /// Terminal-only alternatives keep this empty to bound retained history.
     pub path: path::Path,
@@ -653,6 +655,7 @@ fn forecast(
             }
         }
         let projection = Projection {
+            conditional_labor: crate::employment::recruitment::hypotheses(&sim.world, &sim.ledger),
             completions: completions::observe(&sim.ledger, agent, s.month, end - 1),
             path,
             sales,

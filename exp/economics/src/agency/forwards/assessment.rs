@@ -10,6 +10,8 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Comparison {
+    pub baseline_labor: Vec<crate::employment::recruitment::Hypothesis>,
+    pub proposed_labor: Vec<crate::employment::recruitment::Hypothesis>,
     pub governor: AgentId,
     pub horizon: u32,
     pub baseline: Vec<i128>,
@@ -74,6 +76,14 @@ pub fn assess(w: &World, s: &State, proposal: &Proposal) -> Result<Assessment, S
         comparisons.insert(
             agent,
             Comparison {
+                baseline_labor: crate::employment::recruitment::hypotheses(
+                    &base.world,
+                    &base.ledger,
+                ),
+                proposed_labor: crate::employment::recruitment::hypotheses(
+                    &proposed.world,
+                    &proposed.ledger,
+                ),
                 governor,
                 horizon,
                 baseline: agency::objectives::measure_projection(

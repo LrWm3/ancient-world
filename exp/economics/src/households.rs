@@ -663,7 +663,7 @@ fn requests(world: &World, state: &State) -> Result<Vec<Request>, String> {
 
 /// Checked gather for the household sub-boundaries. Repeated incoming resources
 /// do not fund outgoing allocations in this same sub-boundary.
-fn apply(
+pub(crate) fn apply(
     world: &World,
     state: &mut State,
     effects: &[Effect],

@@ -190,6 +190,7 @@ pub struct World {
     pub prepaid_admission: crate::forward::direct::AdmissionPolicy,
     pub prepaid_deliveries: Vec<crate::forward::direct::Terms>,
     pub employment: Vec<crate::employment::Terms>,
+    pub recruitment: crate::employment::recruitment::Config,
     /// Catalog IDs offered for household acceptance each month, not preaccepted jobs.
     pub employment_offers: std::collections::BTreeSet<u32>,
     /// Optional worker protection for posted jobs; supplied consent remains the default.

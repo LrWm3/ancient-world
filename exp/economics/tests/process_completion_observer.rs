@@ -81,6 +81,7 @@ fn employment_transactions_are_included() {
     let mut b = batch();
     b.employment = Some(economics_compute_smoke::employment::Boundary {
         supply: vec![],
+        recruitment: vec![],
         after: Default::default(),
         receipts: vec![],
         transactions: vec![transaction(1, Status::Completed)],

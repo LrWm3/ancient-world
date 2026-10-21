@@ -103,6 +103,34 @@ pub(super) fn batch(
     if config.planning != PlanningDetail::Off
         && let Some(b) = &batch.employment
     {
+        for d in &b.recruitment {
+            let Some(t) = world.employment.iter().find(|t| t.id == d.agreement) else {
+                continue;
+            };
+            if !selected(config, d.worker) && !selected(config, t.employer) {
+                continue;
+            }
+            let mut row = json!({"kind":"voluntary_hiring","valuation":d.valuation,"month":d.month,"agreement":d.agreement,
+                "worker":d.worker,"employer":t.employer,"governor":d.governor,"hypothetical":d.hypothetical,
+                "peer_expectations":d.peer_expectations,"horizon":d.horizon,"ceiling":d.ceiling,"affordable":d.affordable,"employer_demand":d.requested,
+                "mutually_accepted":d.selected,"reason":d.reason,
+                "employer_objectives":d.employer_objectives.iter().map(|o|format!("{o:?}")).collect::<Vec<_>>(),
+                "worker_objectives":d.worker_objectives.iter().map(|o|format!("{o:?}")).collect::<Vec<_>>(),
+                "protected_duties":d.protected_duties.iter().map(|(a,v)|json!({"agent":a,"duties":format!("{v:?}")})).collect::<Vec<_>>(),
+                "baseline":d.baseline.as_ref().map(|p|format!("{p:?}"))});
+            if config.planning == PlanningDetail::Alternatives {
+                row["alternatives"] = json!(
+                    d.alternatives
+                        .iter()
+                        .map(|a| json!({"hours":a.hours,
+                    "employer_accepts":a.employer_accepts,"worker_accepts":a.worker_accepts,
+                    "projection":a.projection.as_ref().ok().map(|p|format!("{p:?}")),
+                    "failure":a.projection.as_ref().err()}))
+                        .collect::<Vec<_>>()
+                );
+            }
+            records.push(row);
+        }
         for d in &b.supply {
             let Some(t) = world.employment.iter().find(|t| t.id == d.agreement) else {
                 continue;

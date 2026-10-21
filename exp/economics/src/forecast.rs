@@ -19,6 +19,7 @@ impl ForecastContext {
             c.enabled = false;
         }
         crate::state_governance::preserve_history(&mut world, state);
+        world.recruitment.freeze();
         // Rollouts execute accepted history, not old explanations of alternatives.
         // Keep commands, catalogs, authority, dates and scalar scores intact.
         // Trimming this private copy prevents repeated phase clones from copying
