@@ -29,6 +29,11 @@ pub enum Metric {
         resource: ResourceId,
         target: i32,
     },
+    /// Remaining service units of owned live equipment, not money or promised output.
+    DurableReserve {
+        kind: u32,
+        target: u32,
+    },
     Debt(ResourceId),
     /// Same-denomination accepted claims lacking stock cover; forecasts are not assets.
     FundingGap {
@@ -51,6 +56,12 @@ pub fn validate(w: &World, objectives: &[Objective]) -> Result<(), String> {
             return Err("objective references unknown agent".into());
         }
         let resource = match o.metric {
+            Metric::DurableReserve { kind, .. } => {
+                if !w.activities.kinds.contains_key(&kind) {
+                    return Err("durable objective references unknown kind".into());
+                }
+                None
+            }
             Metric::ProcessShortfall { definition, .. } => {
                 if !w.definitions.iter().any(|d| d.id == definition) {
                     return Err("process objective references unknown definition".into());
@@ -195,6 +206,18 @@ pub fn measure(
                 | Metric::ReserveExposure { resource, target } => scope
                     .iter()
                     .map(|id| (i128::from(target) - i128::from(s.balance(*id, resource))).max(0))
+                    .sum(),
+                Metric::DurableReserve { kind, target } => scope
+                    .iter()
+                    .map(|id| {
+                        let condition: i128 = s
+                            .equipment
+                            .values()
+                            .filter(|a| a.owner == *id && a.kind == kind)
+                            .map(|a| i128::from(a.remaining_uses))
+                            .sum();
+                        (i128::from(target) - condition).max(0)
+                    })
                     .sum(),
                 Metric::Debt(resource) => s
                     .credit

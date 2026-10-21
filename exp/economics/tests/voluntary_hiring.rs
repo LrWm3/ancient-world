@@ -357,3 +357,139 @@ fn worker_reserves_reject_duplicates_nonstocks_and_negative_targets() {
         (10000..10009).map(|id| Amount::new(id, 1)).collect();
     assert!(Simulation::new(w, s, Backend::Reference).is_err());
 }
+
+#[test]
+fn paid_repair_uses_real_materials_and_labor_without_future_unsigned_jobs() {
+    use agency::objectives::{Metric, Objective, Scope};
+    use economics_compute_smoke::{
+        activities::{DurableKind, Outcome},
+        equipment::DurableAsset,
+    };
+    const REPAIR: u32 = 9009;
+    const ASSET: u32 = 9009;
+    const KIND: u32 = 9009;
+    for case in [
+        "repair",
+        "full",
+        "foreign",
+        "no_material",
+        "no_payroll",
+        "no_worker",
+    ] {
+        let (mut w, mut s) = fixture();
+        w.activities.orders.retain(|o| o.agent != ISSUER);
+        w.activities.orders.push(WorkOrder {
+            agent: ISSUER,
+            definition: REPAIR,
+            priority: 0,
+            target: Target::Maintain {
+                kind: KIND,
+                below: 1,
+            },
+        });
+        w.activities.kinds.insert(
+            KIND,
+            DurableKind {
+                name: "test machine".into(),
+                lifetime: 4,
+                attached: false,
+                monthly_decay: 0,
+            },
+        );
+        w.activities.outcomes.insert(
+            REPAIR,
+            Outcome::Repair {
+                kind: KIND,
+                restore: 4,
+            },
+        );
+        w.definitions.push(ProcessDefinition {
+            id: REPAIR,
+            name: "repair".into(),
+            execution: Execution::Productive,
+            enabled: true,
+            asset_kind: None,
+            stages: vec![Stage {
+                name: "repair".into(),
+                months: 1,
+                entry_inputs: vec![Amount::new(FIREWOOD, 1)],
+                monthly_services: vec![Amount::new(HOURS, 1)],
+            }],
+            outputs: vec![],
+        });
+        let policy = w.transaction_policy.as_mut().unwrap();
+        let kind = policy.agent_types[&ISSUER];
+        policy.permissions.insert((kind, Action::Process(REPAIR)));
+        let config = &mut w.agency.get_mut(&ISSUER).unwrap().config;
+        let goals = vec![Objective {
+            scope: Scope::Organization,
+            metric: Metric::DurableReserve {
+                kind: KIND,
+                target: 1,
+            },
+        }];
+        config.objectives = goals.clone();
+        for preferences in config.preferences.values_mut() {
+            *preferences = goals.clone();
+        }
+        s.equipment.insert(
+            ASSET,
+            DurableAsset {
+                id: ASSET,
+                kind: KIND,
+                owner: if case == "foreign" { WORKER } else { ISSUER },
+                remaining_uses: if case == "full" { 4 } else { 0 },
+                last_used_month: None,
+                attached_to: None,
+            },
+        );
+        s.balances.insert(
+            (ISSUER, FIREWOOD),
+            if case == "no_material" { 0 } else { 1 },
+        );
+        if case == "no_payroll" {
+            w.agency
+                .get_mut(&ISSUER)
+                .unwrap()
+                .config
+                .hiring
+                .as_mut()
+                .unwrap()
+                .payroll
+                .quantity = 0;
+        }
+        if case == "no_worker" {
+            w.recruitment.workers.clear();
+        }
+        let before = s.clone();
+        let mut sim = acquire(w, s);
+        let decisions = &sim
+            .ledger
+            .last()
+            .unwrap()
+            .employment
+            .as_ref()
+            .unwrap()
+            .recruitment;
+        assert!(
+            decisions
+                .iter()
+                .flat_map(|d| &d.alternatives)
+                .filter_map(|a| a.projection.as_ref().ok())
+                .all(|p| p.conditional_labor.is_empty())
+        );
+        sim.run_months(1).unwrap();
+        if case == "repair" {
+            assert_eq!(sim.state.equipment[&ASSET].remaining_uses, 4);
+            assert_eq!(sim.state.balance(ISSUER, FIREWOOD), 0);
+            assert_eq!(sim.state.employment.earned[&(1, 1)].claim.settled, 1);
+            assert_eq!(sim.state.equipment[&ASSET].last_used_month, Some(1));
+        } else {
+            assert_eq!(
+                sim.state.equipment[&ASSET], before.equipment[&ASSET],
+                "{case}"
+            );
+            assert!(sim.state.employment.earned.is_empty(), "{case}");
+        }
+    }
+}

@@ -1,10 +1,16 @@
-//! Candidate discovery from immutable institutional options and process recipes.
+//! Candidate discovery from institutional options, recipes and dated accepted work.
 use super::*;
 
 /// Enumeration supplies alternatives, never authority or promised production.
 /// Refuse an oversized catalog rather than silently favor its first entries.
 pub fn programs(w: &World, agent: AgentId) -> Result<BTreeMap<u32, Program>, String> {
-    programs_with_sales(w, agent, discovery_sales::opportunities(w, agent)?, false)
+    programs_with_sales(
+        w,
+        agent,
+        discovery_sales::opportunities(w, agent)?,
+        false,
+        &[],
+    )
 }
 
 pub fn programs_from_requests(
@@ -13,6 +19,21 @@ pub fn programs_from_requests(
     snapshot: &work_requests::Snapshot,
 ) -> Result<BTreeMap<u32, Program>, String> {
     snapshot.validate(w, agent, snapshot.month)?;
+    // Historical validation regenerates this catalogue: never read live orders.
+    // The latest accepted replacement effective at this opening is the authority
+    // for retained targets; unsigned founding orders are not inferred here.
+    let retained = w.agency[&agent]
+        .history
+        .iter()
+        .rev()
+        .filter(|d| d.effective_month <= snapshot.month)
+        .filter_map(|d| d.accepted.as_ref())
+        .flat_map(|p| p.commands.iter().rev())
+        .find_map(|c| match c {
+            Command::WorkTargets(orders) => Some(orders.as_slice()),
+            _ => None,
+        })
+        .unwrap_or(&[]);
     programs_with_sales(
         w,
         agent,
@@ -21,6 +42,7 @@ pub fn programs_from_requests(
             w.agency[&agent].config.work_requests,
             work_requests::Policy::RespondWithWorkQuotes | work_requests::Policy::Upstream
         ),
+        retained,
     )
 }
 
@@ -29,6 +51,7 @@ fn programs_with_sales(
     agent: AgentId,
     sales: Vec<discovery_sales::Opportunity>,
     bundle_starts: bool,
+    retained: &[WorkOrder],
 ) -> Result<BTreeMap<u32, Program>, String> {
     let mut commands = vec![];
     if let Some(g) = w.state_governance.as_ref().filter(|g| g.state == agent) {
@@ -164,6 +187,76 @@ fn programs_with_sales(
             }]));
         }
     }
+    // Offer exhaustion maintenance alongside useful work, including dated
+    // one-shot starts. Otherwise upstream discovery loses upkeep exactly when
+    // missing inputs or demand remove persistent stock-target alternatives.
+    let mut maintained = Vec::new();
+    for command in &commands {
+        let definitions: Vec<_> = match command {
+            Command::WorkTargets(orders) => orders.iter().map(|o| o.definition).collect(),
+            Command::StartProcess(id) => vec![*id],
+            _ => continue,
+        };
+        let kinds: BTreeSet<_> = definitions
+            .iter()
+            .filter_map(|id| w.activities.required.get(id).copied())
+            .collect();
+        for (&definition, outcome) in &w.activities.outcomes {
+            let crate::activities::Outcome::Repair { kind, .. } = outcome else {
+                continue;
+            };
+            if !kinds.contains(kind)
+                || definitions.contains(&definition)
+                || w.agency[&agent]
+                    .operating_agreement()
+                    .is_some_and(|a| !a.processes.contains(&definition))
+            {
+                continue;
+            }
+            let repair = WorkOrder {
+                agent,
+                definition,
+                priority: 0,
+                target: crate::activities::Target::Maintain {
+                    kind: *kind,
+                    below: 1,
+                },
+            };
+            let bundle = match command {
+                Command::WorkTargets(orders) => {
+                    let mut bundle = vec![repair];
+                    for order in orders {
+                        let mut order = order.clone();
+                        order.priority = order.priority.max(1);
+                        bundle.push(order);
+                    }
+                    vec![Command::WorkTargets(bundle)]
+                }
+                Command::StartProcess(id) => {
+                    // A new maintenance intention must not discard a previously
+                    // authorized recurring target for this same productive route.
+                    let existing = retained
+                        .iter()
+                        .find(|o| o.agent == agent && o.definition == *id);
+                    if let Some(order) = existing {
+                        let mut order = order.clone();
+                        order.priority = order.priority.max(1);
+                        vec![Command::WorkTargets(vec![repair, order])]
+                    } else {
+                        vec![
+                            Command::WorkTargets(vec![repair]),
+                            Command::StartProcess(*id),
+                        ]
+                    }
+                }
+                _ => unreachable!(),
+            };
+            maintained.push(bundle);
+            if maintained.len() > MAX_PROGRAMS {
+                return Err("discovered maintenance catalog exceeds bounded search".into());
+            }
+        }
+    }
     let mut portfolios = markets::discovery::portfolios(w, agent)?;
     // On equal improving forecasts, offer a bounded productive bundle before
     // work alone. Retaining existing policy still wins every equal-loss tie.
@@ -174,10 +267,10 @@ fn programs_with_sales(
         matches!(c, Command::WorkTargets(_))
             || (bundle_starts && matches!(c, Command::StartProcess(_)))
     };
-    let work_count = commands.iter().filter(bundle_work).count();
+    let work_count = commands.iter().filter(bundle_work).count() + maintained.len();
     let total = work_count
         .checked_mul(portfolios.len())
-        .and_then(|n| n.checked_add(commands.len()))
+        .and_then(|n| n.checked_add(commands.len() + maintained.len()))
         .and_then(|n| n.checked_add(portfolios.len()));
     if total.is_none_or(|n| n > MAX_PROGRAMS) {
         return Err("discovered program catalog exceeds bounded search".into());
@@ -187,8 +280,14 @@ fn programs_with_sales(
         for work in commands.iter().filter(bundle_work) {
             programs.push(vec![work.clone(), Command::PeerStockQuotes(quotes.clone())]);
         }
+        for work in &maintained {
+            let mut bundle = work.clone();
+            bundle.push(Command::PeerStockQuotes(quotes.clone()));
+            programs.push(bundle);
+        }
     }
     programs.extend(commands.into_iter().map(|c| vec![c]));
+    programs.extend(maintained);
     programs.extend(
         portfolios
             .into_iter()
