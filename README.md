@@ -2,6 +2,8 @@
 
 Ancient World is a toy world generator and a game-like experiment that implements basic world generation.
 
+Additionally, [exp/economics](./exp/economics) is a stand-alone experiment that attempts to explore what a generic economic civilization system might work like architecturally.
+
 Its not intended to be a realistic simulator, its just a hobby project for fun.
 
 ## Try it
