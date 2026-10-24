@@ -1,5 +1,10 @@
 # Economics integration and planning interfaces
 
+The [host boundary pilot](HOST-BOUNDARY.md) groups existing phases behind dated,
+atomic stage calls with externally capped personal endowments and audited monthly
+outcomes. It supports a fixed participant roster and in-memory continuation. It is
+not yet a main-engine adapter, shared-service allocator or serialized save format.
+
 The [skilled-workshop variant](SKILLED-WORKSHOP-ACCEPTANCE.md) binds organizational
 production to a named worker's actual employment hours. Completed work awards
 personal experience; qualification lowers later labor requirements and accepted

@@ -5,6 +5,12 @@ transaction-first settlement. The person–household loop and a configured nine-
 economy work end to end. The broader institutional roadmap remains partially
 integrated.
 
+The first [host boundary](HOST-BOUNDARY.md) adds a checked single-site driver and
+headless harness around the existing engine and financial book. Dated capacity
+limits, ordered stage calls and committed result receipts prepare a settlement
+integration. Main-world identity/unit mapping, ecological coupling and complete
+file-based checkpoints remain explicit replacement gates.
+
 The [skilled-workshop variant](SKILLED-WORKSHOP-ACCEPTANCE.md) binds organizational
 production to a named worker's actual employment hours. Completed work awards
 personal experience; qualification lowers later labor requirements and accepted

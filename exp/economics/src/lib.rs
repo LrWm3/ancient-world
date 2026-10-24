@@ -3,6 +3,7 @@ pub mod claim_relief;
 pub mod commitments;
 pub mod compute;
 pub mod equipment;
+pub mod host;
 pub mod maintenance;
 pub mod model;
 pub mod planning;

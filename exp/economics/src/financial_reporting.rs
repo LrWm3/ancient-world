@@ -594,6 +594,41 @@ impl Audit {
     pub fn book(&self) -> &Book {
         &self.book
     }
+    /// Check an attached engine against its existing book without reopening it.
+    /// This preserves historical costs and rejects a book from another boundary.
+    pub fn validate_boundary(&self, world: &World, state: &State) -> Result<(), String> {
+        if *state != self.boundary {
+            return Err("accounting checkpoint/boundary mismatch".into());
+        }
+        let expected = positions(
+            world,
+            state,
+            self.book.denomination(),
+            &self.asset_values,
+            &self.inventory,
+            self.processes.as_ref(),
+            self.dues.as_ref(),
+            self.services.as_ref(),
+            &self.exchange_values,
+        )?;
+        let reported: Positions = self
+            .book
+            .balances()
+            .iter()
+            .filter(|((_, a), value)| {
+                **value != 0
+                    && matches!(
+                        a.class(),
+                        accounting::Class::Asset | accounting::Class::Liability
+                    )
+            })
+            .map(|(key, value)| (key.clone(), *value))
+            .collect();
+        if reported != expected {
+            return Err("journal does not reconcile to authoritative positions".into());
+        }
+        Ok(())
+    }
     /// Founding creates identity and citizenship, not financial positions. Keep
     /// an existing audit at the accepted boundary without reopening its books.
     /// This is deliberately not a general-purpose checkpoint rebase.
