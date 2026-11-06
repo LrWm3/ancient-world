@@ -1,5 +1,9 @@
 # Main-engine labor receipts in a private economics replay
 
+The follow-up [liquid asset bootstrap](HOST-STOCK-IMPORT.md) can replace fixture
+stock/cash endowments through a separate API using the preceding completed month.
+The CLI described here continues to use its supplied fixture endowments.
+
 The optional `ancient-world-host` feature connects the experiment to the main
 crate's real `History`, `Participation`, person identities and commitment types.
 It maps already settled labor reservations into a private `host::Settlement` and
@@ -165,8 +169,9 @@ Verification on 2026-11-05:
 These are controlled fixtures using main-engine types and reservation methods,
 not a generated-world rollout or a balance comparison.
 
-This is a step toward real person/unit binding. Importing the source's economic
-stocks, cash, contracts and complete population remains outstanding. A live
+This is a step toward real person/unit binding. The separate bootstrap now imports
+liquid stocks and cash; contracts, other assets and complete population remain
+outstanding. A live
 replacement must collect competing requests and commit exclusive grants within
 the actual Reserve window, settle actual main-world use, and make host/engine
 failure publication joint. The prior Open-forecast visibility limitation still

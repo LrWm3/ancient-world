@@ -2,8 +2,9 @@
 
 The follow-up [main-engine labor replay](HOST-LABOR-REPLAY.md) now binds actual
 main-engine person IDs and settled work receipts to explicit experimental labor
-units. It is a read-only historical comparison; live allocation and economic
-state import remain outstanding.
+units. The [liquid asset bootstrap](HOST-STOCK-IMPORT.md) now imports town stock
+and local cash into a fresh replay; full economic-state migration and live
+allocation remain outstanding.
 
 This increment adds a checked, headless single-site driver around the existing
 simulation and financial audit. It is preparation for an Ancient World settlement

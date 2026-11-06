@@ -79,6 +79,19 @@ pub struct Controller {
     organization: Option<organization::Agreement>,
 }
 impl Controller {
+    /// Static signed operating terms may exist before the first live opening.
+    /// Reviews, accepted programs and a sealed live mandate belong to a running
+    /// economy and cannot be reused when bootstrapping from new balances.
+    pub fn is_unreviewed(&self) -> bool {
+        self.mandate.is_none()
+            && self.applied_through == 0
+            && self.history.is_empty()
+            && self.forward_reviews.is_empty()
+            && self.startup_forwards.is_empty()
+            && self.financed_programs.is_empty()
+            && self.financing_reviews.is_empty()
+    }
+
     pub fn operating_agreement(&self) -> Option<&organization::Agreement> {
         self.organization.as_ref()
     }

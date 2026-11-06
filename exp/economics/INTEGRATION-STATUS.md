@@ -1,5 +1,10 @@
 # Economics integration and planning interfaces
 
+The [liquid asset bootstrap](HOST-STOCK-IMPORT.md) imports completed-month town
+inventory and local cash into a fresh private economy for the following month.
+It preserves distinct town/household custody and opens audited carrying costs;
+full property/claims migration and live main-world publication remain outstanding.
+
 The optional [main-engine labor replay](HOST-LABOR-REPLAY.md) adds typed person
 bindings, activity-scoped grant conversion, shared commitment ceilings and a
 source-pinned multi-month runner. It replays settled allocations into a private

@@ -5,11 +5,15 @@ transaction-first settlement. The person–household loop and a configured nine-
 economy work end to end. The broader institutional roadmap remains partially
 integrated.
 
+The [liquid asset bootstrap](HOST-STOCK-IMPORT.md) can now start a private replay
+from real town stocks/cash and household wallets, with explicit units, custody and
+opening valuation. Full assets/claims migration and live allocation remain open.
+
 The optional [main-engine labor bridge](HOST-LABOR-REPLAY.md) consumes actual
 `History` participation receipts, binds named people to experimental participants,
 and converts finite work grants with explicit units and conservative rounding.
-Its headless replay keeps the source world read-only; live shared allocation,
-economic stock/cash import and full checkpoint recovery remain outstanding.
+Its headless replay keeps the source world read-only; live shared allocation and
+full checkpoint recovery remain outstanding.
 
 The first [host boundary](HOST-BOUNDARY.md) adds a checked single-site driver and
 headless harness around the existing engine and financial book. Dated capacity

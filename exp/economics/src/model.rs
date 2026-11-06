@@ -159,6 +159,34 @@ pub struct State {
     pub accepted_agreements: BTreeMap<u32, crate::commitments::Agreement>,
 }
 impl State {
+    /// A new local timeline with no endowed stocks, accepted contracts or history.
+    pub fn empty() -> Self {
+        Self {
+            demography: Default::default(),
+            employment: Default::default(),
+            town_market: Default::default(),
+            credit: Default::default(),
+            marketplaces: Default::default(),
+            memberships: Default::default(),
+            household_remainders: Default::default(),
+            exchange: Default::default(),
+            month: 1,
+            phase: Phase::Open,
+            next_batch: 0,
+            balances: Default::default(),
+            processes: Default::default(),
+            conditions: Default::default(),
+            terminal: Default::default(),
+            equipment: Default::default(),
+            retired_equipment: Default::default(),
+            practice: Default::default(),
+            filled_offers: Default::default(),
+            pending_production: None,
+            obligations: Default::default(),
+            accepted_agreements: Default::default(),
+        }
+    }
+
     pub fn balance(&self, owner: AgentId, resource: ResourceId) -> i32 {
         self.balances.get(&(owner, resource)).copied().unwrap_or(0)
     }
