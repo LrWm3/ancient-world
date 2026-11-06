@@ -249,6 +249,7 @@ fn lending_and_land_dues_share_reports_without_counting_principal_as_income() {
         id: 10,
         debtor: PERSON,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 5,

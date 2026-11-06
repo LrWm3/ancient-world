@@ -194,6 +194,7 @@ fn loans(support: bool, collective_due: bool) -> (World, State) {
             priority: id,
             collateral: None,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: 89,
                 denomination: TOKEN,
                 max_principal: 4,
@@ -205,6 +206,7 @@ fn loans(support: bool, collective_due: bool) -> (World, State) {
         s.credit.loans.insert(
             id,
             Loan {
+                repayment: Default::default(),
                 id,
                 creditor: 89,
                 debtor,

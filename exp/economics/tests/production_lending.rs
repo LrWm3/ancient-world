@@ -49,6 +49,7 @@ fn fixture(funded: bool) -> (World, State) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 12,

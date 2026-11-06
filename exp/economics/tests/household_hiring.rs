@@ -1520,6 +1520,7 @@ fn worker_supply_protects_accepted_loan_payments_in_their_own_denomination() {
             id: 70002,
             debtor: WORKER,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: 92,
                 denomination: GRAIN,
                 max_principal: 1,
@@ -1626,6 +1627,7 @@ fn worker_loan_losses_are_scoped_and_detect_worsening_existing_shortfalls() {
                 id,
                 debtor,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: PERSON,
                     denomination: GRAIN,
                     max_principal: principal,

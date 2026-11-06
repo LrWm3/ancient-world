@@ -49,6 +49,7 @@ fn fixture(funded: bool) -> (World, State) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: FUEL,
             max_principal: 4,
@@ -498,6 +499,7 @@ fn estate_cash_control_preserves_native_collection_and_household_membership() {
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: STATE_AGENT,
                 denomination: TOKEN,
                 max_principal: 4,

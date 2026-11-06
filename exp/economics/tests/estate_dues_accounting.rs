@@ -19,6 +19,7 @@ fn advance(id: u32, creditor: AgentId) -> Advance {
         id,
         debtor: PERSON,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor,
             denomination: TOKEN,
             max_principal: 10,

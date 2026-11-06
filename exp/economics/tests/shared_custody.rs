@@ -84,6 +84,7 @@ fn shared_custodian_preserves_each_estates_opening_cash_and_beneficial_owner() {
                     collateral: None,
                     priority: 0,
                     terms: LoanOffer {
+                        repayment: Default::default(),
                         creditor: STATE_AGENT,
                         denomination: TOKEN,
                         max_principal: 10,

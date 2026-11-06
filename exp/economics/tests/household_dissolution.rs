@@ -161,6 +161,7 @@ fn pledged_sales_and_unvalued_denominations_do_not_bypass_admission_or_accountin
         id: 77,
         debtor: HOME,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 2,
@@ -561,6 +562,7 @@ fn owned_assets_and_future_contracts_block_distribution() {
                 id: 77,
                 debtor: HOME,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: STATE_AGENT,
                     denomination: TOKEN,
                     max_principal: 2,

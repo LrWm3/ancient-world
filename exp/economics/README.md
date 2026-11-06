@@ -5,6 +5,11 @@ transaction-first settlement. The person–household loop and a configured nine-
 economy work end to end. The broader institutional roadmap remains partially
 integrated.
 
+The [accepted loan schedules](LOAN-REPAYMENT-SCHEDULES.md) now support monthly
+interest accrual with collection at maturity, alongside existing installments.
+A controlled fully funded case matches main-engine servicing; source credit
+migration still requires compatible cash limits, default/recovery and conversion.
+
 The [source claim inventory](HOST-CLAIM-INVENTORY.md) now prevents liquid import
 from silently omitting live debts, receivables or default history. Dated creditor
 assignments and household shares remain explicit source evidence.

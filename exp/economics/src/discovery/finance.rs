@@ -195,6 +195,7 @@ fn loans(w: &mut World, s: &State, c: &Config, rule: &FinanceRule) -> Result<(),
             collateral: None,
             priority: 0,
             terms: crate::credit::LoanOffer {
+                repayment: Default::default(),
                 creditor: lender,
                 denomination: rule.denomination,
                 max_principal: principal,

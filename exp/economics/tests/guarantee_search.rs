@@ -30,6 +30,7 @@ fn guaranteed_seed_credit_uses_common_productive_acceptance_and_survives_failed_
                 collateral: None,
                 priority: 0,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: STATE_AGENT,
                     denomination: SEED,
                     max_principal: 1,

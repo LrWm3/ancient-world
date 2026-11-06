@@ -18,6 +18,7 @@ fn path_uses_scheduled_loan_amounts_and_effective_delivery_claims() {
     s.credit.loans.insert(
         90,
         Loan {
+            repayment: Default::default(),
             id: 90,
             creditor: TOWN,
             debtor: WORKSHOP,

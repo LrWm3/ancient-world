@@ -520,6 +520,7 @@ fn package_does_not_novate_crop_work_or_pledged_components() {
             id: 77,
             debtor: HOME,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: STATE_AGENT,
                 denomination: TOKEN,
                 max_principal: 2,

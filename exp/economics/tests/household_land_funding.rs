@@ -304,6 +304,7 @@ fn preferred_coin_rent_shares_finite_currency_with_loans_before_native_fallback(
             priority,
             collateral: None,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: SELLER,
                 denomination: TOKEN,
                 max_principal: 4,

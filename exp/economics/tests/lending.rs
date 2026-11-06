@@ -20,6 +20,7 @@ fn advance(
         id,
         debtor,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor,
             denomination: resource,
             max_principal: principal,

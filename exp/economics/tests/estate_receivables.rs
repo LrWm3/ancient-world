@@ -76,6 +76,7 @@ fn fixture_for(principal: i32, term: u32, funded: bool, household: bool) -> Simu
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor,
             denomination: TOKEN,
             max_principal: principal,
@@ -390,6 +391,7 @@ fn earned_wage_receivables_wait_for_real_payment_but_post_closure_work_is_not_ba
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 2,
@@ -705,6 +707,7 @@ fn secured_assignment(guaranteed: bool, shared_custody: bool) {
                     collateral: None,
                     priority: 0,
                     terms: LoanOffer {
+                        repayment: Default::default(),
                         creditor,
                         denomination: TOKEN,
                         max_principal: 10,

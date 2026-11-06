@@ -66,6 +66,7 @@ fn fixture(household: bool, coins: i32) -> (World, State, AgentId) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 3,

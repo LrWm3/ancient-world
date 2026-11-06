@@ -2,7 +2,7 @@
 use crate::{credit, model::*};
 use std::collections::BTreeMap;
 
-/// Dated demand under timely future installments and the current legal state.
+/// Dated demand under the accepted repayment schedule and current legal state.
 /// This is not a funding prediction: no new loans, future guarantees, fixture
 /// cashflows, collateral realization or hypothetical lifting of stays is assumed.
 /// Each projected payment reduces only a private loan copy before next interest.
@@ -129,6 +129,10 @@ mod tests {
             audit.step(&mut sim).unwrap();
         }
         assert_eq!(sim.state.credit.loans[&101].principal, 4);
+        let mut changed = sim.state.clone();
+        changed.credit.loans.get_mut(&101).unwrap().repayment =
+            credit::RepaymentSchedule::AtMaturity;
+        assert!(Simulation::new(sim.world.clone(), changed, Backend::Reference).is_err());
         assert_eq!(sim.state.employment.earned[&(1, 1)].claim.outstanding(), 0);
         assert_eq!(
             credit::current_dues(&sim.world, &sim.state, ISSUER).unwrap()[&COIN],

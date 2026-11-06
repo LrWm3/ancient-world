@@ -344,6 +344,7 @@ fn credit_and_prepayment_reserve_one_opening_budget_and_receipts_cannot_be_forge
         priority: 0,
         collateral: None,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: BUYER,
             denomination: TOKEN,
             max_principal: 3,

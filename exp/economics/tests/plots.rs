@@ -279,6 +279,7 @@ fn shared_acquisition_expansion_sees_new_loans_but_not_rejected_applications() {
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: STATE_AGENT,
                 denomination: TOKEN,
                 max_principal: 1,

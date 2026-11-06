@@ -19,6 +19,7 @@ fn fixture(funded: bool) -> (World, State) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: SEED,
             max_principal: 1,
@@ -564,6 +565,7 @@ fn authorized_recovery_preserves_existing_farming_and_blocks_new_land_acceptance
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: STATE_AGENT,
                 denomination: TOKEN,
                 max_principal: 100,

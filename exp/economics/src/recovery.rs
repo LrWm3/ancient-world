@@ -668,6 +668,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
                 || loan.interest != 0
                 || loan.interest_remainder != 0
                 || loan.term_months != RECOURSE_TERM_MONTHS
+                || loan.repayment != crate::credit::RepaymentSchedule::Installments
                 || loan.grace_months != 0
                 || loan.priority != g.priority
                 || state
@@ -1292,6 +1293,7 @@ pub(crate) fn guarantees(
                 *advance = advance.checked_add(paid).ok_or("dated advance overflow")?;
                 let stayed = active(world, &out.after, debtor).is_some();
                 let recourse = out.after.loans.entry(g.recourse).or_insert_with(|| Loan {
+                    repayment: Default::default(),
                     id: g.recourse,
                     creditor: g.guarantor,
                     debtor,

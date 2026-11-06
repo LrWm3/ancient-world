@@ -74,6 +74,7 @@ fn fixture(household: bool, funded: bool, room: bool) -> (World, State, AgentId)
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor,
                 denomination,
                 max_principal: principal,

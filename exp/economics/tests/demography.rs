@@ -389,6 +389,7 @@ fn funded_loans_and_dependent_support_share_the_existing_accounting_and_executio
         id: 1,
         debtor: PERSON,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 4,

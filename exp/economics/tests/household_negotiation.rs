@@ -54,6 +54,7 @@ fn negotiated_member_purchases_pool_once_and_reserve_contributed_storage() {
                 collateral: None,
                 priority: 0,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: STATE_AGENT,
                     denomination: TOKEN,
                     max_principal: 10,

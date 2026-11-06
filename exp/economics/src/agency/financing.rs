@@ -200,6 +200,7 @@ pub fn candidates(w: &World, s: &State) -> Result<Vec<Proposal>, String> {
                             collateral: None,
                             priority: 0,
                             terms: credit::LoanOffer {
+                                repayment: Default::default(),
                                 creditor: lender,
                                 denomination: b.denomination,
                                 max_principal: principal,
@@ -594,6 +595,8 @@ pub(super) fn validate_history(w: &World, s: &State) -> Result<(), String> {
                 || terms.max_principal != p.advance.principal
                 || p.advance.collateral.is_some()
                 || p.advance.priority != 0
+                // This mandate currently consents to installment terms only.
+                || terms.repayment != credit::RepaymentSchedule::Installments
                 || [b, l].iter().any(|t| {
                     (
                         t.denomination,

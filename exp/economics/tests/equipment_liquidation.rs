@@ -50,6 +50,7 @@ fn fixture(household: bool, funded: bool, backend: Backend) -> (Simulation, Audi
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor,
                 denomination: TOKEN,
                 max_principal: 10,

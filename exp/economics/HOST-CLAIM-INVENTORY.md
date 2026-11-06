@@ -15,9 +15,10 @@ beneficial shares are retained as source evidence without duplicating town stock
 
 The main engine accrues simple interest monthly and starts ordinary collection
 at maturity. Its collection policy shares bounded opening cash among claims;
-grace/default and later recovery have their own records. The experiment currently
-uses a monthly installment schedule. Mapping a principal balance into that
-schedule would change when money becomes due. Calendar rebasing, rate precision,
+grace/default and later recovery have their own records. The experiment supports
+both monthly installments and opt-in [maturity collection](LOAN-REPAYMENT-SCHEDULES.md).
+Mapping a principal balance into the default installment schedule would still
+change when money becomes due. Calendar rebasing, rate precision,
 collection policy, default recovery and assignment timing all need explicit
 support before these contracts can execute faithfully in the experimental engine.
 

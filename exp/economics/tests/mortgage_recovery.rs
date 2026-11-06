@@ -486,6 +486,7 @@ fn posted_stock_buyer_under_recovery_cannot_trade_with_an_unstayed_seller() {
         collateral: None,
         priority: 0,
         terms: credit::LoanOffer {
+            repayment: Default::default(),
             creditor: BUYER,
             denomination: TOKEN,
             max_principal: 30,

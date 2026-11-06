@@ -77,6 +77,7 @@ fn fixture(buyer_lends: bool, funded: bool, delivery_month: u32) -> (World, Stat
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor,
             denomination: TOKEN,
             max_principal: 4,

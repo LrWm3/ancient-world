@@ -1,5 +1,10 @@
 # Economics integration and planning interfaces
 
+The [accepted loan schedules](LOAN-REPAYMENT-SCHEDULES.md) add opt-in maturity
+collection to the existing accrual, forecast, settlement and accounting path.
+Existing terms retain installments. Main-world debt import remains gated on
+collection policy, precision/calendar conversion and default/recovery support.
+
 The [source claim inventory](HOST-CLAIM-INVENTORY.md) validates native debt and
 ownership records before liquid import. Unsupported credit positions block the
 bootstrap; historical claim/share receipts do not create spendable balances.

@@ -129,6 +129,25 @@ fn publication_admission_activation_and_authority_are_separate() {
     let consent = comparisons.remove(&TOWN).unwrap();
     comparisons.insert(acceptance::WORKSHOP, consent);
     assert!(validate_world(&wrong_party, &sim.state).is_err());
+    // Matching published terms still cannot enlarge the mandate's consent.
+    let mut wrong_schedule = sim.world.clone();
+    wrong_schedule
+        .agency
+        .get_mut(&ISSUER)
+        .unwrap()
+        .financed_programs[0]
+        .proposal
+        .advance
+        .terms
+        .repayment = credit::RepaymentSchedule::AtMaturity;
+    wrong_schedule
+        .lending
+        .iter_mut()
+        .find(|a| a.id == advance.id)
+        .unwrap()
+        .terms
+        .repayment = credit::RepaymentSchedule::AtMaturity;
+    assert!(validate_world(&wrong_schedule, &sim.state).is_err());
     let mut wrong_officer = sim.world.clone();
     wrong_officer
         .agency

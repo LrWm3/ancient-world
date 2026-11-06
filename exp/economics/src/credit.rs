@@ -24,8 +24,19 @@ pub struct Sale {
     pub seller: AgentId,
     pub price: Amount,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RepaymentSchedule {
+    /// Existing cumulative principal installments; accrued interest is due monthly.
+    #[default]
+    Installments,
+    /// Accrue each month, then collect all remaining principal and interest at
+    /// opened + term_months. Existing enforcement/estate acceleration still applies.
+    AtMaturity,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoanOffer {
+    pub repayment: RepaymentSchedule,
     pub creditor: AgentId,
     pub denomination: ResourceId,
     pub max_principal: i32,
@@ -169,6 +180,8 @@ pub enum Status {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Loan {
+    /// Accepted contract terms, independent of later offer-catalog changes.
+    pub repayment: RepaymentSchedule,
     pub id: u32,
     pub creditor: AgentId,
     pub debtor: AgentId,
@@ -191,6 +204,7 @@ pub struct Loan {
 impl Loan {
     fn accepted(a: &Advance) -> Self {
         Self {
+            repayment: a.terms.repayment,
             id: a.id,
             creditor: a.terms.creditor,
             debtor: a.debtor,
@@ -220,11 +234,24 @@ impl Loan {
             return self.principal;
         }
         let elapsed = month.saturating_sub(self.opened).min(self.term_months);
+        if self.repayment == RepaymentSchedule::AtMaturity {
+            return if elapsed == self.term_months {
+                self.principal
+            } else {
+                0
+            };
+        }
         let scheduled =
             i64::from(self.original_principal) * i64::from(elapsed) / i64::from(self.term_months);
         (scheduled - i64::from(self.original_principal - self.principal)).max(0) as i32
     }
     pub fn due(&self, month: u32) -> Result<i32, String> {
+        if self.repayment == RepaymentSchedule::AtMaturity
+            && !matches!(self.status, Status::Enforced | Status::Stayed)
+            && month.saturating_sub(self.opened) < self.term_months
+        {
+            return Ok(0);
+        }
         self.principal_due(month)
             .checked_add(self.interest)
             .ok_or("payment overflow".into())
@@ -685,6 +712,7 @@ pub fn validate(world: &World, state: &State) -> Result<(), String> {
             || !(0..RATE_SCALE).contains(&l.interest_remainder)
             || l.term_months == 0
             || l.term_months > MAX_TERM_MONTHS
+            || l.opened.checked_add(l.term_months).is_none()
             || l.monthly_rate_bps > RATE_SCALE as u32
             || l.opened == 0
             || l.opened > state.month
@@ -1002,7 +1030,7 @@ fn accrue(loan: &mut Loan, month: u32) -> Result<i32, String> {
 
 /// Preview the current collectible claim without mutating the loan book. At Open
 /// or before Due collection this includes this month's accrual; after Due it does
-/// not accrue twice. Future installments and stayed claims are not spendable dues.
+/// not accrue twice. Future payments and stayed claims are not spendable dues.
 pub(crate) fn current_claim(
     world: &World,
     state: &State,
@@ -1024,6 +1052,8 @@ pub(crate) fn current_claim(
     if loan.status == Status::Active && loan.last_accrued < state.month {
         accrue(&mut loan, state.month)?;
     }
+    // Keep a zero due claim before maturity: execution and projection still
+    // need to advance monthly interest on the accepted loan exactly once.
     let mut claim = loan.claim(state.month)?;
     // A later guarantee call may extend an older recourse loan. Its new
     // principal becomes collectible next month, just like the initial advance.
@@ -1525,6 +1555,7 @@ pub fn scenario(case: &str) -> Result<(World, State), String> {
                 price: Amount::new(TOKEN, PRICE_TICKS),
             },
             loan: LoanOffer {
+                repayment: Default::default(),
                 creditor: STATE_AGENT,
                 denomination: TOKEN,
                 max_principal: PRICE_TICKS - DOWNPAYMENT_TICKS,

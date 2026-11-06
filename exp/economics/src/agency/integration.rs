@@ -213,6 +213,7 @@ pub fn scenario() -> Result<(World, State), String> {
         collateral: None,
         priority: 0,
         terms: credit::LoanOffer {
+            repayment: Default::default(),
             creditor: SUPPLIER,
             denomination: COIN,
             max_principal: STATE_LOAN,

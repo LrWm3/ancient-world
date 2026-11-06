@@ -427,6 +427,7 @@ fn own_loan_and_wage_funding_share_units_but_keep_their_collection_boundaries() 
         priority: 0,
         collateral: None,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: LENDER,
             denomination: TOKEN,
             max_principal: 6,

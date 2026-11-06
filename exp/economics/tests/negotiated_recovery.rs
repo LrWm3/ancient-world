@@ -59,6 +59,7 @@ fn negotiated_markets_respect_buyer_and_seller_stays_and_reopen_after_closure() 
                 collateral: None,
                 priority: 0,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: STATE_AGENT,
                     denomination: TOKEN,
                     max_principal: 4,

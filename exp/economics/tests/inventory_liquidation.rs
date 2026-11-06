@@ -49,6 +49,7 @@ fn fixture(funded: bool, room: i32) -> (World, State) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 10,
@@ -437,6 +438,7 @@ fn later_commodity_advances_share_inventory_sale_storage_without_reusing_receipt
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: UNFUNDED,
                 denomination: GRAIN,
                 max_principal: 1,
@@ -454,6 +456,7 @@ fn later_commodity_advances_share_inventory_sale_storage_without_reusing_receipt
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: BUYER,
                 denomination: GRAIN,
                 max_principal: 1,
@@ -509,6 +512,7 @@ fn fractional_member_purchases_and_later_household_loans_share_pooled_space() {
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: UNFUNDED,
                 denomination: GRAIN,
                 max_principal: 1,
@@ -1324,6 +1328,7 @@ fn earlier_native_advance_releases_storage_for_later_stock_purchase_without_recy
                 collateral: None,
                 priority: 0,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: BUYER,
                     denomination: GRAIN,
                     max_principal: 2,

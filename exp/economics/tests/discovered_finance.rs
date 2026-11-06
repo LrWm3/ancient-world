@@ -419,6 +419,7 @@ fn discovered_loans_respect_unused_purchase_offer_identities() {
                     price: Amount::new(COIN, 10),
                 },
                 loan: credit::LoanOffer {
+                    repayment: Default::default(),
                     creditor: ISSUER,
                     denomination: COIN,
                     max_principal: 9,

@@ -191,6 +191,7 @@ fn wages_and_loans_share_custody_by_explicit_priority_and_proportion() {
             id: 20,
             debtor: ISSUER,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: VENUE,
                 denomination: COIN,
                 max_principal: 4,

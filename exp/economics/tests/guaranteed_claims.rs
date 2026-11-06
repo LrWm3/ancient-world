@@ -717,6 +717,7 @@ fn household_mixed_guarantees(alternative: bool) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: LENDER,
             denomination: TOKEN,
             max_principal: 4,
@@ -2644,6 +2645,7 @@ fn acyclic_guarantees_of_recourse_wait_for_dated_exposure_and_share_opening_fund
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: FUNDER,
             denomination: COIN,
             max_principal: 2,
@@ -2948,6 +2950,7 @@ fn renewed_recourse(household: bool) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: WORKER,
             denomination: COIN,
             max_principal: 1,

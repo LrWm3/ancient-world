@@ -31,6 +31,7 @@ fn fixture() -> (World, State) {
         id: 10,
         debtor: ISSUER,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: SUPPLIER,
             denomination: COIN,
             max_principal: 6,
@@ -1005,6 +1006,7 @@ fn estate_purchase_and_mint_trade_share_fractional_household_storage() {
             collateral: None,
             priority: 0,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor: ISSUER,
                 denomination: COIN,
                 max_principal: 10,

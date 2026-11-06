@@ -345,6 +345,7 @@ fn lend(w: &mut World, debtor: AgentId, creditor: AgentId, principal: i32) {
         priority: 0,
         collateral: None,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor,
             denomination: TOKEN,
             max_principal: principal,

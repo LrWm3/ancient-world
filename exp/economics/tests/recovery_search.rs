@@ -83,6 +83,7 @@ fn productive_claim(price: Option<i32>, household: bool) {
                 collateral: None,
                 priority: 0,
                 terms: LoanOffer {
+                    repayment: Default::default(),
                     creditor: STATE_AGENT,
                     denomination: TOKEN,
                     max_principal: 100,

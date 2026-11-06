@@ -57,6 +57,7 @@ fn fixture() -> (World, State) {
             id,
             debtor: HOME,
             terms: LoanOffer {
+                repayment: Default::default(),
                 creditor,
                 denomination: TOKEN,
                 max_principal: 10,

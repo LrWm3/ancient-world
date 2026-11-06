@@ -28,6 +28,7 @@ fn fixture(extra: i32) -> (World, State, Opening) {
         collateral: None,
         priority: 0,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: GRAIN,
             max_principal: 4,

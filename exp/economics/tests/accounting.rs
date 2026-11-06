@@ -24,6 +24,7 @@ fn fixture() -> (World, State) {
         id: 10,
         debtor: PERSON,
         terms: LoanOffer {
+            repayment: Default::default(),
             creditor: STATE_AGENT,
             denomination: TOKEN,
             max_principal: 10,
