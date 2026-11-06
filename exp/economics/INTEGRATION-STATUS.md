@@ -1,5 +1,10 @@
 # Economics integration and planning interfaces
 
+The optional [main-engine labor replay](HOST-LABOR-REPLAY.md) adds typed person
+bindings, activity-scoped grant conversion, shared commitment ceilings and a
+source-pinned multi-month runner. It replays settled allocations into a private
+economy; no main-world labor, cash or stocks are spent again.
+
 The [host boundary pilot](HOST-BOUNDARY.md) groups existing phases behind dated,
 atomic stage calls with externally capped personal endowments and audited monthly
 outcomes. It supports a fixed participant roster and in-memory continuation. It is

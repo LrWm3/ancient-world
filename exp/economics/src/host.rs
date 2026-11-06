@@ -8,6 +8,9 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(feature = "ancient-world-host")]
+pub mod ancient_world;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Boundary {
     pub site: u32,

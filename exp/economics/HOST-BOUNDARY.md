@@ -1,5 +1,10 @@
 # First boundary for embedding the economics engine
 
+The follow-up [main-engine labor replay](HOST-LABOR-REPLAY.md) now binds actual
+main-engine person IDs and settled work receipts to explicit experimental labor
+units. It is a read-only historical comparison; live allocation and economic
+state import remain outstanding.
+
 This increment adds a checked, headless single-site driver around the existing
 simulation and financial audit. It is preparation for an Ancient World settlement
 pilot. It does **not** yet import a real settlement, replace the main economy,
