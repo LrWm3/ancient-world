@@ -1,5 +1,9 @@
 # Economics integration and planning interfaces
 
+The [source claim inventory](HOST-CLAIM-INVENTORY.md) validates native debt and
+ownership records before liquid import. Unsupported credit positions block the
+bootstrap; historical claim/share receipts do not create spendable balances.
+
 The [liquid asset bootstrap](HOST-STOCK-IMPORT.md) imports completed-month town
 inventory and local cash into a fresh private economy for the following month.
 It preserves distinct town/household custody and opens audited carrying costs;

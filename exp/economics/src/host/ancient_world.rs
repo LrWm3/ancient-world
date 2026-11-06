@@ -10,6 +10,7 @@ use ::ancient_world::{
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod claims;
 pub mod stocks;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

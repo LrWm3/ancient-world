@@ -19,4 +19,8 @@ ancient-world = { path = "../..", optional = true }
 name = "host_labor_replay"
 required-features = ["ancient-world-host"]
 
+[[example]]
+name = "host_claim_inventory"
+required-features = ["ancient-world-host"]
+
 [workspace]

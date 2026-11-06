@@ -1,5 +1,9 @@
 # Starting a private replay from main-world liquid assets
 
+The [claim inventory and admission check](HOST-CLAIM-INVENTORY.md) now rejects
+imports that would omit live debts/receivables or default history belonging to the
+selected accounts. Successful receipts also retain source household-share evidence.
+
 The optional `ancient-world-host` feature now provides
 `host::ancient_world::stocks::StockBindings::start`. It creates a new experimental
 economy using a completed main-engine settlement's physical inventory, town cash
@@ -155,7 +159,9 @@ cargo +1.92.0 fmt --check
 
 The importer excludes land, installed equipment, crops/herds, clothing, cargo,
 escrow, council/institution/operator treasuries, beneficial-share claims, receivables
-and debts. It does not assert that the imported assets are unencumbered or that
+and debts. Relevant live credit claims/default history now block bootstrap; other
+excluded property and contractual rights remain outside this check. It does not
+assert that the imported assets are unencumbered or that
 opening equity equals main-world net worth. It requires explicit household wallets;
 legacy aggregate economies need a separate conversion. The existing fixed-person,
 source-lineage and forecast-visibility limitations still apply. No generated-world

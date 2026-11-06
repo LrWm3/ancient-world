@@ -5,6 +5,10 @@ transaction-first settlement. The person–household loop and a configured nine-
 economy work end to end. The broader institutional roadmap remains partially
 integrated.
 
+The [source claim inventory](HOST-CLAIM-INVENTORY.md) now prevents liquid import
+from silently omitting live debts, receivables or default history. Dated creditor
+assignments and household shares remain explicit source evidence.
+
 The [liquid asset bootstrap](HOST-STOCK-IMPORT.md) can now start a private replay
 from real town stocks/cash and household wallets, with explicit units, custody and
 opening valuation. Full assets/claims migration and live allocation remain open.

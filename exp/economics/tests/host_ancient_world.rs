@@ -522,6 +522,9 @@ fn source_identity_is_pinned_and_non_working_ages_cannot_supply_positive_grants(
 
 const WALLET_AGENT: AgentId = 700;
 
+#[path = "host_ancient_world/claims.rs"]
+mod claim_tests;
+
 fn stock_history(month: u32, food: f32) -> History {
     use ancient_world::{
         economy::EconomyCatalog,

@@ -70,6 +70,8 @@ pub struct StockReceipt {
     pub completed_boundary: Boundary,
     pub first_replay_boundary: Boundary,
     pub balances: Vec<ImportedBalance>,
+    /// Source evidence only; this does not install claims into engine accounting.
+    pub claims: super::claims::ClaimInventory,
 }
 
 fn convert(quantity: f64, scale: u32) -> Result<(i32, f64), String> {
@@ -283,6 +285,8 @@ impl StockBindings {
             });
         }
         balances.sort_by_key(|b| (b.agent, b.resource));
+        let claims = self.inspect_claims(completed)?;
+        claims.require_liquid_only()?;
         let mut state = State::empty();
         let mut costs = BTreeMap::new();
         for b in &balances {
@@ -317,6 +321,7 @@ impl StockBindings {
                 },
                 first_replay_boundary,
                 balances,
+                claims,
             },
         ))
     }
